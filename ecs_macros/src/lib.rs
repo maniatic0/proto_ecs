@@ -13,11 +13,6 @@ static COMPONENT_COUNT : AtomicU32 = AtomicU32::new(0);
 /// 
 /// struct MyDataGroup
 /// { ... }
-/// 
-/// #\[derive(InitParams)]
-/// 
-/// struct MyInitParams
-/// { ... }
 #[proc_macro_attribute]
 pub fn datagroup(attr : proc_macro::TokenStream, item : proc_macro::TokenStream) -> proc_macro::TokenStream
 {
@@ -78,6 +73,12 @@ pub fn datagroup(attr : proc_macro::TokenStream, item : proc_macro::TokenStream)
     return item_copy;
 }
 
+/// Make this struct usable as InitParams for a datagroup.
+/// 
+/// #\[derive(InitParams)]
+/// 
+/// struct MyInitParams
+/// { ... }
 #[proc_macro_derive(DataGroupInitParamsDyn)]
 pub fn derive_datagroup_params(item : proc_macro::TokenStream) -> proc_macro::TokenStream
 {
