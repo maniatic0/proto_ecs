@@ -1,6 +1,8 @@
 use std::any::Any;
 use crc32fast;
 pub use ecs_macros::{datagroup, DataGroupInitParamsDyn};
+use lazy_static::lazy_static;
+use std::sync::Mutex;
 pub use u32 as DataGroupId;
 
 /// Params used during initialization of Data Groups (Dynamic Trait Version)
@@ -103,10 +105,42 @@ impl DataGroupRegistry
         self.entries.push(entry);
     }
 
-    pub  fn load_registered_datagroups() -> DataGroupRegistry
+    pub fn load_registered_datagroups() -> DataGroupRegistry
     {
         unimplemented!("Function not yet implemented");
     }
+
+    pub fn get_global_registry() -> &'static Mutex<DataGroupRegistry>
+    {
+        return &GLOBAL_REGISTRY;
+    }
+}
+
+lazy_static!{
+    /// This registry holds entries for all datagroups registered in this application
+    pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
+}
+
+#[macro_export]
+macro_rules! register_component {
+    ($i:ident) => {
+        const _ : () = {
+            #[ctor::ctor]
+            fn __register_component__()
+            {
+                $crate::data_group::GLOBAL_REGISTRY.lock().as_mut().and_then(|registry| {
+                    registry.add(
+                        $crate::data_group::DataGroupRegistryEntry { 
+                            name: <$i as $crate::data_group::DataGroupDesc>::get_name(), 
+                            name_crc: <$i as $crate::data_group::DataGroupDesc>::get_name_crc(), 
+                            factory_func: <$i as $crate::data_group::DataGroup>::factory 
+                        });
+
+                    return Ok(());
+                }).expect("Could not get lock to register a new component");
+            }
+        };
+    };
 }
 
 // Implement into iter so you can iterate over the registry entries:
