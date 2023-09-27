@@ -144,18 +144,22 @@ macro_rules! register_datagroup {
         // only ctor will ever see
         const _ : () = {
             #[ctor::ctor]
-            fn __register_component__()
+            fn __register_datagroup__()
             {
-                $crate::data_group::GLOBAL_REGISTRY.lock().as_mut().and_then(|registry| {
-                    registry.add(
-                        $crate::data_group::DataGroupRegistryEntry { 
-                            name: <$i as $crate::data_group::DataGroupDesc>::get_name(), 
-                            name_crc: <$i as $crate::data_group::DataGroupDesc>::get_name_crc(), 
-                            factory_func: <$i as $crate::data_group::DataGroup>::factory 
-                        });
+                $crate::data_group::GLOBAL_REGISTRY
+                    .lock()
+                    .as_mut()
+                    .and_then(|registry| {
 
-                    return Ok(());
-                }).expect("Could not get lock to register a new component");
+                        registry.add(
+                            $crate::data_group::DataGroupRegistryEntry { 
+                                name: <$i as $crate::data_group::DataGroupDesc>::get_name(), 
+                                name_crc: <$i as $crate::data_group::DataGroupDesc>::get_name_crc(), 
+                                factory_func: <$i as $crate::data_group::DataGroup>::factory 
+                            });
+
+                        return Ok(());
+                    }).expect("Could not get lock to register a new component");
             }
         };
     };
