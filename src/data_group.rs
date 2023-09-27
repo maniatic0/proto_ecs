@@ -76,6 +76,9 @@ pub trait DataGroup: DataGroupDesc + DataGroupDyn + Default {
 /// Factory function to create default Data Groups
 pub type DataGroupFactory = fn() -> Box<dyn DataGroupDyn>;
 
+/// Entry for the datagroup Registry
+/// 
+/// Specifies the data describing a specific datagroup
 #[derive(Debug)]
 pub struct DataGroupRegistryEntry {
     pub name: &'static str,
@@ -83,6 +86,10 @@ pub struct DataGroupRegistryEntry {
     pub factory_func: DataGroupFactory,
 }
 
+/// Datagroup Registry used to store and manage datagroups
+/// 
+/// There should be just one instance of this registry in the entire application, 
+/// accessible through a static method
 #[derive(Debug)]
 pub struct DataGroupRegistry {
     entries: Vec<DataGroupRegistryEntry>,
@@ -90,16 +97,19 @@ pub struct DataGroupRegistry {
 
 impl DataGroupRegistry
 {
+    /// Create a new empty registry
     pub fn new() -> DataGroupRegistry
     {
         DataGroupRegistry { entries: vec![] }
     }
 
+    /// Create a registry from a list of entries
     pub fn from_entries(entries : Vec<DataGroupRegistryEntry>) -> DataGroupRegistry
     {
         DataGroupRegistry{entries}
     }
 
+    ///  Add a new entry to the registry
     pub fn add(&mut self, entry : DataGroupRegistryEntry)
     {
         self.entries.push(entry);
@@ -110,6 +120,10 @@ impl DataGroupRegistry
         unimplemented!("Function not yet implemented");
     }
 
+    /// Get the global registry.
+    /// 
+    /// This is the registry used by default to gather all structs registered
+    /// with the register_datagroup! macro
     pub fn get_global_registry() -> &'static Mutex<DataGroupRegistry>
     {
         return &GLOBAL_REGISTRY;
@@ -121,9 +135,13 @@ lazy_static!{
     pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
 }
 
+/// Register a datagroup to the global registry.
 #[macro_export]
-macro_rules! register_component {
+macro_rules! register_datagroup {
     ($i:ident) => {
+
+        // This const _ : () = {...} trick allows you to define unreachable functions that
+        // only ctor will ever see
         const _ : () = {
             #[ctor::ctor]
             fn __register_component__()

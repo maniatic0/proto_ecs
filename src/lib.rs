@@ -1,6 +1,7 @@
 mod data_group;
 mod entity;
 mod systems;
+mod core;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
@@ -131,7 +132,7 @@ mod tests {
         pub struct AnimationDataGroup
         { }
     
-        crate::register_component!(AnimationDataGroup);
+        crate::register_datagroup!(AnimationDataGroup);
 
         impl data_group::DataGroup for AnimationDataGroup
         {
@@ -154,13 +155,13 @@ mod tests {
     }
     mod mesh
     {
-        use crate::{data_group, register_component};
+        use crate::{data_group, register_datagroup};
         #[derive(Default)]
         #[data_group::datagroup]
         pub struct MeshDataGroup
         { }
 
-        register_component!(MeshDataGroup);
+        register_datagroup!(MeshDataGroup);
 
         #[derive(data_group::DataGroupInitParamsDyn)]
         pub struct MeshInitParams
