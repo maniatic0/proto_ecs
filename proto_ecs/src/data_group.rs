@@ -110,7 +110,7 @@ impl DataGroupRegistry
     }
 
     ///  Add a new entry to the registry
-    pub fn add(&mut self, entry : DataGroupRegistryEntry)
+    pub fn register(&mut self, entry : DataGroupRegistryEntry)
     {
         self.entries.push(entry);
     }
@@ -151,7 +151,7 @@ macro_rules! register_datagroup {
                     .as_mut()
                     .and_then(|registry| {
 
-                        registry.add(
+                        registry.register(
                             $crate::data_group::DataGroupRegistryEntry { 
                                 name: <$i as $crate::data_group::DataGroupDesc>::get_name(), 
                                 name_crc: <$i as $crate::data_group::DataGroupDesc>::get_name_crc(), 

@@ -193,3 +193,7 @@ pub fn test_datagroup_loading()
         return Ok(());
     }).expect("Should not fail");
 }
+
+
+// -- < Testing version 2 of the datagroups API > ---------------------------
+
