@@ -1,9 +1,11 @@
 use proc_macro;
-use quote::quote;
+use quote::{quote, ToTokens};
 use std::sync::atomic::{AtomicU32, Ordering};
-use syn::DeriveInput;
+use syn::{DeriveInput, parse_macro_input};
 
-static COMPONENT_COUNT : AtomicU32 = AtomicU32::new(0);
+
+// -- < Datagroups > -----------------------------------
+static DATAGROUP_COUNT : AtomicU32 = AtomicU32::new(0);
 
 /// Declare a struct as a datagroup. 
 /// 
@@ -22,7 +24,7 @@ pub fn datagroup(attr : proc_macro::TokenStream, item : proc_macro::TokenStream)
     // Parsing name and creating crc
     let item_copy = item.clone();
     let DeriveInput{ident, ..} = syn::parse_macro_input!(item_copy);
-    let component_id = COMPONENT_COUNT.fetch_add(1, Ordering::Relaxed);
+    let component_id = DATAGROUP_COUNT.fetch_add(1, Ordering::Relaxed);
 
     // Extend item with the required trait implementations
     let trait_impls = quote!{
@@ -93,3 +95,37 @@ pub fn derive_datagroup_params(item : proc_macro::TokenStream) -> proc_macro::To
         }
     }.into();
 }
+
+
+// -- < Entities > ---------------------------------------------------
+
+static ENTITY_CLASS_COUNT : AtomicU32 = AtomicU32::new(0);
+
+#[proc_macro_attribute]
+pub fn entity(attr : proc_macro::TokenStream, item : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    assert!(attr.is_empty());
+    let mut item_copy = item.clone();
+    let DeriveInput {ident, ..} = parse_macro_input!(item);
+    let next_id = ENTITY_CLASS_COUNT.fetch_add(1, Ordering::Relaxed);
+    let trait_impls = quote!{
+        impl EntityDesc for #ident
+        {
+            fn get_class_id() -> EntityClassID
+            {
+                #next_id
+            }
+
+            fn get_class_name() -> &'static str
+            {
+                std::any::type_name::<#ident>()
+            }
+        }
+
+
+    };
+
+    item_copy.extend::<proc_macro::TokenStream>(trait_impls.into());
+    return  item_copy;
+}
+
