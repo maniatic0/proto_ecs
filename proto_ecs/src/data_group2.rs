@@ -22,6 +22,8 @@ pub trait DataGroupInitParams
     fn as_any(&self) -> &dyn Any;
 }
 
+/// This trait it's a little hack to get the id from any dyn DataGroup instance.
+/// Don't implement directly from this, it will be implemented by the register_datagroup macro
 pub trait DataGroupMeta 
 {
     fn get_id(&self) -> DataGroupID;
