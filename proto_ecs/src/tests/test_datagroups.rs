@@ -65,7 +65,7 @@ impl DataGroupDyn for ExampleHealthDataGroup
     }
 }
 
-impl data_group::DataGroup for ExampleHealthDataGroup
+impl proto_ecs::data_group::DataGroup for ExampleHealthDataGroup
 {
     type InitParams = ExampleHealthDataGroupInitParams;
 
@@ -197,3 +197,65 @@ pub fn test_datagroup_loading()
 
 // -- < Testing version 2 of the datagroups API > ---------------------------
 
+#[cfg(test)]
+mod animation_data_group2
+{
+    use proto_ecs::data_group2::*;
+
+    use crate::get_id;
+
+    // -- first example datagroup
+    pub struct AnimationDataGroup
+    { }
+
+    impl DataGroup for AnimationDataGroup
+    {
+        fn init_data(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
+        {
+            
+        }
+    }
+
+    fn animation_factory() -> Box<dyn DataGroup>
+    {
+        return Box::new(AnimationDataGroup{});
+    }
+
+    register_datagroup_v2!(AnimationDataGroup, animation_factory);
+
+    // -- Second example datagroup
+
+    pub struct MeshDataGroup
+    { }
+
+    impl DataGroup for MeshDataGroup
+    {
+        fn init_data(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
+        {
+            
+        }
+    }
+
+    fn mesh_factory() -> Box<dyn DataGroup>
+    {
+        return Box::new(MeshDataGroup{});
+    }
+
+    register_datagroup_v2!(MeshDataGroup, animation_factory);
+
+    #[test]
+    fn test_datagroup_registration()
+    {
+        let global_registry = DataGroupRegistry::get_global_registry();
+        let anim_id  = get_id!(AnimationDataGroup);
+        let mesh_id  = get_id!(MeshDataGroup);
+
+        let registry = global_registry.lock().unwrap();
+
+        let anim_entry = registry.get_entry_of(anim_id);
+        let mesh_entry = registry.get_entry_of(mesh_id);
+
+        assert_eq!(anim_entry.id, anim_id);
+        assert_eq!(mesh_entry.id, mesh_id);
+    }
+}

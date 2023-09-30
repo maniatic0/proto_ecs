@@ -12,8 +12,9 @@
 use std::any::Any;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
+pub use ecs_macros::register_datagroup_v2;
 
-pub type DatagroupID = u32;
+pub type DataGroupID = u32;
 
 /// This wrapper is the system required part of the datagroup. The user defined and 
 /// implemented part is unknown at compile time, so we store a pointer to the 
@@ -39,21 +40,23 @@ pub trait DataGroupInitParams
 /// 
 /// Example usage 
 /// 
-/// ```rust
+/// ```
+/// use proto_ecs::data_group2::{DataGroup, register_datagroup_v2, DataGroupInitParams};
 /// pub struct MyDatagroup {
-///     ...
+///     
 /// }
 /// 
 /// impl DataGroup for MyDatagroup {
-///     Explicit implementation of Datagroup
+///     fn init_data(&mut self, init_data : Box<dyn DataGroupInitParams>)
+///     { }
 /// }
 /// 
 /// pub fn factory() -> Box<dyn DataGroup>
 /// {
-///     return Box::from(MyDatagroup::new())
+///     return Box::from(MyDatagroup{})
 /// }
 /// 
-/// register_datagroup!(MyDatagroup, factory)
+/// //register_datagroup_v2!(MyDatagroup, factory)
 /// ```
 pub trait DataGroup 
 {
@@ -72,6 +75,12 @@ pub struct DataGroupRegistryEntry
     pub name: &'static str,
     pub name_crc: u32,
     pub factory_func: DataGroupFactory,
+    pub id: DataGroupID
+}
+
+lazy_static!{
+    /// This registry holds entries for all datagroups registered in this application
+    pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
 }
 
 /// Datagroup Registry used to store and manage datagroups
@@ -117,9 +126,47 @@ impl DataGroupRegistry
     {
         return &GLOBAL_REGISTRY;
     }
+
+    pub fn get_entry_of(&self, id : DataGroupID) -> &DataGroupRegistryEntry
+    {
+        // TODO we have to optimize search. Since IDs are sequential, we can just sort them and 
+        // TODO use direct indexing 
+        self.entries
+            .iter()
+            .find(
+                    |entry| 
+                    {entry.id == id}
+                )
+            .expect("Invalid id")
+    }
+
 }
 
-lazy_static!{
-    /// This registry holds entries for all datagroups registered in this application
-    pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
+
+/// This trait represents compile time metadata about datagroups. Is implemented
+/// by the registry per datagroup. It's implemented automagically with the 
+/// register_datagroup macro
+pub trait DataGroupMetadataLocator<T : DataGroup>
+{
+    fn get_id() -> DataGroupID;
+}
+
+#[macro_export]
+macro_rules! get_id {
+    ($i:ident) => {
+        <proto_ecs::data_group2::DataGroupRegistry as proto_ecs::data_group2::DataGroupMetadataLocator<$i>>::get_id()
+    };
+}
+
+// Implement into iter so you can iterate over the registry entries:
+// for entry in &entries
+// { ... }
+impl<'a> IntoIterator for &'a DataGroupRegistry
+{
+    type Item = &'a DataGroupRegistryEntry;
+    type IntoIter = std::slice::Iter<'a, DataGroupRegistryEntry>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        return self.entries.iter();
+    }
 }

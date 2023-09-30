@@ -1,8 +1,9 @@
 use proc_macro;
 use quote::{quote, ToTokens};
 use std::sync::atomic::{AtomicU32, Ordering};
-use syn::{DeriveInput, parse_macro_input};
-
+use syn::{DeriveInput, parse_macro_input, self, punctuated::Punctuated, parse::{Parse, self}};
+use darling::ast::NestedMeta;
+use crc32fast;
 
 // -- < Datagroups > -----------------------------------
 static DATAGROUP_COUNT : AtomicU32 = AtomicU32::new(0);
@@ -95,7 +96,82 @@ pub fn derive_datagroup_params(item : proc_macro::TokenStream) -> proc_macro::To
         }
     }.into();
 }
+// -- < Datagroup v2 macros > ----------------------------------------
 
+
+struct DatagroupInput
+{
+    datagroup : syn::Ident,
+    factory : syn::Ident
+}
+
+impl Parse for DatagroupInput
+{
+    fn parse(input: syn::parse::ParseStream) -> Result<Self, syn::Error> {
+        let result = syn::punctuated::Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated(input)?;
+        
+        if result.len() < 2 
+        {
+            return Err(syn::Error::new(input.span(), "Expected at the least two identifiers: DataGroup struct and factory function"));
+        }
+
+        let datagroup = result[0].clone();
+        let factory = result[1].clone();
+        
+        return Ok(DatagroupInput{datagroup, factory});
+    }
+}
+
+static DATAGROUP_COUNT2 : AtomicU32 = AtomicU32::new(0);
+
+/// Register a datagroup struct as a new datagroup class in the global registry
+#[proc_macro]
+pub fn register_datagroup_v2(args : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    let DatagroupInput { datagroup, factory } = parse_macro_input!(args as DatagroupInput);
+    let datagroup_str = datagroup.to_string();
+    let name_crc = crc32fast::hash(datagroup_str.as_bytes());
+    let id = DATAGROUP_COUNT2.fetch_add(1, Ordering::Relaxed);
+
+    let result = quote!{
+
+        // Registration in the global datagroup registry
+        const _ : () = {
+            #[ctor::ctor]
+            fn __register_datagroup__()
+            {
+                proto_ecs::data_group2::DataGroupRegistry::get_global_registry()
+                    .lock()
+                    .as_mut()
+                    .and_then(
+                        |registry|
+                        {
+                            registry.register(proto_ecs::data_group2::DataGroupRegistryEntry{
+                                name: #datagroup_str,
+                                name_crc: #name_crc,
+                                factory_func: #factory,
+                                id: #id
+                            });
+
+                            Ok(())
+                        }
+                    ).expect("Can't access registry due to poisoning");
+            }
+        };
+
+        // Implement locator trait for registry
+        impl proto_ecs::data_group2::DataGroupMetadataLocator<#datagroup> for proto_ecs::data_group2::DataGroupRegistry
+        {
+            fn get_id() -> proto_ecs::data_group2::DataGroupID
+            {
+                #id
+            }
+        }
+    };
+
+
+    return result.into();
+}
 
 // -- < Entities > ---------------------------------------------------
 

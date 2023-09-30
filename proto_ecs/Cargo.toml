@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 crc32fast = { version = "*" }
 ctor = "0.2.5"
-darling = "0.20.3"
 ecs_macros = { version = "0.1.0", path = "ecs_macros" }
 lazy_static = "1.4.0"
 once_cell = "1.18.0"
