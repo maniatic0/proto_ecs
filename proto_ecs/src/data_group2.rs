@@ -12,24 +12,19 @@
 use std::any::Any;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-pub use ecs_macros::register_datagroup_v2;
+pub use ecs_macros::{register_datagroup_v2, DataGroupInitParams};
 
 pub type DataGroupID = u32;
 
-/// This wrapper is the system required part of the datagroup. The user defined and 
-/// implemented part is unknown at compile time, so we store a pointer to the 
-/// actual datagroup
-pub struct DataGroupWrapper
-{
-    name : &'static str,
-    name_crc : u32,
-    id : u32,
-    datagroup : Box<dyn DataGroup>
-}
 
 pub trait DataGroupInitParams 
 {
     fn as_any(&self) -> &dyn Any;
+}
+
+pub trait DataGroupMeta 
+{
+    fn get_id(&self) -> DataGroupID;
 }
 
 /// This trait is the user implementable part of a datagroup.
@@ -40,14 +35,14 @@ pub trait DataGroupInitParams
 /// 
 /// Example usage 
 /// 
-/// ```
+/// ```ignore
 /// use proto_ecs::data_group2::{DataGroup, register_datagroup_v2, DataGroupInitParams};
 /// pub struct MyDatagroup {
 ///     
 /// }
 /// 
 /// impl DataGroup for MyDatagroup {
-///     fn init_data(&mut self, init_data : Box<dyn DataGroupInitParams>)
+///     fn init(&mut self, init_data : Box<dyn DataGroupInitParams>)
 ///     { }
 /// }
 /// 
@@ -56,11 +51,11 @@ pub trait DataGroupInitParams
 ///     return Box::from(MyDatagroup{})
 /// }
 /// 
-/// //register_datagroup_v2!(MyDatagroup, factory)
+/// register_datagroup_v2!(MyDatagroup, factory)
 /// ```
-pub trait DataGroup 
+pub trait DataGroup : DataGroupMeta
 {
-    fn init_data(&mut self, init_data : Box<dyn DataGroupInitParams>);
+    fn init(&mut self, init_data : Box<dyn DataGroupInitParams>);
 }
 
 /// Factory function to create default Data Groups
@@ -138,6 +133,13 @@ impl DataGroupRegistry
                     {entry.id == id}
                 )
             .expect("Invalid id")
+    }
+
+    pub fn create(&self, id : DataGroupID) -> Box<dyn DataGroup>
+    {
+        let entry = self.get_entry_of(id);
+        
+        return (entry.factory_func)();
     }
 
 }

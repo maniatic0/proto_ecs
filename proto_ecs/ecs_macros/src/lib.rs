@@ -167,11 +167,36 @@ pub fn register_datagroup_v2(args : proc_macro::TokenStream) -> proc_macro::Toke
                 #id
             }
         }
+
+        // Implement metadata trait for this datagroup
+        impl proto_ecs::data_group2::DataGroupMeta for #datagroup
+        {
+            fn get_id(&self) -> proto_ecs::data_group2::DataGroupID
+            {
+                #id
+            }
+        }
     };
 
 
     return result.into();
 }
+
+#[proc_macro_derive(DataGroupInitParams)]
+pub fn derive_datagroup_init_params(item : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    let DeriveInput { ident, ..} = syn::parse_macro_input!(item);
+
+    return quote!{
+        impl proto_ecs::data_group2::DataGroupInitParams for #ident
+        {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self as &dyn std::any::Any
+            }
+        }
+    }.into();
+}
+
 
 // -- < Entities > ---------------------------------------------------
 
@@ -197,7 +222,6 @@ pub fn entity(attr : proc_macro::TokenStream, item : proc_macro::TokenStream) ->
                 std::any::type_name::<#ident>()
             }
         }
-
 
     };
 

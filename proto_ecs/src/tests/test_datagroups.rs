@@ -145,6 +145,7 @@ mod animation
 mod mesh
 {
     use crate::{data_group, register_datagroup};
+
     #[derive(Default)]
     #[data_group::datagroup]
     pub struct MeshDataGroup
@@ -205,12 +206,16 @@ mod animation_data_group2
     use crate::get_id;
 
     // -- first example datagroup
+    #[derive(DataGroupInitParams)]
     pub struct AnimationDataGroup
-    { }
+    {
+        clip_name : String,
+        duration : f64
+    }
 
     impl DataGroup for AnimationDataGroup
     {
-        fn init_data(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
+        fn init(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
         {
             
         }
@@ -218,7 +223,10 @@ mod animation_data_group2
 
     fn animation_factory() -> Box<dyn DataGroup>
     {
-        return Box::new(AnimationDataGroup{});
+        return Box::new(AnimationDataGroup{
+            clip_name : "Hello world".to_string(),
+            duration : 12.4
+        });
     }
 
     register_datagroup_v2!(AnimationDataGroup, animation_factory);
@@ -230,9 +238,8 @@ mod animation_data_group2
 
     impl DataGroup for MeshDataGroup
     {
-        fn init_data(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
+        fn init(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
         {
-            
         }
     }
 
@@ -241,7 +248,7 @@ mod animation_data_group2
         return Box::new(MeshDataGroup{});
     }
 
-    register_datagroup_v2!(MeshDataGroup, animation_factory);
+    register_datagroup_v2!(MeshDataGroup, mesh_factory);
 
     #[test]
     fn test_datagroup_registration()
@@ -257,5 +264,20 @@ mod animation_data_group2
 
         assert_eq!(anim_entry.id, anim_id);
         assert_eq!(mesh_entry.id, mesh_id);
+    }
+
+    #[test]
+    fn test_construction_workflow()
+    {
+        let registry = DataGroupRegistry::get_global_registry().lock().unwrap();
+        let anim_id = get_id!(AnimationDataGroup);
+        let anim_datagroup = registry.create(anim_id);
+        
+        let mesh_id = get_id!(MeshDataGroup);
+        let mesh_datagroup = registry.create(mesh_id);
+
+        assert_eq!(mesh_datagroup.get_id(), mesh_id, "Mesh id from object is not the same as mesh id from class");
+        assert_eq!(anim_datagroup.get_id(), anim_id, "Anim id from object is not the same as anim id from class");
+        assert_ne!(mesh_datagroup.get_id(), anim_datagroup.get_id());
     }
 }
