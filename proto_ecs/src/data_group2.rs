@@ -92,6 +92,16 @@ pub struct DataGroupRegistry
 
 impl DataGroupRegistry
 {
+    /// Call this first thing before running game play code.
+    pub fn init(&mut self)
+    {
+        self.entries
+            .sort_by(
+                |entry1, entry2| 
+                { entry1.id.cmp(&entry2.id) }
+            );
+    }
+
     /// Create a new empty registry
     pub fn new() -> DataGroupRegistry
     {
@@ -126,15 +136,8 @@ impl DataGroupRegistry
 
     pub fn get_entry_of(&self, id : DataGroupID) -> &DataGroupRegistryEntry
     {
-        // TODO we have to optimize search. Since IDs are sequential, we can just sort them and 
-        // TODO use direct indexing 
-        self.entries
-            .iter()
-            .find(
-                    |entry| 
-                    {entry.id == id}
-                )
-            .expect("Invalid id")
+        assert!((id as usize) < self.entries.len(), "Invalid id");
+        return &self.entries[id as usize];
     }
 
     pub fn create(&self, id : DataGroupID) -> Box<dyn DataGroup>
@@ -143,9 +146,7 @@ impl DataGroupRegistry
         
         return (entry.factory_func)();
     }
-
 }
-
 
 /// This trait represents compile time metadata about datagroups. Is implemented
 /// by the registry per datagroup. It's implemented automagically with the 
@@ -159,6 +160,25 @@ pub trait DataGroupMetadataLocator<T : DataGroup>
 macro_rules! get_id {
     ($i:ident) => {
         <proto_ecs::data_group2::DataGroupRegistry as proto_ecs::data_group2::DataGroupMetadataLocator<$i>>::get_id()
+    };
+}
+
+#[macro_export]
+/// Create a new datagroup registered in the global registry. 
+macro_rules! create_datagroup {
+    ($dg:ident) => {
+        { 
+            let id = <proto_ecs::data_group2::DataGroupRegistry as proto_ecs::data_group2::DataGroupMetadataLocator<$dg>>::get_id();
+            if let Ok(registry) = proto_ecs::data_group2::DataGroupRegistry::get_global_registry().lock()
+            {
+                let entry = registry.get_entry_of(id);
+                (entry.factory_func)()
+            }
+            else 
+            {
+                panic!("Can't get lock over the global registry");
+            }
+         }
     };
 }
 

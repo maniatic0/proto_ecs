@@ -203,7 +203,7 @@ mod animation_data_group2
 {
     use proto_ecs::data_group2::*;
 
-    use crate::get_id;
+    use crate::{get_id, create_datagroup};
 
     // -- first example datagroup
     #[derive(DataGroupInitParams)]
@@ -269,12 +269,11 @@ mod animation_data_group2
     #[test]
     fn test_construction_workflow()
     {
-        let registry = DataGroupRegistry::get_global_registry().lock().unwrap();
-        let anim_id = get_id!(AnimationDataGroup);
-        let anim_datagroup = registry.create(anim_id);
-        
+        let anim_datagroup = create_datagroup!(AnimationDataGroup);
+        let mesh_datagroup = create_datagroup!(MeshDataGroup);
+
         let mesh_id = get_id!(MeshDataGroup);
-        let mesh_datagroup = registry.create(mesh_id);
+        let anim_id = get_id!(AnimationDataGroup);
 
         assert_eq!(mesh_datagroup.get_id(), mesh_id, "Mesh id from object is not the same as mesh id from class");
         assert_eq!(anim_datagroup.get_id(), anim_id, "Anim id from object is not the same as anim id from class");
