@@ -280,4 +280,20 @@ mod animation_data_group2
         assert_eq!(anim_datagroup.get_id(), anim_id, "Anim id from object is not the same as anim id from class");
         assert_ne!(mesh_datagroup.get_id(), anim_datagroup.get_id());
     }
+
+    #[test]
+    fn test_init_registry()
+    {
+        if let Ok(registry) = DataGroupRegistry::get_global_registry().lock().as_mut()
+        {
+            registry.init();
+            for (i, item) in registry.into_iter().enumerate()
+            {
+                assert_eq!(i as u32, item.id, "Items should be sorted after init so that item accessing is just array indexing");
+            }
+        }
+        else {
+            assert!(false, "Could not get lock to global registry because it was poisoned")
+        }
+    }
 }
