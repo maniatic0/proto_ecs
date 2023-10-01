@@ -1,8 +1,7 @@
 use proc_macro;
-use quote::{quote, ToTokens};
+use quote::quote;
 use std::sync::atomic::{AtomicU32, Ordering};
-use syn::{DeriveInput, parse_macro_input, self, punctuated::Punctuated, parse::{Parse, self}};
-use darling::ast::NestedMeta;
+use syn::{DeriveInput, parse_macro_input, self, parse::Parse};
 use crc32fast;
 
 // -- < Datagroups > -----------------------------------
@@ -96,8 +95,8 @@ pub fn derive_datagroup_params(item : proc_macro::TokenStream) -> proc_macro::To
         }
     }.into();
 }
-// -- < Datagroup v2 macros > ----------------------------------------
 
+// -- < Datagroup v2 macros > ----------------------------------------
 
 struct DatagroupInput
 {
@@ -229,3 +228,27 @@ pub fn entity(attr : proc_macro::TokenStream, item : proc_macro::TokenStream) ->
     return  item_copy;
 }
 
+// -- < Misc macros > ----------------------------------------
+
+#[proc_macro_derive(CanCast)]
+pub fn derive_can_cast(item : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    let DeriveInput { ident, .. } = parse_macro_input!(item);
+    
+    
+    return quote!{
+        impl proto_ecs::core::casting::CanCast for #ident
+        {
+            
+            fn as_any(&self) -> &dyn std::any::Any
+            {
+                self as &dyn std::any::Any
+            }
+            fn as_any_mut(&mut self) ->&mut dyn std::any::Any
+            {
+                self as &mut dyn std::any::Any
+            }
+        
+        }
+    }.into();
+}

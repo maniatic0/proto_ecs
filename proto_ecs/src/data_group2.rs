@@ -12,6 +12,7 @@
 use std::any::Any;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
+use proto_ecs::core::casting::CanCast;
 pub use ecs_macros::{register_datagroup_v2, DataGroupInitParams};
 
 pub type DataGroupID = u32;
@@ -55,7 +56,7 @@ pub trait DataGroupMeta
 /// 
 /// register_datagroup_v2!(MyDatagroup, factory)
 /// ```
-pub trait DataGroup : DataGroupMeta
+pub trait DataGroup : DataGroupMeta + CanCast
 {
     fn init(&mut self, init_data : Box<dyn DataGroupInitParams>);
 }
@@ -179,6 +180,24 @@ macro_rules! create_datagroup {
                 panic!("Can't get lock over the global registry");
             }
          }
+    };
+}
+
+
+// TODO These macros should be moved to a proc macro to check whether the variable 
+// TODO being casted is mut or not and use the proper function (downcast_ref vs downcast_mut)
+#[macro_export]
+macro_rules! cast {
+    ($v:ident, $t:ident) => {
+        $v.as_any().downcast_ref::<$t>().expect("Cast is not possible")
+    };
+}
+
+
+#[macro_export]
+macro_rules! cast_mut {
+    ($v:ident, $t:ident) => {
+        $v.as_any_mut().downcast_mut::<$t>().expect("Cast is not possible")
     };
 }
 
