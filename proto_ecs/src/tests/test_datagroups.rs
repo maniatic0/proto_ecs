@@ -303,9 +303,9 @@ mod animation_data_group2
     {
         let mut anim_datagroup = create_datagroup!(AnimationDataGroup);
         let init_params = AnimationDataGroup{clip_name:"hello world".to_string(), duration: 4.20};
-        let anim_datagroup = cast_mut!(anim_datagroup, AnimationDataGroup);
         anim_datagroup.init(Box::from(init_params));
-
+        
+        let anim_datagroup = cast_mut!(anim_datagroup, AnimationDataGroup);
         assert_eq!(anim_datagroup.clip_name.as_str(), "hello world");
         assert_eq!(anim_datagroup.duration, 4.20);
     }

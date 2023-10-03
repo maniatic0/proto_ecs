@@ -7,9 +7,9 @@
 // The user-implemented bits are usually resolved using 
 // dynamic dispatch and are defined by the user. The user code will know
 // nothing about the resource management part of the engine, which will mostly 
-// use static dispatching.
+// use static dispatching. To access this information, user-defined datagroups 
+// can use their datagroup id as key with the global registry to get its own data
 
-use std::any::Any;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 use proto_ecs::core::casting::CanCast;
@@ -175,24 +175,6 @@ macro_rules! create_datagroup {
                 panic!("Can't get lock over the global registry");
             }
          }
-    };
-}
-
-
-// TODO These macros should be moved to a proc macro to check whether the variable 
-// TODO being casted is mut or not and use the proper function (downcast_ref vs downcast_mut)
-#[macro_export]
-macro_rules! cast {
-    ($v:ident, $t:ident) => {
-        $v.as_any().downcast_ref::<$t>().expect("Cast is not possible")
-    };
-}
-
-
-#[macro_export]
-macro_rules! cast_mut {
-    ($v:ident, $t:ident) => {
-        $v.as_any_mut().downcast_mut::<$t>().expect("Cast is not possible")
     };
 }
 
