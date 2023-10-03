@@ -14,7 +14,6 @@ macro_rules! cast {
     };
 }
 
-
 #[macro_export]
 macro_rules! cast_mut {
     ($v:ident, $t:ident) => {
