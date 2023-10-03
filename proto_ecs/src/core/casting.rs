@@ -1,5 +1,4 @@
 /// This mod implements casting features between our object model types
-
 pub use ecs_macros::CanCast;
 
 pub trait CanCast

@@ -17,12 +17,6 @@ pub use ecs_macros::{register_datagroup_v2, DataGroupInitParams};
 
 pub type DataGroupID = u32;
 
-
-pub trait DataGroupInitParams 
-{
-    fn as_any(&self) -> &dyn Any;
-}
-
 /// This trait it's a little hack to get the id from any dyn DataGroup instance.
 /// Don't implement directly from this, it will be implemented by the register_datagroup macro
 pub trait DataGroupMeta 
@@ -31,7 +25,8 @@ pub trait DataGroupMeta
 }
 
 /// This trait is the user implementable part of a datagroup.
-/// Users will create a DataGroup and register it.
+/// Users will create a DataGroup and register it with a macro to be 
+/// available for construction.
 /// 
 /// Every function that requires data from the wrapper containing the datagroup
 /// will receive the wrapper as an argument.
@@ -58,7 +53,7 @@ pub trait DataGroupMeta
 /// ```
 pub trait DataGroup : DataGroupMeta + CanCast
 {
-    fn init(&mut self, init_data : Box<dyn DataGroupInitParams>);
+    fn init(&mut self, init_data : Box<dyn CanCast>);
 }
 
 /// Factory function to create default Data Groups

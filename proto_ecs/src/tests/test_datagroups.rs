@@ -200,13 +200,12 @@ pub fn test_datagroup_loading()
 #[cfg(test)]
 mod animation_data_group2
 {
-    use ecs_macros::CanCast;
     use proto_ecs::data_group2::*;
 
-    use crate::{get_id, create_datagroup, cast, cast_mut};
+    use crate::{get_id, create_datagroup, cast, cast_mut, core::casting::CanCast};
 
     // -- first example datagroup
-    #[derive(DataGroupInitParams, CanCast)]
+    #[derive(CanCast)]
     pub struct AnimationDataGroup
     {
         pub clip_name : String,
@@ -215,7 +214,7 @@ mod animation_data_group2
 
     impl DataGroup for AnimationDataGroup
     {
-        fn init(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
+        fn init(&mut self, _init_data : Box<dyn CanCast>) 
         {
             let init_data = cast!(_init_data, AnimationDataGroup);
             self.clip_name = init_data.clip_name.clone();
@@ -241,7 +240,7 @@ mod animation_data_group2
 
     impl DataGroup for MeshDataGroup
     {
-        fn init(&mut self, _init_data : Box<dyn DataGroupInitParams>) 
+        fn init(&mut self, _init_data : Box<dyn CanCast>) 
         {
         }
     }
