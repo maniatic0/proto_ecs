@@ -1,89 +1,79 @@
-use std::any::Any;
-use crc32fast;
-pub use ecs_macros::{datagroup, DataGroupInitParamsDyn};
+// This is an alternative version of the Datagroup API. 
+// This is more data oriented in the sense that many of the 
+// system-accounting things are implemented as a strictly and static-ly
+// defined struct, while the user can describe its custom datagroup with a 
+// factory function and a struct that implements the datagroup interface.
+// 
+// The user-implemented bits are usually resolved using 
+// dynamic dispatch and are defined by the user. The user code will know
+// nothing about the resource management part of the engine, which will mostly 
+// use static dispatching. To access this information, user-defined datagroups 
+// can use their datagroup id as key with the global registry to get its own data
+
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-pub use u32 as DataGroupId;
+use proto_ecs::core::casting::CanCast;
+pub use ecs_macros::register_datagroup;
 
-/// Params used during initialization of Data Groups (Dynamic Trait Version)
-///
-/// They are passed as part of the creation process
+pub type DataGroupID = u32;
+
+/// This trait it's a little hack to get the id from any dyn DataGroup instance.
+/// Don't implement directly from this, it will be implemented by the register_datagroup macro
+pub trait DataGroupMeta 
+{
+    fn get_id(&self) -> DataGroupID;
+}
+
+/// This trait is the user implementable part of a datagroup.
+/// Users will create a DataGroup and register it with a macro to be 
+/// available for construction.
 /// 
-/// Don't implement directly from this
-pub trait DataGroupInitParamsDyn {
-
-    /// For casting purposes
-    fn as_any(&self) -> &dyn Any;
-}
-
-
-/// Description of a Data Group
-///
-/// Called components on the original Kruger ECS
-pub trait DataGroupDesc {
-    /// Unique Name of the Data Group
-    fn get_name() -> &'static str;
-
-    /// Name CRC32 (for long term storage)
-    fn get_name_crc() -> u32
-    {
-        crc32fast::hash(Self::get_name().as_bytes())
-    }
-
-    /// DataGroup ID generated during engine init (short term storage)
-    fn get_data_group_id() -> DataGroupId;
-}
-
-/// A group of related data (Dynamic Trait version)
-///
-/// Cannot contain references to other DataGroups
-///
-/// Called components on the original Kruger ECS
+/// Every function that requires data from the wrapper containing the datagroup
+/// will receive the wrapper as an argument.
 /// 
-/// Don't implement directly from this
-pub trait DataGroupDyn {
-    /// Unique Name of the Data Group
-    fn get_name(&self) -> &'static str;
-
-    /// Name CRC32 (for long term storage)
-    fn get_name_crc(&self) -> u32
-    {
-        crc32fast::hash(self.get_name().as_bytes())
-    }
-
-    /// DataGroup ID generated during engine init (short term storage)
-    fn get_data_group_id(&self) -> DataGroupId;
-
-    /// Initialize data group based on init Params
-    fn dyn_init(&mut self, params: Box<dyn DataGroupInitParamsDyn>);
-
-    /// For casting purposes
-    fn as_any(&self) -> &dyn Any;
-}
-
-/// A group of related data
-///
-/// Cannot contain references to other DataGroups
-///
-/// Called components on the original Kruger ECS
-pub trait DataGroup: DataGroupDesc + DataGroupDyn + Default {
-    type InitParams : DataGroupInitParamsDyn;
-    fn init(&mut self, params: Self::InitParams);
-
-    fn factory() -> Box<dyn DataGroupDyn>;
+/// Example usage 
+/// 
+/// ```ignore
+/// use proto_ecs::data_group::{DataGroup, register_datagroup_v2, DataGroupInitParams};
+/// pub struct MyDatagroup {
+///     
+/// }
+/// 
+/// impl DataGroup for MyDatagroup {
+///     fn init(&mut self, init_data : Box<dyn DataGroupInitParams>)
+///     { }
+/// }
+/// 
+/// pub fn factory() -> Box<dyn DataGroup>
+/// {
+///     return Box::from(MyDatagroup{})
+/// }
+/// 
+/// register_datagroup_v2!(MyDatagroup, factory)
+/// ```
+pub trait DataGroup : DataGroupMeta + CanCast
+{
+    fn init(&mut self, init_data : Box<dyn CanCast>);
 }
 
 /// Factory function to create default Data Groups
-pub type DataGroupFactory = fn() -> Box<dyn DataGroupDyn>;
+pub type DataGroupFactory = fn() -> Box<dyn DataGroup>;
 
 /// Entry for the datagroup Registry
 /// 
 /// Specifies the data describing a specific datagroup
 #[derive(Debug)]
-pub struct DataGroupRegistryEntry {
+pub struct DataGroupRegistryEntry 
+{
     pub name: &'static str,
     pub name_crc: u32,
     pub factory_func: DataGroupFactory,
+    pub id: DataGroupID
+}
+
+lazy_static!{
+    /// This registry holds entries for all datagroups registered in this application
+    pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
 }
 
 /// Datagroup Registry used to store and manage datagroups
@@ -91,12 +81,23 @@ pub struct DataGroupRegistryEntry {
 /// There should be just one instance of this registry in the entire application, 
 /// accessible through a static method
 #[derive(Debug)]
-pub struct DataGroupRegistry {
+pub struct DataGroupRegistry 
+{
     entries: Vec<DataGroupRegistryEntry>,
 }
 
 impl DataGroupRegistry
 {
+    /// Call this first thing before running game play code.
+    pub fn init(&mut self)
+    {
+        self.entries
+            .sort_by(
+                |entry1, entry2| 
+                { entry1.id.cmp(&entry2.id) }
+            );
+    }
+
     /// Create a new empty registry
     pub fn new() -> DataGroupRegistry
     {
@@ -117,7 +118,7 @@ impl DataGroupRegistry
 
     pub fn load_registered_datagroups() -> DataGroupRegistry
     {
-        unimplemented!("Function not yet implemented");
+        unimplemented!("not yet implemented");
     }
 
     /// Get the global registry.
@@ -128,45 +129,58 @@ impl DataGroupRegistry
     {
         return &GLOBAL_REGISTRY;
     }
+
+    pub fn get_entry_of(&self, id : DataGroupID) -> &DataGroupRegistryEntry
+    {
+        assert!((id as usize) < self.entries.len(), "Invalid id");
+        return &self.entries[id as usize];
+    }
+
+    pub fn create(&self, id : DataGroupID) -> Box<dyn DataGroup>
+    {
+        let entry = self.get_entry_of(id);
+        
+        return (entry.factory_func)();
+    }
 }
 
-lazy_static!{
-    /// This registry holds entries for all datagroups registered in this application
-    pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
+/// This trait represents compile time metadata about datagroups. Is implemented
+/// by the registry per datagroup. It's implemented automagically with the 
+/// register_datagroup macro
+pub trait DataGroupMetadataLocator<T : DataGroup>
+{
+    fn get_id() -> DataGroupID;
 }
 
-/// Register a datagroup to the global registry.
+/// return the ID of the given datagroup
 #[macro_export]
-macro_rules! register_datagroup {
+macro_rules! get_id {
     ($i:ident) => {
+        <proto_ecs::data_group::DataGroupRegistry as proto_ecs::data_group::DataGroupMetadataLocator<$i>>::get_id()
+    };
+}
 
-        // This const _ : () = {...} trick allows you to define unreachable functions that
-        // only ctor will ever see
-        const _ : () = {
-            #[ctor::ctor]
-            fn __register_datagroup__()
+#[macro_export]
+/// Create a new datagroup registered in the global registry. 
+macro_rules! create_datagroup {
+    ($dg:ident) => {
+        { 
+            let id = <proto_ecs::data_group::DataGroupRegistry as proto_ecs::data_group::DataGroupMetadataLocator<$dg>>::get_id();
+            if let Ok(registry) = proto_ecs::data_group::DataGroupRegistry::get_global_registry().lock()
             {
-                $crate::data_group::GLOBAL_REGISTRY
-                    .lock()
-                    .as_mut()
-                    .and_then(|registry| {
-
-                        registry.register(
-                            $crate::data_group::DataGroupRegistryEntry { 
-                                name: <$i as $crate::data_group::DataGroupDesc>::get_name(), 
-                                name_crc: <$i as $crate::data_group::DataGroupDesc>::get_name_crc(), 
-                                factory_func: <$i as $crate::data_group::DataGroup>::factory 
-                            });
-
-                        return Ok(());
-                    }).expect("Could not get lock to register a new component");
+                let entry = registry.get_entry_of(id);
+                (entry.factory_func)()
             }
-        };
+            else 
+            {
+                panic!("Can't get lock over the global registry");
+            }
+         }
     };
 }
 
 // Implement into iter so you can iterate over the registry entries:
-// for entry in &entries
+// for entry in entries.iter()
 // { ... }
 impl<'a> IntoIterator for &'a DataGroupRegistry
 {

@@ -1,5 +1,4 @@
 pub mod data_group;
-pub mod data_group2;
 pub mod entity;
 pub mod systems;
 pub mod core;
