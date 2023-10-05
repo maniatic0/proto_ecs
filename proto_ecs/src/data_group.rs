@@ -49,7 +49,7 @@ pub trait DataGroupMeta
 ///     return Box::from(MyDatagroup{})
 /// }
 /// 
-/// register_datagroup_v2!(MyDatagroup, factory)
+/// register_datagroup!(MyDatagroup, factory)
 /// ```
 pub trait DataGroup : DataGroupMeta + CanCast
 {

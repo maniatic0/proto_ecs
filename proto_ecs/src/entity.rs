@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use lazy_static::lazy_static;
 
 use crate::data_group::{DataGroupID,DataGroup};
-use proto_ecs::systems::{SystemClassID, LocalSystemDyn};
+use proto_ecs::local_systems::SystemClassID;
 use ecs_macros::entity;
 
 pub type EntityClassID = u32;
@@ -68,7 +68,7 @@ pub struct EntityRegistryEntry
 /// This struct holds the data for an Entity, local systems and datagroups
 pub struct EntityStorage
 {
-    local_systems : Vec<Box<dyn LocalSystemDyn>>,
+    local_systems : (), // Still don't know what type goes here
     datagroups : Vec<Box<dyn DataGroup>>
 }
 

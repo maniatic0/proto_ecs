@@ -1,7 +1,7 @@
 
 // -- < Testing datagroups API > ---------------------------
 #[cfg(test)]
-mod animation_data_group
+mod datagroup_test
 {
     use proto_ecs::data_group::*;
 
