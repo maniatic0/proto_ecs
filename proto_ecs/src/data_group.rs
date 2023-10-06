@@ -118,23 +118,28 @@ impl DataGroupRegistry
         self.is_initialized = true;
     }
 
+    #[inline]
     /// Create a new empty registry
     pub fn new() -> DataGroupRegistry
     {
         Default::default()
     }
 
+    #[inline]
     /// Create a registry from a list of entries
     pub fn from_entries(entries : Vec<DataGroupRegistryEntry>) -> DataGroupRegistry
     {
         DataGroupRegistry{entries, ..Default::default()}
     }
 
+    #[inline(always)]
+    /// If the data group registry is initialized
     pub fn is_initialized(&self) -> bool
     {
         self.is_initialized
     }
 
+    #[inline]
     ///  Add a new entry to the registry
     pub fn register(&mut self, entry : DataGroupRegistryEntry)
     {
@@ -146,6 +151,7 @@ impl DataGroupRegistry
         unimplemented!("not yet implemented");
     }
 
+    #[inline(always)]
     /// Get the global registry.
     /// 
     /// This is the registry used by default to gather all structs registered
@@ -155,7 +161,8 @@ impl DataGroupRegistry
         return &GLOBAL_REGISTRY;
     }
 
-    pub fn get_entry_of(&self, id : DataGroupID) -> &DataGroupRegistryEntry
+    #[inline]
+    pub fn get_entry_by_id(&self, id : DataGroupID) -> &DataGroupRegistryEntry
     {
         assert!((id as usize) < self.entries.len(), "Invalid id");
         return &self.entries[id as usize];
@@ -165,15 +172,23 @@ impl DataGroupRegistry
     pub fn get_entry<D>(&self) -> &DataGroupRegistryEntry
         where D : DataGroupMetadataLocator
     {
-        self.get_entry_of(get_id!(D))
+        self.get_entry_by_id(get_id!(D))
     }
 
-    pub fn create(&self, id : DataGroupID) -> Box<dyn DataGroup>
+    #[inline]
+    pub fn create_by_id(&self, id : DataGroupID) -> Box<dyn DataGroup>
     {
-        let entry = self.get_entry_of(id);
-        
+        let entry = self.get_entry_by_id(id);
         return (entry.factory_func)();
     }
+
+    #[inline(always)]
+    pub fn create<D>(&self) -> Box<dyn DataGroup>
+        where D : DataGroupMetadataLocator
+    {
+        self.create_by_id(get_id!(D))
+    }
+
 }
 
 #[macro_export]
@@ -182,8 +197,7 @@ macro_rules! create_datagroup {
     ($dg:ident) => {
         {
             let global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().read();
-            let entry = global_registry.get_entry::<$dg>();
-            (entry.factory_func)()
+            global_registry.create::<$dg>()
          }
     };
 }

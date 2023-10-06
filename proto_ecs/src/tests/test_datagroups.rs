@@ -69,8 +69,8 @@ mod datagroup_test
         let anim_id  = get_id!(AnimationDataGroup);
         let mesh_id  = get_id!(MeshDataGroup);
 
-        let anim_entry = global_registry.get_entry_of(anim_id);
-        let mesh_entry = global_registry.get_entry_of(mesh_id);
+        let anim_entry = global_registry.get_entry_by_id(anim_id);
+        let mesh_entry = global_registry.get_entry_by_id(mesh_id);
         assert_eq!(anim_entry.id, anim_id);
         assert_eq!(mesh_entry.id, mesh_id);
         assert_eq!(global_registry.get_entry::<AnimationDataGroup>().id, anim_id);
