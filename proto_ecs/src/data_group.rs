@@ -11,7 +11,7 @@
 // can use their datagroup id as key with the global registry to get its own data
 
 use lazy_static::lazy_static;
-use std::sync::Mutex;
+use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
 pub use ecs_macros::register_datagroup;
 
@@ -89,17 +89,18 @@ pub struct DataGroupRegistryEntry
 
 lazy_static!{
     /// This registry holds entries for all datagroups registered in this application
-    pub static ref GLOBAL_REGISTRY : Mutex<DataGroupRegistry> = Mutex::from(DataGroupRegistry::new());
+    pub static ref GLOBAL_REGISTRY : RwLock<DataGroupRegistry> = RwLock::from(DataGroupRegistry::new());
 }
 
 /// Datagroup Registry used to store and manage datagroups
 /// 
 /// There should be just one instance of this registry in the entire application, 
 /// accessible through a static method
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DataGroupRegistry 
 {
     entries: Vec<DataGroupRegistryEntry>,
+    is_initialized: bool
 }
 
 impl DataGroupRegistry
@@ -107,23 +108,31 @@ impl DataGroupRegistry
     /// Call this first thing before running game play code.
     pub fn init(&mut self)
     {
+        assert!(!self.is_initialized, "Data Group Registry got double initialized!");
         self.entries
             .sort_by(
                 |entry1, entry2| 
                 { entry1.id.cmp(&entry2.id) }
             );
+        
+        self.is_initialized = true;
     }
 
     /// Create a new empty registry
     pub fn new() -> DataGroupRegistry
     {
-        DataGroupRegistry { entries: vec![] }
+        Default::default()
     }
 
     /// Create a registry from a list of entries
     pub fn from_entries(entries : Vec<DataGroupRegistryEntry>) -> DataGroupRegistry
     {
-        DataGroupRegistry{entries}
+        DataGroupRegistry{entries, ..Default::default()}
+    }
+
+    pub fn is_initialized(&self) -> bool
+    {
+        self.is_initialized
     }
 
     ///  Add a new entry to the registry
@@ -141,7 +150,7 @@ impl DataGroupRegistry
     /// 
     /// This is the registry used by default to gather all structs registered
     /// with the register_datagroup! macro
-    pub fn get_global_registry() -> &'static Mutex<DataGroupRegistry>
+    pub fn get_global_registry() -> &'static RwLock<DataGroupRegistry>
     {
         return &GLOBAL_REGISTRY;
     }
@@ -172,15 +181,9 @@ macro_rules! create_datagroup {
     ($dg:ident) => {
         { 
             let id = <$dg as proto_ecs::data_group::DataGroupMetadataLocator>::get_id();
-            if let Ok(registry) = proto_ecs::data_group::DataGroupRegistry::get_global_registry().lock()
-            {
-                let entry = registry.get_entry_of(id);
-                (entry.factory_func)()
-            }
-            else 
-            {
-                panic!("Can't get lock over the global registry");
-            }
+            let global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().read();
+            let entry = global_registry.get_entry_of(id);
+            (entry.factory_func)()
          }
     };
 }

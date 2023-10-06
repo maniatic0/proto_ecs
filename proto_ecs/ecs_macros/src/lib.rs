@@ -46,22 +46,13 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
             #[ctor::ctor]
             fn __register_datagroup__()
             {
-                proto_ecs::data_group::DataGroupRegistry::get_global_registry()
-                    .lock()
-                    .as_mut()
-                    .and_then(
-                        |registry|
-                        {
-                            registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
-                                name: #datagroup_str,
-                                name_crc: #name_crc,
-                                factory_func: #factory,
-                                id: #id
-                            });
-
-                            Ok(())
-                        }
-                    ).expect("Can't access registry due to poisoning");
+                let mut global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().write();
+                global_registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
+                    name: #datagroup_str,
+                    name_crc: #name_crc,
+                    factory_func: #factory,
+                    id: #id
+                });
             }
         };
 
