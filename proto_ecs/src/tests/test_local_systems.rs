@@ -1,4 +1,5 @@
 
+#[cfg(test)]
 mod local_system_test
 {
     use proto_ecs::data_group::*;
@@ -65,6 +66,7 @@ mod local_system_test
     // This function should be implemented by a macro reading the above function
     fn __my_local_system__(indices : &[usize], entity_datagroups : &mut Vec<Box<dyn DataGroup>>)
     {
+        // TODO I'm fighting the borrow checker here to get a mutable reference of each DG using `indices`
         let (anim, entity_datagroups) = entity_datagroups.split_first_mut().unwrap();
         let (mesh, entity_datagroups) = entity_datagroups.split_first_mut().unwrap();
         
@@ -72,16 +74,5 @@ mod local_system_test
         let anim = cast_mut!(anim, AnimationDataGroup);
         let mesh = cast_mut!(mesh, MeshDataGroup);
         my_local_system(anim, mesh);
-    }
-
-    fn test_borrow()
-    {
-        struct S {a : u32, b : f64}
-        let mut  cont = vec![Box::from(S{a:1, b:2.2}), Box::from(S{a:2, b:3.33})];
-        let cont = &mut cont;
-
-        let _s1 = &mut cont[0];
-        let _s2 = &mut cont[1];
-
     }
 }
