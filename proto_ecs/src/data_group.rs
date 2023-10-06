@@ -24,6 +24,22 @@ pub trait DataGroupMeta
     fn get_id(&self) -> DataGroupID;
 }
 
+/// This trait represents compile time metadata about datagroups. Is implemented
+/// by the registry per datagroup. It's implemented automagically with the 
+/// register_datagroup macro
+pub trait DataGroupMetadataLocator
+{
+    fn get_id() -> DataGroupID;
+}
+
+/// return the ID of the given datagroup
+#[macro_export]
+macro_rules! get_id {
+    ($i:ident) => {
+        <$i as proto_ecs::data_group::DataGroupMetadataLocator>::get_id()
+    };
+}
+
 /// This trait is the user implementable part of a datagroup.
 /// Users will create a DataGroup and register it with a macro to be 
 /// available for construction.
@@ -136,28 +152,18 @@ impl DataGroupRegistry
         return &self.entries[id as usize];
     }
 
+    pub fn get_entry<D>(&self) -> &DataGroupRegistryEntry
+        where D : DataGroupMetadataLocator
+    {
+        self.get_entry_of(get_id!(D))
+    }
+
     pub fn create(&self, id : DataGroupID) -> Box<dyn DataGroup>
     {
         let entry = self.get_entry_of(id);
         
         return (entry.factory_func)();
     }
-}
-
-/// This trait represents compile time metadata about datagroups. Is implemented
-/// by the registry per datagroup. It's implemented automagically with the 
-/// register_datagroup macro
-pub trait DataGroupMetadataLocator
-{
-    fn get_id() -> DataGroupID;
-}
-
-/// return the ID of the given datagroup
-#[macro_export]
-macro_rules! get_id {
-    ($i:ident) => {
-        <$i as proto_ecs::data_group::DataGroupMetadataLocator>::get_id()
-    };
 }
 
 #[macro_export]

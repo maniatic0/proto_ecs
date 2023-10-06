@@ -71,6 +71,8 @@ mod datagroup_test
                 let mesh_entry = registry.get_entry_of(mesh_id);
                 assert_eq!(anim_entry.id, anim_id);
                 assert_eq!(mesh_entry.id, mesh_id);
+                assert_eq!(registry.get_entry::<AnimationDataGroup>().id, anim_id);
+                assert_eq!(registry.get_entry::<MeshDataGroup>().id, mesh_id);
                 Ok(())
             }
         ).unwrap();
