@@ -161,6 +161,7 @@ impl DataGroupRegistry
         return &self.entries[id as usize];
     }
 
+    #[inline(always)]
     pub fn get_entry<D>(&self) -> &DataGroupRegistryEntry
         where D : DataGroupMetadataLocator
     {
@@ -179,10 +180,9 @@ impl DataGroupRegistry
 /// Create a new datagroup registered in the global registry. 
 macro_rules! create_datagroup {
     ($dg:ident) => {
-        { 
-            let id = <$dg as proto_ecs::data_group::DataGroupMetadataLocator>::get_id();
+        {
             let global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().read();
-            let entry = global_registry.get_entry_of(id);
+            let entry = global_registry.get_entry::<$dg>();
             (entry.factory_func)()
          }
     };
