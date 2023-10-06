@@ -114,11 +114,13 @@ mod datagroup_test
     #[test]
     fn test_datagroup_initialization()
     {
+        // TODO this setup should be done somewhere else, all tests should not have to do this 
+        // TODO Also it would be more convenient to have an `init_global_registry` function as a shortcut
         DataGroupRegistry::get_global_registry().lock().as_mut().and_then(
             |registry|
             {registry.init(); Ok(())}
         ).unwrap();
-        
+
         let mut anim_datagroup = create_datagroup!(AnimationDataGroup);
         let init_params = AnimationDataGroup{clip_name:"hello world".to_string(), duration: 4.20};
         anim_datagroup.init(Box::from(init_params));

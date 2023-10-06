@@ -66,9 +66,9 @@ mod local_system_test
     // This function should be implemented by a macro reading the above function
     fn __my_local_system__(indices : &[usize], entity_datagroups : &mut Vec<Box<dyn DataGroup>>)
     {
-        // TODO I'm fighting the borrow checker here to get a mutable reference of each DG using `indices`
-        let (anim, entity_datagroups) = entity_datagroups.split_first_mut().unwrap();
-        let (mesh, entity_datagroups) = entity_datagroups.split_first_mut().unwrap();
+        let mut it = entity_datagroups.iter_mut();
+        let anim= it.nth(indices[0]).unwrap();
+        let mesh = it.nth(indices[1]).unwrap();
         
 
         let anim = cast_mut!(anim, AnimationDataGroup);
