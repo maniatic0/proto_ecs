@@ -59,21 +59,31 @@ mod datagroup_test
     fn test_datagroup_registration()
     {
         let global_registry = DataGroupRegistry::get_global_registry();
+
         let anim_id  = get_id!(AnimationDataGroup);
         let mesh_id  = get_id!(MeshDataGroup);
 
-        let registry = global_registry.lock().unwrap();
-
-        let anim_entry = registry.get_entry_of(anim_id);
-        let mesh_entry = registry.get_entry_of(mesh_id);
-
-        assert_eq!(anim_entry.id, anim_id);
-        assert_eq!(mesh_entry.id, mesh_id);
+        global_registry.lock().as_mut().and_then(
+            |registry| 
+            {
+                registry.init(); 
+                let anim_entry = registry.get_entry_of(anim_id);
+                let mesh_entry = registry.get_entry_of(mesh_id);
+                assert_eq!(anim_entry.id, anim_id);
+                assert_eq!(mesh_entry.id, mesh_id);
+                Ok(())
+            }
+        ).unwrap();
     }
 
     #[test]
     fn test_construction_workflow()
     {
+        // Init registry just in case
+        DataGroupRegistry::get_global_registry().lock().as_mut().and_then(
+            |registry|
+            {registry.init(); Ok(())}
+        ).unwrap();
         let anim_datagroup = create_datagroup!(AnimationDataGroup);
         let mesh_datagroup = create_datagroup!(MeshDataGroup);
 
@@ -104,6 +114,11 @@ mod datagroup_test
     #[test]
     fn test_datagroup_initialization()
     {
+        DataGroupRegistry::get_global_registry().lock().as_mut().and_then(
+            |registry|
+            {registry.init(); Ok(())}
+        ).unwrap();
+        
         let mut anim_datagroup = create_datagroup!(AnimationDataGroup);
         let init_params = AnimationDataGroup{clip_name:"hello world".to_string(), duration: 4.20};
         anim_datagroup.init(Box::from(init_params));

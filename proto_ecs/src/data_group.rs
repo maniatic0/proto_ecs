@@ -147,7 +147,7 @@ impl DataGroupRegistry
 /// This trait represents compile time metadata about datagroups. Is implemented
 /// by the registry per datagroup. It's implemented automagically with the 
 /// register_datagroup macro
-pub trait DataGroupMetadataLocator<T : DataGroup>
+pub trait DataGroupMetadataLocator
 {
     fn get_id() -> DataGroupID;
 }
@@ -156,7 +156,7 @@ pub trait DataGroupMetadataLocator<T : DataGroup>
 #[macro_export]
 macro_rules! get_id {
     ($i:ident) => {
-        <proto_ecs::data_group::DataGroupRegistry as proto_ecs::data_group::DataGroupMetadataLocator<$i>>::get_id()
+        <$i as proto_ecs::data_group::DataGroupMetadataLocator>::get_id()
     };
 }
 
@@ -165,7 +165,7 @@ macro_rules! get_id {
 macro_rules! create_datagroup {
     ($dg:ident) => {
         { 
-            let id = <proto_ecs::data_group::DataGroupRegistry as proto_ecs::data_group::DataGroupMetadataLocator<$dg>>::get_id();
+            let id = <$dg as proto_ecs::data_group::DataGroupMetadataLocator>::get_id();
             if let Ok(registry) = proto_ecs::data_group::DataGroupRegistry::get_global_registry().lock()
             {
                 let entry = registry.get_entry_of(id);

@@ -1,13 +1,10 @@
 
-#[cfg(test)]
 mod local_system_test
 {
-    use std::ops::Index;
-
     use proto_ecs::data_group::*;
     use proto_ecs::get_id;
 
-    use crate::{get_id, create_datagroup, cast, cast_mut, core::casting::CanCast};
+    use crate::{cast, cast_mut, core::casting::CanCast};
 
     // -- first example datagroup
     #[derive(CanCast)]
@@ -60,35 +57,31 @@ mod local_system_test
     // -- Local system creation
 
     // This function is provided by an user
-    fn my_local_system(anim : &mut AnimationDataGroup, mesh : &mut MeshDataGroup)
+    fn my_local_system(_anim : &mut AnimationDataGroup, _mesh : &mut MeshDataGroup)
     {
         // do something here
     }
 
     // This function should be implemented by a macro reading the above function
-    fn __my_local_system__(entity_datagroups : &Vec<Box<dyn DataGroup>>)
+    fn __my_local_system__(indices : &[usize], entity_datagroups : &mut Vec<Box<dyn DataGroup>>)
     {
-        let mut anim = *entity_datagroups
-                                    .iter()
-                                    .find(
-                                    |&dg|
-                                    {
-                                        dg.get_id() == get_id!(AnimationDataGroup)
-                                    })
-                                    .expect("Entity should have this datagroup");
+        let (anim, entity_datagroups) = entity_datagroups.split_first_mut().unwrap();
+        let (mesh, entity_datagroups) = entity_datagroups.split_first_mut().unwrap();
+        
 
         let anim = cast_mut!(anim, AnimationDataGroup);
-
-        let mut mesh = *entity_datagroups
-                                    .iter()
-                                    .find(
-                                    |&dg|
-                                    {
-                                        dg.get_id() == get_id!(MeshDataGroup)
-                                    })
-                                    .expect("Entity should have this datagroup");
-
-        let mesh = cast_mut!(anim, MeshDataGroup);
-
+        let mesh = cast_mut!(mesh, MeshDataGroup);
         my_local_system(anim, mesh);
-    }}
+    }
+
+    fn test_borrow()
+    {
+        struct S {a : u32, b : f64}
+        let mut  cont = vec![Box::from(S{a:1, b:2.2}), Box::from(S{a:2, b:3.33})];
+        let cont = &mut cont;
+
+        let _s1 = &mut cont[0];
+        let _s2 = &mut cont[1];
+
+    }
+}

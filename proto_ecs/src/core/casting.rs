@@ -9,28 +9,28 @@ pub trait CanCast
 
 #[macro_export]
 macro_rules! cast {
-    ($v:ident, $t:ident) => {
-        $v.as_any().downcast_ref::<$t>().expect("Cast is not possible")
+    ($v:expr, $t:ident) => {
+        ($v).as_any().downcast_ref::<$t>().expect("Cast is not possible")
     };
 }
 
 #[macro_export]
 macro_rules! cast_mut {
-    ($v:ident, $t:ident) => {
-        $v.as_any_mut().downcast_mut::<$t>().expect("Cast is not possible")
+    ($v:expr, $t:ident) => {
+        ($v).as_any_mut().downcast_mut::<$t>().expect("Cast is not possible")
     };
 }
 
 #[macro_export]
 macro_rules! safe_cast {
-    ($v:ident, $t:ident) => {
-        $v.as_any().downcast_ref::<$t>()
+    ($v:expr, $t:ident) => {
+        ($v).as_any().downcast_ref::<$t>()
     };
 }
 
 #[macro_export]
 macro_rules! safe_cast_mut {
-    ($v:ident, $t:ident) => {
-        $v.as_any_mut().downcast_mut::<$t>()
+    ($v:expr, $t:ident) => {
+        ($v).as_any_mut().downcast_mut::<$t>()
     };
 }

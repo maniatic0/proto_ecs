@@ -67,7 +67,7 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
 
         // Implement locator trait for registry, 
         // it helps you to find the id for a datagroup using static function calls
-        impl proto_ecs::data_group::DataGroupMetadataLocator<#datagroup> for proto_ecs::data_group::DataGroupRegistry
+        impl proto_ecs::data_group::DataGroupMetadataLocator for #datagroup
         {
             fn get_id() -> proto_ecs::data_group::DataGroupID
             {
