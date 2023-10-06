@@ -33,6 +33,13 @@ mod datagroup_test
         });
     }
 
+    register_datagroup_init!(AnimationDataGroup, Arg(AnimationDataGroup));
+
+    impl AnimationDataGroupDesc for AnimationDataGroup
+    {
+        fn init(&mut self, arg : AnimationDataGroup) { todo!() }
+    }
+
     register_datagroup!(AnimationDataGroup, animation_factory);
 
     // -- Second example datagroup

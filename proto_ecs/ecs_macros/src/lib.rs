@@ -1,10 +1,85 @@
 use proc_macro;
 use quote::quote;
 use std::sync::atomic::{AtomicU32, Ordering};
-use syn::{DeriveInput, parse_macro_input, self, parse::Parse};
+use syn::{DeriveInput, parse_macro_input, self, parse::Parse, token, parenthesized};
 use crc32fast;
 
 // -- < Datagroups > -----------------------------------
+
+/// Whether a DataGroup has an init function
+/// If it has one, it can specify if it doesn't take an argument, if the argument is required, or if the argument is optional
+enum DataGroupInit {
+    None,
+    NoArg,
+    Arg(syn::Ident),
+    OptionalArg(syn::Ident)
+}
+
+struct DataGroupInitParseDesc {
+    pub datagroup_name : syn::Ident,
+    pub init_type : DataGroupInit
+}
+
+impl Parse for DataGroupInitParseDesc
+{
+    fn parse(input: syn::parse::ParseStream) -> Result<Self, syn::Error> {
+       
+       let datagroup_name : syn::Ident = input.parse()?;
+       let _ : token::Comma = input.parse()?; // comma token
+       let init_type : syn::Ident = input.parse()?;
+
+       match init_type.to_string().as_str() {
+        "None" => Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::None}),
+        "NoArg" => Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::NoArg}),
+        "Arg" => {
+            let content;
+            let _ : token::Paren = parenthesized!(content in input); // parenthesis
+            let arg_type : syn::Ident = content.parse()?;
+            Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::Arg(arg_type)})
+        },
+        "OptionalArg" => {
+            let content;
+            let _ : token::Paren = parenthesized!(content in input); // parenthesis
+            let arg_type : syn::Ident = content.parse()?;
+            Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::OptionalArg(arg_type)})
+        },
+        _ => Err(
+            syn::Error::new(init_type.span(), "Unexpected Init type. The only valids are: None, NoArg, Arg(ArgType), OptionalArg(ArgType)")
+        )
+       }
+    }
+}
+
+/// Register the way a datagroup struct initializes
+#[proc_macro]
+pub fn register_datagroup_init(args : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    let info : DataGroupInitParseDesc = parse_macro_input!(args as DataGroupInitParseDesc);
+    let datagroup_str = info.datagroup_name.to_string();
+    let name_crc = crc32fast::hash(datagroup_str.as_bytes());
+    let datagroup_trait = syn::Ident::new(&format!("{datagroup_str}Desc"), info.datagroup_name.span());
+
+    let init_fn = match info.init_type {
+        DataGroupInit::None => quote!{},
+        DataGroupInit::NoArg => quote!{fn init(&mut self);},
+        DataGroupInit::Arg(arg) => {
+            quote!(fn init(&mut self, arg : #arg);)
+        },
+        DataGroupInit::OptionalArg(arg) => {
+            quote!(fn init(&mut self, arg : std::option::Option<#arg>);)
+        },
+    };
+
+    let result = quote!{
+        trait #datagroup_trait {
+            #init_fn
+        }
+    };
+
+
+    return result.into();
+}
+
 struct DatagroupInput
 {
     datagroup : syn::Ident,

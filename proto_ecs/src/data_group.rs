@@ -13,7 +13,7 @@
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
-pub use ecs_macros::register_datagroup;
+pub use ecs_macros::{register_datagroup_init, register_datagroup};
 
 pub type DataGroupID = u32;
 
