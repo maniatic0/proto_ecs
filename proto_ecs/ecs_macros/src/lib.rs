@@ -1,13 +1,15 @@
 use proc_macro;
-use quote::quote;
+use proc_macro2::{TokenStream, token_stream};
+use quote::{quote, ToTokens};
 use std::sync::atomic::{AtomicU32, Ordering};
-use syn::{DeriveInput, parse_macro_input, self, parse::Parse, token, parenthesized};
+use syn::{DeriveInput, parse_macro_input, self, parse::Parse, token, parenthesized, spanned::Spanned};
 use crc32fast;
 
 // -- < Datagroups > -----------------------------------
 
 /// Whether a DataGroup has an init function
-/// If it has one, it can specify if it doesn't take an argument, if the argument is required, or if the argument is optional
+/// If it has one, it can specify if it doesn't take an argument, 
+/// if the argument is required, or if the argument is optional
 enum DataGroupInit {
     None,
     NoArg,
@@ -201,6 +203,111 @@ pub fn entity(attr : proc_macro::TokenStream, item : proc_macro::TokenStream) ->
 
     item_copy.extend::<proc_macro::TokenStream>(trait_impls.into());
     return  item_copy;
+}
+
+// -- < Local systems > --------------------------------------
+static LOCAL_SYSTEM_COUNT : AtomicU32 = AtomicU32::new(1);
+
+#[proc_macro_attribute]
+pub fn local_system(_args : proc_macro::TokenStream, item : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    let mut item_copy = item.clone();
+    let syn::ItemFn{sig, ..} = parse_macro_input!(item);
+
+    let mut arg_types = vec![];
+    for arg in sig.inputs.iter()
+    {
+        // Args should be a mutable reference to a datagroup
+        match arg {
+            syn::FnArg::Typed(pt) => { 
+                match (*pt.ty).clone() {
+                    syn::Type::Reference(r) => {
+                        match (*r.elem).clone() {
+                            syn::Type::Path(p) => {arg_types.push(p)}
+                            _ => { return quote!{compile_error!("Systems should only expect DataGroups as input")}.into(); }
+                        }
+                    },
+                    _ => { return quote!{compile_error!("Systems should only expect DataGroups as input")}.into(); }
+                }
+            },
+            _ => { return quote!(compile_error!("Systems should only expect DataGroups as input")).into();}
+        }
+    }
+
+    // Create header of glue function. This function will be used to run
+    // the user specified function
+    let func_name = format!("__{}__", sig.ident.to_string());
+    let mut  new_function = format!(
+            " fn {}(indices : &[usize], entity_datagroups : &mut Vec<std::boxed::Box<dyn proto_ecs::data_group::DataGroup>>)
+            {{ 
+                debug_assert!({{
+                    let mut unique_set = std::collections::HashSet::new();
+                    indices.iter().all(|&i| {{unique_set.insert(i) && i < entity_datagroups.len()}})
+                }}, \"Overlapping indices or index out of range\");
+                unsafe
+                {{
+                let entity_datagroups_ptr = entity_datagroups.as_mut_ptr();
+            ", func_name);
+
+    // Add code for auto casting
+    for i in 0..arg_types.len()
+    {
+        new_function += format!(
+            "let arg{} = (&mut *entity_datagroups_ptr.add(indices[{}]))
+                        .as_any_mut()
+                        .downcast_mut::<{}>()
+                        .expect(\"Cast is not possible\");\n", 
+            i, i, 
+            arg_types[i]
+                .path
+                .clone()
+                .into_token_stream()
+                .to_string()
+        ).as_str(); // I hope there's a simpler way to do this, too many string and clones
+    }
+    
+    // Write the final call to the user function
+    new_function += format!("{}(", sig.ident.to_string()).as_str();
+
+    for i in 0..arg_types.len()
+    {
+        new_function += format!("arg{i}").as_str();
+        if i != arg_types.len() - 1
+        {
+            new_function += ",";
+        }
+    }
+    new_function += ");}}\n";
+
+    // Append this function to the end of the original function
+    item_copy.extend::<proc_macro::TokenStream>(new_function.as_str().parse().unwrap());
+
+    // Add this new system to the global system register
+    let id = LOCAL_SYSTEM_COUNT.fetch_add(1, Ordering::Relaxed);
+    let name_crc = crc32fast::hash(sig.ident.to_string().as_bytes());
+    let deps = arg_types.iter().map(|ty| {&ty.path});
+    let func_ident = syn::Ident::new(func_name.as_str(), sig.span());
+    item_copy.extend::<proc_macro::TokenStream>(quote!(
+        const _ : () = {
+            #[ctor::ctor]
+            fn __register_local_system__()
+            {
+                let mut registry = proto_ecs::local_systems::LocalSystemRegistry::get_global_registry().write();
+                let mut dependencies = Vec::new();
+                #( dependencies.push(<#deps as proto_ecs::data_group::DataGroupMetadataLocator>::get_id());)*
+                registry.register(
+                    proto_ecs::local_systems::LocalSystemRegistryEntry{
+                        id : #id,
+                        name_crc : #name_crc,
+                        dependencies : dependencies,
+                        func : #func_ident
+                    }
+                );
+            }
+        };
+    ).into());
+
+    return item_copy;
 }
 
 // -- < Misc macros > ----------------------------------------

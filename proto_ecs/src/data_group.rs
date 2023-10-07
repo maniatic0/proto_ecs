@@ -198,7 +198,7 @@ macro_rules! create_datagroup {
         {
             let global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().read();
             global_registry.create::<$dg>()
-         }
+        }
     };
 }
 

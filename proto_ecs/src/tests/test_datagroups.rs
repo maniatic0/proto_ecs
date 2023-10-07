@@ -81,8 +81,9 @@ pub mod datagroup_test {
     }
 
     #[test]
-    fn test_datagroup_initialization() {
-        // TODO this setup should be done somewhere else, all tests should not have to do this
+    fn test_datagroup_initialization()
+    {
+        // TODO this setup should be done somewhere else, tests should not have to do this 
         // TODO Also it would be more convenient to have an `init_global_registry` function as a shortcut
         if !DataGroupRegistry::get_global_registry()
             .read()
