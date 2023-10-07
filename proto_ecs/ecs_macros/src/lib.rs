@@ -50,6 +50,13 @@ impl Parse for DataGroupInitParseDesc
     }
 }
 
+#[inline]
+fn get_datagroup_desc_trait(datagroup : &syn::Ident) -> syn::Ident
+{
+    let datagroup_str = datagroup.to_string();
+    syn::Ident::new(&format!("{datagroup_str}Desc"), datagroup.span())
+}
+
 /// Register the way a datagroup struct initializes
 #[proc_macro]
 pub fn register_datagroup_init(args : proc_macro::TokenStream) -> proc_macro::TokenStream
@@ -57,7 +64,7 @@ pub fn register_datagroup_init(args : proc_macro::TokenStream) -> proc_macro::To
     let info : DataGroupInitParseDesc = parse_macro_input!(args as DataGroupInitParseDesc);
     let datagroup_str = info.datagroup_name.to_string();
     let name_crc = crc32fast::hash(datagroup_str.as_bytes());
-    let datagroup_trait = syn::Ident::new(&format!("{datagroup_str}Desc"), info.datagroup_name.span());
+    let datagroup_desc_trait = get_datagroup_desc_trait(&info.datagroup_name);
 
     let init_fn = match info.init_type {
         DataGroupInit::None => quote!{},
@@ -71,7 +78,7 @@ pub fn register_datagroup_init(args : proc_macro::TokenStream) -> proc_macro::To
     };
 
     let result = quote!{
-        trait #datagroup_trait {
+        trait #datagroup_desc_trait {
             #init_fn
         }
     };
@@ -113,8 +120,16 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
     let datagroup_str = datagroup.to_string();
     let name_crc = crc32fast::hash(datagroup_str.as_bytes());
     let id = DATAGROUP_COUNT.fetch_add(1, Ordering::Relaxed);
+    let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
 
     let result = quote!{
+
+        const _: fn() = || {
+            /// Only callable when Datagroup implements trait DatagroupDesc.
+            fn check_desc_trait_implemented<T: ?Sized + #datagroup_desc_trait>() {}
+            check_desc_trait_implemented::<#datagroup>();
+            // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
+        };
 
         // Registration in the global datagroup registry
         const _ : () = {
