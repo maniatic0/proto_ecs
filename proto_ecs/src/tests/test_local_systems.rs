@@ -4,8 +4,8 @@ mod local_system_test
 {
     use proto_ecs::data_group::*;
     use proto_ecs::local_systems::local_system;
-    use crate::{cast, cast_mut, core::casting::CanCast, local_systems::LocalSystemRegistry, get_id};
-    use super::super::shared_datagroups::*;
+    use crate::{cast, local_systems::LocalSystemRegistry, get_id};
+    use super::super::shared_datagroups::sdg::*;
 
     // -- Local system creation
 

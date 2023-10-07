@@ -4,7 +4,7 @@ pub mod datagroup_test {
     use crate::{cast_mut, create_datagroup, get_id};
     use proto_ecs::data_group::*;
 
-    use super::super::shared_datagroups::*;
+    use super::super::shared_datagroups::sdg::*;
 
     #[test]
     fn test_datagroup_registration() {
