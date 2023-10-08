@@ -1,7 +1,7 @@
 // -- < Testing datagroups API > ---------------------------
 #[cfg(test)]
 pub mod datagroup_test {
-    use crate::{cast_mut, create_datagroup, get_id};
+    use crate::{create_datagroup, get_id, core::casting::cast_mut};
     use proto_ecs::data_group::*;
 
     use super::super::shared_datagroups::sdg::*;
@@ -100,7 +100,7 @@ pub mod datagroup_test {
         };
         anim_datagroup.__init__(Some(Box::from(init_params)));
 
-        let anim_datagroup = cast_mut!(anim_datagroup, AnimationDataGroup);
+        let anim_datagroup: &mut AnimationDataGroup = cast_mut(&mut anim_datagroup);
         assert_eq!(anim_datagroup.clip_name.as_str(), "hello world");
         assert_eq!(anim_datagroup.duration, 4.20);
     }

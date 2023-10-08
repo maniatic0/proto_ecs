@@ -120,18 +120,18 @@ pub fn register_datagroup_init(args : proc_macro::TokenStream) -> proc_macro::To
                 self.init();
             }
         },
-        DataGroupInit::Arg(arg) => quote!{
+        DataGroupInit::Arg(_) => quote!{
             fn __init__(&mut self, _init_data: std::option::Option<Box<dyn CanCast>>)
             {
                 let _init_data = _init_data.expect("Missing init data!");
-                let _init_data = proto_ecs::core::casting::into_any::<#arg>(_init_data);
+                let _init_data = proto_ecs::core::casting::into_any(_init_data);
                 self.init(_init_data);
             }
         },
-        DataGroupInit::OptionalArg(arg) => quote!{
+        DataGroupInit::OptionalArg(_) => quote!{
             fn __init__(&mut self, _init_data: std::option::Option<Box<dyn CanCast>>)
             {
-                let _init_data = _init_data.and_then(|v| Some(proto_ecs::core::casting::into_any::<#arg>(v)));
+                let _init_data = _init_data.and_then(|v| Some(proto_ecs::core::casting::into_any(v)));
                 self.init(_init_data);
             }
         },

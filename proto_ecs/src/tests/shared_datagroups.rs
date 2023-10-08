@@ -1,10 +1,8 @@
-
 #[cfg(test)]
-pub mod sdg 
-{
+pub mod sdg {
     use proto_ecs::data_group::*;
-    
-    use crate::{cast, core::casting::CanCast};
+
+    use crate::core::casting::CanCast;
     // -- first example datagroup
     #[derive(CanCast)]
     pub struct AnimationDataGroup {
@@ -48,5 +46,4 @@ pub mod sdg
     }
 
     register_datagroup!(MeshDataGroup, mesh_factory);
-
 }

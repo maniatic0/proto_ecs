@@ -4,7 +4,7 @@ mod local_system_test
 {
     use proto_ecs::data_group::*;
     use proto_ecs::local_systems::local_system;
-    use crate::{cast, local_systems::LocalSystemRegistry, get_id};
+    use crate::{local_systems::LocalSystemRegistry, get_id, core::casting::cast};
     use super::super::shared_datagroups::sdg::*;
 
     // -- Local system creation
@@ -36,7 +36,7 @@ mod local_system_test
         let entry = ls_registry.get_entry_by_id(id);
         (entry.func)(&indices, &mut dgs);
 
-        let anim = cast!(dgs[0], AnimationDataGroup);
+        let anim: &AnimationDataGroup = cast(&dgs[0]);
         assert_eq!(anim.duration, 4.20, "System is not affecting the intended datagroup");
         assert_eq!(entry.dependencies.len(), 2, "There should be two dependencies for this system");
         assert!(
