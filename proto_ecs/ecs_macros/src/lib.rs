@@ -64,24 +64,90 @@ fn get_datagroup_desc_trait(datagroup : &syn::Ident) -> syn::Ident
 pub fn register_datagroup_init(args : proc_macro::TokenStream) -> proc_macro::TokenStream
 {
     let info : DataGroupInitParseDesc = parse_macro_input!(args as DataGroupInitParseDesc);
-    let datagroup_str = info.datagroup_name.to_string();
-    let name_crc = crc32fast::hash(datagroup_str.as_bytes());
     let datagroup_desc_trait = get_datagroup_desc_trait(&info.datagroup_name);
 
-    let init_fn = match info.init_type {
+    let init_fn_trait = match &info.init_type {
         DataGroupInit::None => quote!{},
         DataGroupInit::NoArg => quote!{fn init(&mut self);},
         DataGroupInit::Arg(arg) => {
-            quote!(fn init(&mut self, arg : #arg);)
+            let arg_clone = arg.clone();
+            quote!(fn init(&mut self, init_data : Box<#arg_clone>);)
         },
         DataGroupInit::OptionalArg(arg) => {
-            quote!(fn init(&mut self, arg : std::option::Option<#arg>);)
+            let arg_clone = arg.clone();
+            quote!(fn init(&mut self, init_data : std::option::Option<Box<#arg_clone>>);)
         },
     };
 
+    let init_fn_arg_trait_check = match &info.init_type {
+        DataGroupInit::None => quote!{},
+        DataGroupInit::NoArg => quote!{},
+        DataGroupInit::Arg(arg) => {
+            let arg_clone = arg.clone();
+            quote!(
+                const _: fn() = || {
+                    /// Only callable when Arg implements trait CanCast.
+                    fn check_cast_trait_implemented<T: ?Sized + proto_ecs::core::casting::CanCast>() {}
+                    check_cast_trait_implemented::<#arg_clone>();
+                    // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
+                };
+            )
+        },
+        DataGroupInit::OptionalArg(arg) => {
+            let arg_clone = arg.clone();
+            quote!(
+                const _: fn() = || {
+                    /// Only callable when Arg implements trait CanCast.
+                    fn check_cast_trait_implemented<T: ?Sized + proto_ecs::core::casting::CanCast>() {}
+                    check_cast_trait_implemented::<#arg_clone>();
+                    // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
+                };
+            )
+        },
+    };
+
+    let init_fn_internal = match info.init_type {
+        DataGroupInit::None => quote!{
+            fn __init__(&mut self, _init_data: std::option::Option<Box<dyn CanCast>>)
+            {
+                panic!("Datagroup with no init!");
+            }
+        },
+        DataGroupInit::NoArg => quote!{
+            fn __init__(&mut self, _init_data: std::option::Option<Box<dyn CanCast>>)
+            {
+                assert!(_init_data.is_none(), "Unexpected init data!");
+                self.init();
+            }
+        },
+        DataGroupInit::Arg(arg) => quote!{
+            fn __init__(&mut self, _init_data: std::option::Option<Box<dyn CanCast>>)
+            {
+                let _init_data = _init_data.expect("Missing init data!");
+                let _init_data = proto_ecs::core::casting::into_any::<#arg>(_init_data);
+                self.init(_init_data);
+            }
+        },
+        DataGroupInit::OptionalArg(arg) => quote!{
+            fn __init__(&mut self, _init_data: std::option::Option<Box<dyn CanCast>>)
+            {
+                let _init_data = _init_data.and_then(|v| Some(proto_ecs::core::casting::into_any::<#arg>(v)));
+                self.init(_init_data);
+            }
+        },
+    };
+
+    let datagroup = &info.datagroup_name;
+
     let result = quote!{
+        #init_fn_arg_trait_check
         trait #datagroup_desc_trait {
-            #init_fn
+            #init_fn_trait
+        }
+
+        impl proto_ecs::data_group::DataGroup for #datagroup
+        {
+            #init_fn_internal
         }
     };
 
@@ -321,7 +387,11 @@ pub fn derive_can_cast(item : proc_macro::TokenStream) -> proc_macro::TokenStrea
     return quote!{
         impl proto_ecs::core::casting::CanCast for #ident
         {
-            
+            fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> 
+            { 
+                self 
+            }
+
             fn as_any(&self) -> &dyn std::any::Any
             {
                 self as &dyn std::any::Any

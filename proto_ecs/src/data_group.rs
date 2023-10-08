@@ -69,7 +69,7 @@ macro_rules! get_id {
 /// ```
 pub trait DataGroup : DataGroupMeta + CanCast
 {
-    fn init(&mut self, init_data : Box<dyn CanCast>);
+    fn __init__(&mut self, init_data : std::option::Option<Box<dyn CanCast>>);
 }
 
 /// Factory function to create default Data Groups

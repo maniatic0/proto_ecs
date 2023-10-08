@@ -98,7 +98,7 @@ pub mod datagroup_test {
             clip_name: "hello world".to_string(),
             duration: 4.20,
         };
-        anim_datagroup.init(Box::from(init_params));
+        anim_datagroup.__init__(Some(Box::from(init_params)));
 
         let anim_datagroup = cast_mut!(anim_datagroup, AnimationDataGroup);
         assert_eq!(anim_datagroup.clip_name.as_str(), "hello world");

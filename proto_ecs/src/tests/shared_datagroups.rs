@@ -12,14 +12,6 @@ pub mod sdg
         pub duration: f64,
     }
 
-    impl DataGroup for AnimationDataGroup {
-        fn init(&mut self, _init_data: Box<dyn CanCast>) {
-            let init_data = cast!(_init_data, AnimationDataGroup);
-            self.clip_name = init_data.clip_name.clone();
-            self.duration = init_data.duration;
-        }
-    }
-
     fn animation_factory() -> Box<dyn DataGroup> {
         return Box::new(AnimationDataGroup {
             clip_name: "Hello world".to_string(),
@@ -30,8 +22,9 @@ pub mod sdg
     register_datagroup_init!(AnimationDataGroup, Arg(AnimationDataGroup));
 
     impl AnimationDataGroupDesc for AnimationDataGroup {
-        fn init(&mut self, _arg: AnimationDataGroup) {
-            todo!()
+        fn init(&mut self, init_data: Box<AnimationDataGroup>) {
+            self.clip_name = init_data.clip_name.clone();
+            self.duration = init_data.duration;
         }
     }
 
@@ -41,10 +34,6 @@ pub mod sdg
 
     #[derive(CanCast)]
     pub struct MeshDataGroup {}
-
-    impl DataGroup for MeshDataGroup {
-        fn init(&mut self, _init_data: Box<dyn CanCast>) {}
-    }
 
     fn mesh_factory() -> Box<dyn DataGroup> {
         return Box::new(MeshDataGroup {});
