@@ -42,17 +42,28 @@ pub struct LocalSystemRegistryEntry
     pub func : fn(&[usize], &mut Vec<Box<dyn DataGroup>>) -> ()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LocalSystemRegistry
 {
-    entries : Vec<LocalSystemRegistryEntry>
+    entries : Vec<LocalSystemRegistryEntry>,
+    is_initialized : bool
 }
 
 impl LocalSystemRegistry
 {
     pub fn new() -> Self
     {
-        LocalSystemRegistry { entries: vec![] }
+        LocalSystemRegistry::default()
+    }
+
+    fn get_temp_global_registry() -> &'static RwLock<TempRegistryLambdas>
+    {
+        &LOCAL_SYSTEM_REGISTRY_TEMP
+    }
+
+    pub fn register_lambda(lambda : TempRegistryLambda)
+    {
+        LocalSystemRegistry::get_temp_global_registry().write().push(lambda)
     }
 
     pub fn get_global_registry() -> &'static RwLock<Self>
@@ -60,7 +71,7 @@ impl LocalSystemRegistry
         &GLOBAL_SYSTEM
     }
 
-    pub fn register(&mut self, entry : LocalSystemRegistryEntry)
+    pub fn register_internal(&mut self, entry : LocalSystemRegistryEntry)
     {
         self.entries.push(entry);
     }
@@ -70,6 +81,38 @@ impl LocalSystemRegistry
         // TODO Improve this search 
         self.entries.iter().find(|reg| {reg.name_crc == id}).expect("Invalid id")
     }
+
+    pub fn is_initialized(&self) -> bool
+    {
+        self.is_initialized
+    }
+
+    pub fn initialize()
+    {
+        let mut locals : TempRegistryLambdas = TempRegistryLambdas::new();
+        let mut registry = LocalSystemRegistry::get_global_registry().write();
+        assert!(!registry.is_initialized, "Local System registry was already initialized!");
+
+        let mut globals = LocalSystemRegistry::get_temp_global_registry().write();
+
+        // Clear globals
+        std::mem::swap(&mut locals,&mut globals);
+
+        // Consume locals
+        locals.into_iter().for_each(
+            |lambda| lambda(&mut registry)
+        );
+
+        registry.is_initialized = true;
+    }
+
+}
+
+pub type TempRegistryLambda = Box<dyn FnOnce(&mut LocalSystemRegistry) + Sync + Send + 'static>;
+type TempRegistryLambdas = Vec<TempRegistryLambda>;
+
+lazy_static!{
+    static ref LOCAL_SYSTEM_REGISTRY_TEMP : RwLock<TempRegistryLambdas> = RwLock::from(TempRegistryLambdas::new());
 }
 
 lazy_static!{

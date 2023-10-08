@@ -24,6 +24,10 @@ mod local_system_test
         {
             DataGroupRegistry::get_global_registry().write().init();
         }
+        if !LocalSystemRegistry::get_global_registry().read().is_initialized()
+        {
+            LocalSystemRegistry::initialize();
+        }
 
         let dg_registry = DataGroupRegistry::get_global_registry().read();
         let ls_registry = LocalSystemRegistry::get_global_registry().read();
@@ -67,3 +71,5 @@ mod local_system_test
 
     // }
 }
+
+

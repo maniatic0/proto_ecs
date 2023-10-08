@@ -17,6 +17,8 @@ pub use ecs_macros::{register_datagroup_init, register_datagroup};
 
 pub type DataGroupID = u32;
 
+pub use once_cell::sync::OnceCell;
+
 /// This trait it's a little hack to get the id from any dyn DataGroup instance.
 /// Don't implement directly from this, it will be implemented by the register_datagroup macro
 pub trait DataGroupMeta 
@@ -141,9 +143,12 @@ impl DataGroupRegistry
 
     #[inline]
     ///  Add a new entry to the registry
-    pub fn register(&mut self, entry : DataGroupRegistryEntry)
+    pub fn register(&mut self, mut entry : DataGroupRegistryEntry) -> DataGroupID
     {
+        let new_id = self.entries.len() as u32;
+        entry.id = new_id;
         self.entries.push(entry);
+        new_id
     }
 
     pub fn load_registered_datagroups() -> DataGroupRegistry

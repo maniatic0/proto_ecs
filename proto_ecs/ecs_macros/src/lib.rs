@@ -178,8 +178,6 @@ impl Parse for DatagroupInput
     }
 }
 
-static DATAGROUP_COUNT : AtomicU32 = AtomicU32::new(0);
-
 /// Register a datagroup struct as a new datagroup class in the global registry
 #[proc_macro]
 pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenStream
@@ -187,8 +185,11 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
     let DatagroupInput { datagroup, factory } = parse_macro_input!(args as DatagroupInput);
     let datagroup_str = datagroup.to_string();
     let name_crc = crc32fast::hash(datagroup_str.as_bytes());
-    let id = DATAGROUP_COUNT.fetch_add(1, Ordering::Relaxed);
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
+    let datagroup_id_magic_ident = {
+        let name_up = datagroup_str.to_uppercase();
+        syn::Ident::new(&format!("{name_up}_DATA_GROUP_ID"), datagroup.span())
+    };
 
     let result = quote!{
 
@@ -199,18 +200,22 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
             // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
         };
 
+        // Static value to hold id
+        static #datagroup_id_magic_ident : proto_ecs::data_group::OnceCell<proto_ecs::data_group::DataGroupID> = proto_ecs::data_group::OnceCell::new();
+
         // Registration in the global datagroup registry
         const _ : () = {
             #[ctor::ctor]
             fn __register_datagroup__()
             {
                 let mut global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().write();
-                global_registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
+                let new_id = global_registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
                     name: #datagroup_str,
                     name_crc: #name_crc,
                     factory_func: #factory,
-                    id: #id
+                    id: proto_ecs::data_group::DataGroupID::MAX
                 });
+                #datagroup_id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
             }
         };
 
@@ -220,7 +225,7 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
         {
             fn get_id() -> proto_ecs::data_group::DataGroupID
             {
-                #id
+                #datagroup_id_magic_ident.get().expect("Missing DataGroup ID").clone()
             }
         }
 
@@ -231,7 +236,7 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
         {
             fn get_id(&self) -> proto_ecs::data_group::DataGroupID
             {
-                #id
+                #datagroup_id_magic_ident.get().expect("Missing DataGroup ID").clone()
             }
         }
     };
@@ -358,16 +363,21 @@ pub fn local_system(_args : proc_macro::TokenStream, item : proc_macro::TokenStr
             #[ctor::ctor]
             fn __register_local_system__()
             {
-                let mut registry = proto_ecs::local_systems::LocalSystemRegistry::get_global_registry().write();
-                let mut dependencies = Vec::new();
-                #( dependencies.push(<#deps as proto_ecs::data_group::DataGroupMetadataLocator>::get_id());)*
-                registry.register(
-                    proto_ecs::local_systems::LocalSystemRegistryEntry{
-                        id : #id,
-                        name_crc : #name_crc,
-                        dependencies : dependencies,
-                        func : #func_ident
-                    }
+                proto_ecs::local_systems::LocalSystemRegistry::register_lambda(
+                    Box::new(
+                        |registry| {
+                            let mut dependencies = Vec::new();
+                            #( dependencies.push(<#deps as proto_ecs::data_group::DataGroupMetadataLocator>::get_id());)*
+                            registry.register_internal(
+                                proto_ecs::local_systems::LocalSystemRegistryEntry{
+                                    id : #id,
+                                    name_crc : #name_crc,
+                                    dependencies : dependencies,
+                                    func : #func_ident
+                                }
+                            );
+                        }
+                    )
                 );
             }
         };
