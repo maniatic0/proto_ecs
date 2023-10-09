@@ -1,5 +1,4 @@
 use proc_macro;
-use proc_macro2::{TokenStream, token_stream};
 use quote::{quote, ToTokens};
 use std::sync::atomic::{AtomicU32, Ordering};
 use syn::{DeriveInput, parse_macro_input, self, parse::Parse, token, parenthesized, spanned::Spanned};
@@ -208,14 +207,19 @@ pub fn register_datagroup(args : proc_macro::TokenStream) -> proc_macro::TokenSt
             #[ctor::ctor]
             fn __register_datagroup__()
             {
-                let mut global_registry = proto_ecs::data_group::DataGroupRegistry::get_global_registry().write();
-                let new_id = global_registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
-                    name: #datagroup_str,
-                    name_crc: #name_crc,
-                    factory_func: #factory,
-                    id: proto_ecs::data_group::DataGroupID::MAX
-                });
-                #datagroup_id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
+                proto_ecs::data_group::DataGroupRegistry::register_lambda(
+                    Box::new(
+                        |registry| {
+                            let new_id = registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
+                                name: #datagroup_str,
+                                name_crc: #name_crc,
+                                factory_func: #factory,
+                                id: proto_ecs::data_group::DataGroupID::MAX
+                            });
+                            #datagroup_id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
+                        }
+                    )
+                );
             }
         };
 

@@ -116,8 +116,27 @@ impl DataGroupRegistry
                 |entry1, entry2| 
                 { entry1.id.cmp(&entry2.id) }
             );
-        
         self.is_initialized = true;
+    }
+
+    /// Initialize global registry
+    pub fn initialize()
+    {
+        let mut locals : TempRegistryLambdas = TempRegistryLambdas::new();
+        let mut registry = DataGroupRegistry::get_global_registry().write();
+        assert!(!registry.is_initialized, "Local System registry was already initialized!");
+
+        let mut globals = DataGroupRegistry::get_temp_global_registry().write();
+
+        // Clear globals
+        std::mem::swap(&mut locals,&mut globals);
+
+        // Consume locals
+        locals.into_iter().for_each(
+            |lambda| lambda(&mut registry)
+        );
+
+        registry.init();
     }
 
     #[inline]
@@ -194,6 +213,15 @@ impl DataGroupRegistry
         self.create_by_id(get_id!(D))
     }
 
+    pub fn register_lambda(lambda : TempRegistryLambda)
+    {
+        DataGroupRegistry::get_temp_global_registry().write().push(lambda);
+    }
+
+    pub fn get_temp_global_registry() -> &'static RwLock<TempRegistryLambdas>
+    {
+        &DATAGROUP_REGISTRY_TEMP
+    }
 }
 
 #[macro_export]
@@ -218,4 +246,12 @@ impl<'a> IntoIterator for &'a DataGroupRegistry
     fn into_iter(self) -> Self::IntoIter {
         return self.entries.iter();
     }
+}
+
+// Use This registry to store datagroup initialization functions
+pub type TempRegistryLambda = Box<dyn FnOnce(&mut DataGroupRegistry) + Sync + Send + 'static>;
+type TempRegistryLambdas = Vec<TempRegistryLambda>;
+
+lazy_static!{
+    static ref DATAGROUP_REGISTRY_TEMP : RwLock<TempRegistryLambdas> = RwLock::from(TempRegistryLambdas::new());
 }

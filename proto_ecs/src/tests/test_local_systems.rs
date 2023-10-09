@@ -4,7 +4,7 @@ mod local_system_test
 {
     use proto_ecs::data_group::*;
     use proto_ecs::local_systems::local_system;
-    use crate::{local_systems::LocalSystemRegistry, get_id, core::casting::cast};
+    use crate::{local_systems::LocalSystemRegistry, get_id, core::casting::cast, app::App};
     use super::super::shared_datagroups::sdg::*;
 
     // -- Local system creation
@@ -20,13 +20,9 @@ mod local_system_test
     #[test]
     fn test_local_system_registration()
     {
-        if !DataGroupRegistry::get_global_registry().read().is_initialized()
+        if !App::is_initialized()
         {
-            DataGroupRegistry::get_global_registry().write().init();
-        }
-        if !LocalSystemRegistry::get_global_registry().read().is_initialized()
-        {
-            LocalSystemRegistry::initialize();
+            App::initialize();
         }
 
         let dg_registry = DataGroupRegistry::get_global_registry().read();

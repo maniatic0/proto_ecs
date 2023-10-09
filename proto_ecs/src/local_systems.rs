@@ -119,9 +119,4 @@ lazy_static!{
     static ref GLOBAL_SYSTEM : RwLock<LocalSystemRegistry> = RwLock::from(LocalSystemRegistry::new());
 }
 
-// -------------------------------------------------
-// Example of resulting implementation of a local system
-pub fn my_local_system()
-{
-}
 

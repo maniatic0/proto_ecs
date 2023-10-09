@@ -1,19 +1,16 @@
 // -- < Testing datagroups API > ---------------------------
 #[cfg(test)]
 pub mod datagroup_test {
-    use crate::{create_datagroup, get_id, core::casting::cast_mut};
+    use crate::{create_datagroup, get_id, core::casting::cast_mut, app::App};
     use proto_ecs::data_group::*;
 
     use super::super::shared_datagroups::sdg::*;
 
     #[test]
     fn test_datagroup_registration() {
-        if !DataGroupRegistry::get_global_registry()
-            .read()
-            .is_initialized()
+        if !App::is_initialized()
         {
-            let mut global_registry = DataGroupRegistry::get_global_registry().write();
-            global_registry.init();
+            App::initialize();
         }
 
         let global_registry = DataGroupRegistry::get_global_registry().read();
@@ -34,14 +31,11 @@ pub mod datagroup_test {
 
     #[test]
     fn test_construction_workflow() {
-        // Init registry just in case
-        if !DataGroupRegistry::get_global_registry()
-            .read()
-            .is_initialized()
+        if !App::is_initialized()
         {
-            let mut global_registry = DataGroupRegistry::get_global_registry().write();
-            global_registry.init();
+            App::initialize();
         }
+        
         let anim_datagroup = create_datagroup!(AnimationDataGroup);
         let mesh_datagroup = create_datagroup!(MeshDataGroup);
 
@@ -63,12 +57,9 @@ pub mod datagroup_test {
 
     #[test]
     fn test_init_registry() {
-        if !DataGroupRegistry::get_global_registry()
-            .read()
-            .is_initialized()
+        if !App::is_initialized()
         {
-            let mut global_registry = DataGroupRegistry::get_global_registry().write();
-            global_registry.init();
+            App::initialize();
         }
 
         let global_registry = DataGroupRegistry::get_global_registry().read();
@@ -83,14 +74,9 @@ pub mod datagroup_test {
     #[test]
     fn test_datagroup_initialization()
     {
-        // TODO this setup should be done somewhere else, tests should not have to do this 
-        // TODO Also it would be more convenient to have an `init_global_registry` function as a shortcut
-        if !DataGroupRegistry::get_global_registry()
-            .read()
-            .is_initialized()
+        if !App::is_initialized()
         {
-            let mut global_registry = DataGroupRegistry::get_global_registry().write();
-            global_registry.init();
+            App::initialize();
         }
 
         let mut anim_datagroup = create_datagroup!(AnimationDataGroup);
