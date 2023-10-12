@@ -8,7 +8,7 @@ mod tests {
         assert_eq!(to_camel_case(""), "".to_string());
         assert_eq!(to_camel_case("DataGroup"), "data_group".to_string());
         assert_eq!(to_camel_case("aaa"), "aaa".to_string());
-        assert_eq!(to_camel_case("A123"), "a123".to_string());
+        assert_eq!(to_camel_case("A123Sa456"), "a_123_sa_456".to_string());
         assert_eq!(to_camel_case("AA"), "a_a".to_string());
     }
 }

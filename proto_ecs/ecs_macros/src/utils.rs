@@ -12,14 +12,17 @@ pub fn to_camel_case(s: &str) -> String {
 
     // First letter is always lowercase
     result.push(to_lowercase(s_bytes[0]));
+    let mut last_is_num = (s_bytes[0] as char).is_numeric();
 
     for &ch in &s_bytes[1..] {
         let ch = ch as char;
-        if ch.is_uppercase() {
+
+        if ch.is_uppercase() || (ch.is_numeric() && !last_is_num) {
             result.push('_');
         }
 
         result.push(ch.to_ascii_lowercase());
+        last_is_num = ch.is_numeric();
     }
 
     result
