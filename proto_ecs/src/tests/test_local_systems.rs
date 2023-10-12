@@ -1,27 +1,44 @@
-
 #[cfg(test)]
-mod local_system_test
-{
-    use proto_ecs::data_group::*;
-    use proto_ecs::local_systems::local_system;
-    use crate::{local_systems::LocalSystemRegistry, get_id, core::casting::cast, app::App};
+mod local_system_test {
     use super::super::shared_datagroups::sdg::*;
+    use crate::{app::App, core::casting::cast, get_id, local_systems::LocalSystemRegistry};
+    use proto_ecs::data_group::*;
+    use proto_ecs::local_systems::register_local_system;
 
     // -- Local system creation
 
     // This function is provided by an user
-    #[local_system]
-    fn my_local_system(_anim : &mut AnimationDataGroup, _mesh : &mut MeshDataGroup)
-    {
+    fn my_local_system(_anim: &mut AnimationDataGroup, _mesh: &mut MeshDataGroup) {
         // do something here
         _anim.duration = 4.20;
     }
 
+    struct Test;
+
+    register_local_system! {
+        Test,
+        dependencies = (AnimationDataGroup, MeshDataGroup),
+        stages = (0, 1)
+    }
+
+    impl TestLocalSystem for Test {
+        fn stage_0(
+            animation_data_group: &mut AnimationDataGroup,
+            mesh_data_group: &mut MeshDataGroup,
+        ) {
+            animation_data_group.duration = 4.2;
+        }
+
+        fn stage_1(
+            animation_data_group: &mut AnimationDataGroup,
+            mesh_data_group: &mut MeshDataGroup,
+        ) {
+        }
+    }
+
     #[test]
-    fn test_local_system_registration()
-    {
-        if !App::is_initialized()
-        {
+    fn test_local_system_registration() {
+        if !App::is_initialized() {
             App::initialize();
         }
 
@@ -30,17 +47,30 @@ mod local_system_test
         let mesh = dg_registry.create::<MeshDataGroup>();
         let anim = dg_registry.create::<AnimationDataGroup>();
         let mut dgs = vec![anim, mesh];
-        let indices : [usize; 2] = [0,1];
+        let indices: [usize; 2] = [0, 1];
         // TODO we need a better way to locate a system
-        let id = 3066720040u32; // Hardcoded crc32 from the local system function
+        let id = 2018365746u32; // Hardcoded crc32 from the local system function
         let entry = ls_registry.get_entry_by_id(id);
-        (entry.func)(&indices, &mut dgs);
+        for f in entry.functions {
+            match f {
+                Some(f) => (f)(&indices, &mut dgs),
+                _ => {}
+            }
+        }
 
         let anim: &AnimationDataGroup = cast(&dgs[0]);
-        assert_eq!(anim.duration, 4.20, "System is not affecting the intended datagroup");
-        assert_eq!(entry.dependencies.len(), 2, "There should be two dependencies for this system");
+        assert_eq!(
+            anim.duration, 4.20,
+            "System is not affecting the intended datagroup"
+        );
+        assert_eq!(
+            entry.dependencies.len(),
+            2,
+            "There should be two dependencies for this system"
+        );
         assert!(
-            entry.dependencies[0] == get_id!(AnimationDataGroup) && entry.dependencies[1] == get_id!(MeshDataGroup), 
+            entry.dependencies[0].unwrap() == get_id!(AnimationDataGroup)
+                && entry.dependencies[1].unwrap() == get_id!(MeshDataGroup),
             "Inconsistent dependencies for local system"
         )
     }
@@ -53,7 +83,7 @@ mod local_system_test
     //         indices.iter().all(|&i| {unique_set.insert(i) && i < entity_datagroups.len()})
     //     }, "Overlapping indices or index out of range");
 
-    //     unsafe 
+    //     unsafe
     //     {
     //         let entity_datagroups_ptr = entity_datagroups.as_mut_ptr();
 
@@ -67,5 +97,3 @@ mod local_system_test
 
     // }
 }
-
-

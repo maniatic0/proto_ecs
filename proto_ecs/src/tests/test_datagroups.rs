@@ -1,15 +1,14 @@
 // -- < Testing datagroups API > ---------------------------
 #[cfg(test)]
 pub mod datagroup_test {
-    use crate::{create_datagroup, get_id, core::casting::cast_mut, app::App};
+    use crate::{app::App, core::casting::cast_mut, create_datagroup, get_id};
     use proto_ecs::data_group::*;
 
     use super::super::shared_datagroups::sdg::*;
 
     #[test]
     fn test_datagroup_registration() {
-        if !App::is_initialized()
-        {
+        if !App::is_initialized() {
             App::initialize();
         }
 
@@ -31,11 +30,10 @@ pub mod datagroup_test {
 
     #[test]
     fn test_construction_workflow() {
-        if !App::is_initialized()
-        {
+        if !App::is_initialized() {
             App::initialize();
         }
-        
+
         let anim_datagroup = create_datagroup!(AnimationDataGroup);
         let mesh_datagroup = create_datagroup!(MeshDataGroup);
 
@@ -57,8 +55,7 @@ pub mod datagroup_test {
 
     #[test]
     fn test_init_registry() {
-        if !App::is_initialized()
-        {
+        if !App::is_initialized() {
             App::initialize();
         }
 
@@ -72,10 +69,8 @@ pub mod datagroup_test {
     }
 
     #[test]
-    fn test_datagroup_initialization()
-    {
-        if !App::is_initialized()
-        {
+    fn test_datagroup_initialization() {
+        if !App::is_initialized() {
             App::initialize();
         }
 
