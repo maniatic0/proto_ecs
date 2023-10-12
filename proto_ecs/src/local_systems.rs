@@ -1,4 +1,4 @@
-pub use ecs_macros::{local_system, register_local_system};
+pub use ecs_macros::register_local_system;
 /// Local systems are basically functions that operate on datagroups from
 /// an entity. To define a local system, the user should be able to
 /// write a function with datagroups it expects as parameters and
