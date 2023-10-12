@@ -6,13 +6,6 @@ mod local_system_test {
     use proto_ecs::local_systems::register_local_system;
 
     // -- Local system creation
-
-    // This function is provided by an user
-    fn my_local_system(_anim: &mut AnimationDataGroup, _mesh: &mut MeshDataGroup) {
-        // do something here
-        _anim.duration = 4.20;
-    }
-
     struct Test;
 
     register_local_system! {
@@ -24,14 +17,14 @@ mod local_system_test {
     impl TestLocalSystem for Test {
         fn stage_0(
             animation_data_group: &mut AnimationDataGroup,
-            mesh_data_group: &mut MeshDataGroup,
+            _mesh_data_group: &mut MeshDataGroup,
         ) {
             animation_data_group.duration = 4.2;
         }
 
         fn stage_1(
-            animation_data_group: &mut AnimationDataGroup,
-            mesh_data_group: &mut MeshDataGroup,
+            _animation_data_group: &mut AnimationDataGroup,
+            _mesh_data_group: &mut MeshDataGroup,
         ) {
         }
     }
