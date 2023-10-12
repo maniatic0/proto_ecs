@@ -21,7 +21,7 @@ pub mod sdg {
 
     impl AnimationDataGroupDesc for AnimationDataGroup {
         fn init(&mut self, init_data: Box<AnimationDataGroup>) {
-            self.clip_name = init_data.clip_name.clone();
+            self.clip_name = init_data.clip_name;
             self.duration = init_data.duration;
         }
     }
