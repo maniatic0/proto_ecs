@@ -17,6 +17,10 @@ use proto_ecs::core::casting::CanCast;
 
 pub type DataGroupID = u32;
 
+/// Generic Data Group Init Arg
+pub type GenericDataGroupInitArg = Box<dyn CanCast>;
+
+/// For use in macros
 pub use once_cell::sync::OnceCell;
 
 /// This trait it's a little hack to get the id from any dyn DataGroup instance.
