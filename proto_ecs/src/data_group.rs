@@ -17,6 +17,22 @@ use proto_ecs::core::casting::CanCast;
 
 pub type DataGroupID = u32;
 
+/// Generic Data Group Init Arg
+pub type GenericDataGroupInitArg = Box<dyn CanCast>;
+
+/// Whether a DataGroup has an init function
+/// If it has one, it can specify if it doesn't take an argument,
+/// if the argument is required, or if the argument is optional
+pub enum DataGroupInitType
+{
+    Uninitialized,
+    NoInit,
+    NoArg,
+    Arg(GenericDataGroupInitArg),
+    OptionalArg(std::option::Option<GenericDataGroupInitArg>)
+}
+
+/// For use in macros
 pub use once_cell::sync::OnceCell;
 
 /// This trait it's a little hack to get the id from any dyn DataGroup instance.
