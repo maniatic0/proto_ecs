@@ -29,6 +29,20 @@ mod local_system_test {
         }
     }
 
+    struct TestOpt;
+
+    register_local_system! {
+        TestOpt,
+        dependencies = (AnimationDataGroup, Optional(MeshDataGroup)),
+        stages = (0)
+    }
+
+    impl TestOptLocalSystem for TestOpt {
+        fn stage_0(animation_data_group: &mut AnimationDataGroup, mesh_data_group:Option<&mut MeshDataGroup>) {
+            
+        }
+    }
+
     #[test]
     fn test_local_system_registration() {
         if !App::is_initialized() {

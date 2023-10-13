@@ -282,8 +282,6 @@ pub fn entity(
 }
 
 // -- < Local systems > --------------------------------------
-static LOCAL_SYSTEM_COUNT: AtomicU32 = AtomicU32::new(1);
-
 // This structs serve as "new_type", so we can avoid implementing a trait outside
 // our crate for a struct outside our crate
 enum OptionalDep {
@@ -458,7 +456,7 @@ fn create_glue_function(
     args: &Vec<OptionalDep>,
 ) -> (syn::Ident, proc_macro2::TokenStream) {
     let new_function_id = syn::Ident::new(
-        format!("__{}__", function_id.to_string()).as_str(),
+        format!("__{}__{}__", struct_id.to_string().as_str(), function_id.to_string()).as_str(),
         function_id.span(),
     );
 
@@ -542,7 +540,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                 }
                 OptionalDep::OptionalDep(d) => {
                     let arg_name = to_arg_name(d);
-                    quote! { #arg_name : &mut Option<#d> }
+                    quote! { #arg_name : Option<&mut #d> }
                 }
             }
         })
