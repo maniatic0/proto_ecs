@@ -14,22 +14,42 @@ pub use ecs_macros::{register_datagroup, register_datagroup_init};
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
+use std::fmt::Debug;
 
 pub type DataGroupID = u32;
 
+/// Generic trait for DataGroup Init Args
+pub trait GenericDataGroupInitArgTrait: CanCast + Debug {}
+
 /// Generic Data Group Init Arg
-pub type GenericDataGroupInitArg = Box<dyn CanCast>;
+pub type GenericDataGroupInitArg = Box<dyn GenericDataGroupInitArgTrait>;
 
 /// Whether a DataGroup has an init function
 /// If it has one, it can specify if it doesn't take an argument,
 /// if the argument is required, or if the argument is optional
-pub enum DataGroupInitType
-{
-    Uninitialized,
+pub enum DataGroupInitType {
+    /// Uninitialized Arg (Owner info)
+    Uninitialized(&'static str),
+    /// Datagroup without init
     NoInit,
+    /// Datagroup with init but no args
     NoArg,
+    /// Datagroup with init and args
     Arg(GenericDataGroupInitArg),
-    OptionalArg(std::option::Option<GenericDataGroupInitArg>)
+    /// Datagroup with init and optional args
+    OptionalArg(Option<GenericDataGroupInitArg>),
+}
+
+impl Debug for DataGroupInitType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Uninitialized(arg0) => f.debug_tuple("Uninitialized").field(arg0).finish(),
+            Self::NoInit => write!(f, "NoInit"),
+            Self::NoArg => write!(f, "NoArg"),
+            Self::Arg(arg0) => f.debug_tuple("Arg").field(arg0).finish(),
+            Self::OptionalArg(arg0) => f.debug_tuple("OptionalArg").field(arg0).finish(),
+        }
+    }
 }
 
 /// For use in macros
@@ -84,7 +104,7 @@ macro_rules! get_id {
 /// register_datagroup!(MyDatagroup, factory)
 /// ```
 pub trait DataGroup: DataGroupMeta + CanCast {
-    fn __init__(&mut self, init_data: std::option::Option<Box<dyn CanCast>>);
+    fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 
 /// Factory function to create default Data Groups

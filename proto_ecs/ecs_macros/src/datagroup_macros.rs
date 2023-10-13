@@ -79,8 +79,8 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
             let arg_clone = arg.clone();
             quote!(
                 const _: fn() = || {
-                    /// Only callable when Arg implements trait CanCast.
-                    fn check_cast_trait_implemented<T: ?Sized + proto_ecs::core::casting::CanCast>() {}
+                    /// Only callable when Arg implements trait GenericDataGroupInitArgTrait.
+                    fn check_cast_trait_implemented<T: ?Sized + proto_ecs::data_group::GenericDataGroupInitArgTrait>() {}
                     check_cast_trait_implemented::<#arg_clone>();
                     // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
                 };
@@ -90,8 +90,8 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
             let arg_clone = arg.clone();
             quote!(
                 const _: fn() = || {
-                    /// Only callable when Arg implements trait CanCast.
-                    fn check_cast_trait_implemented<T: ?Sized + proto_ecs::core::casting::CanCast>() {}
+                    /// Only callable when Arg implements trait GenericDataGroupInitArgTrait.
+                    fn check_cast_trait_implemented<T: ?Sized + proto_ecs::data_group::GenericDataGroupInitArgTrait>() {}
                     check_cast_trait_implemented::<#arg_clone>();
                     // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
                 };

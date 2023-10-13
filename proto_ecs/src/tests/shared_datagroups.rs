@@ -4,11 +4,13 @@ pub mod sdg {
 
     use crate::core::casting::CanCast;
     // -- first example datagroup
-    #[derive(CanCast)]
+    #[derive(CanCast, Debug)]
     pub struct AnimationDataGroup {
         pub clip_name: String,
         pub duration: f64,
     }
+
+    impl GenericDataGroupInitArgTrait for AnimationDataGroup {}
 
     fn animation_factory() -> Box<dyn DataGroup> {
         return Box::new(AnimationDataGroup {
