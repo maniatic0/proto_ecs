@@ -2,7 +2,7 @@ use syn::{
     self, parenthesized, token, parse_macro_input,
 };
 use quote::{quote, ToTokens};
-use crate::utils;
+use crate::utils::{self, to_camel_case};
 
 
 
@@ -180,7 +180,7 @@ fn create_glue_function(
     args: &Vec<OptionalDep>,
 ) -> (syn::Ident, proc_macro2::TokenStream) {
     let new_function_id = syn::Ident::new(
-        format!("__{}__{}__", struct_id.to_string().as_str(), function_id.to_string()).as_str(),
+        format!("__{}_{}__", to_camel_case(struct_id.to_string().as_str()), function_id.to_string()).as_str(),
         function_id.span(),
     );
 
