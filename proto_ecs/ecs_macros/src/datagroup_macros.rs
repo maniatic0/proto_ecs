@@ -2,6 +2,7 @@ use crc32fast;
 use proc_macro;
 use quote::quote;
 use syn::{self, parenthesized, parse::Parse, parse_macro_input, token};
+use crate::core_macros::ids_macros;
 
 // -- < Datagroups > -----------------------------------
 
@@ -177,12 +178,11 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
     let datagroup_str = datagroup.to_string();
     let name_crc = crc32fast::hash(datagroup_str.as_bytes());
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
-    let datagroup_id_magic_ident = {
-        let name_up = datagroup_str.to_uppercase();
-        syn::Ident::new(&format!("{name_up}_DATA_GROUP_ID"), datagroup.span())
-    };
+    
+    let mut result = quote!();
+    let datagroup_id_magic_ident = ids_macros::implement_id_traits(&datagroup, &mut result);
 
-    let result = quote! {
+    result.extend(quote! {
 
         const _: fn() = || {
             /// Only callable when Datagroup implements trait DatagroupDesc.
@@ -190,9 +190,6 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
             check_desc_trait_implemented::<#datagroup>();
             // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
         };
-
-        // Static value to hold id
-        static #datagroup_id_magic_ident : proto_ecs::data_group::OnceCell<proto_ecs::data_group::DataGroupID> = proto_ecs::data_group::OnceCell::new();
 
         // Registration in the global datagroup registry
         const _ : () = {
@@ -214,28 +211,8 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
                 );
             }
         };
-
-        // Implement locator trait for registry,
-        // it helps you to find the id for a datagroup using static function calls
-        impl proto_ecs::data_group::DataGroupMetadataLocator for #datagroup
-        {
-            fn get_id() -> proto_ecs::data_group::DataGroupID
-            {
-                #datagroup_id_magic_ident.get().expect("Missing DataGroup ID").clone()
-            }
-        }
-
-        // Implement metadata trait for this datagroup. It helps you to
-        // get the id of a datagroup instance, so that you can find its
-        // static data with the global registry
-        impl proto_ecs::data_group::DataGroupMeta for #datagroup
-        {
-            fn get_id(&self) -> proto_ecs::data_group::DataGroupID
-            {
-                #datagroup_id_magic_ident.get().expect("Missing DataGroup ID").clone()
-            }
-        }
-    };
+    });
 
     return result.into();
 }
+

@@ -1,5 +1,3 @@
-use std::slice::SliceIndex;
-
 use lazy_static::lazy_static;
 
 /// This module implements the entire Application workflow.
@@ -8,12 +6,6 @@ use crate::data_group::DataGroupRegistry;
 use crate::local_systems::LocalSystemRegistry;
 use parking_lot::RwLock;
 
-/// Standard stages, you can use your own stages between 0 a 255
-enum Stages {
-    Init = 0,
-    Update = 10,
-    Ignored = 255,
-}
 
 pub struct App {
     is_initialized: bool,

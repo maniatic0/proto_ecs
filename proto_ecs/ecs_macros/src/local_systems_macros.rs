@@ -83,14 +83,14 @@ impl ToTokens for OptionalDep {
             OptionalDep::Dependency(id) => {
                 tokens.extend(quote! {
                     proto_ecs::local_systems::Dependency::DataGroup(
-                        <#id as proto_ecs::data_group::DataGroupMetadataLocator>::get_id()
+                        <#id as proto_ecs::core::ids::IDLocator>::get_id()
                     )
                 });
             }
             OptionalDep::OptionalDep(id) => {
                 tokens.extend(quote! {
                     proto_ecs::local_systems::Dependency::OptionalDG(
-                        <#id as proto_ecs::data_group::DataGroupMetadataLocator>::get_id()
+                        <#id as proto_ecs::core::ids::IDLocator>::get_id()
                     )
                 });
             }

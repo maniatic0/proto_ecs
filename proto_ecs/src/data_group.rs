@@ -15,6 +15,8 @@ use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
 use std::fmt::Debug;
+use proto_ecs::core::ids;
+use proto_ecs::get_id;
 
 pub type DataGroupID = u32;
 
@@ -55,26 +57,8 @@ impl Debug for DataGroupInitType {
 /// For use in macros
 pub use once_cell::sync::OnceCell;
 
-/// This trait it's a little hack to get the id from any dyn DataGroup instance.
-/// Don't implement directly from this, it will be implemented by the register_datagroup macro
-pub trait DataGroupMeta {
-    fn get_id(&self) -> DataGroupID;
-}
-
-/// This trait represents compile time metadata about datagroups. Is implemented
-/// by the registry per datagroup. It's implemented automagically with the
-/// register_datagroup macro
-pub trait DataGroupMetadataLocator {
-    fn get_id() -> DataGroupID;
-}
-
 /// return the ID of the given datagroup
-#[macro_export]
-macro_rules! get_id {
-    ($i:ident) => {
-        <$i as proto_ecs::data_group::DataGroupMetadataLocator>::get_id()
-    };
-}
+
 
 /// This trait is the user implementable part of a datagroup.
 /// Users will create a DataGroup and register it with a macro to be
@@ -103,7 +87,7 @@ macro_rules! get_id {
 ///
 /// register_datagroup!(MyDatagroup, factory)
 /// ```
-pub trait DataGroup: DataGroupMeta + CanCast {
+pub trait DataGroup: ids::HasID + CanCast {
     fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 
@@ -220,7 +204,7 @@ impl DataGroupRegistry {
     #[inline(always)]
     pub fn get_entry<D>(&self) -> &DataGroupRegistryEntry
     where
-        D: DataGroupMetadataLocator,
+        D: ids::IDLocator,
     {
         self.get_entry_by_id(get_id!(D))
     }
@@ -234,7 +218,7 @@ impl DataGroupRegistry {
     #[inline(always)]
     pub fn create<D>(&self) -> Box<dyn DataGroup>
     where
-        D: DataGroupMetadataLocator,
+        D: ids::IDLocator,
     {
         self.create_by_id(get_id!(D))
     }

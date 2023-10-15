@@ -1,7 +1,8 @@
-use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupMetadataLocator};
+use crate::data_group::{DataGroupID, DataGroupInitType};
 use crate::get_id;
 use crate::local_systems::SystemClassID;
 use nohash_hasher::{IntMap, IntSet};
+use crate::core::ids;
 
 /// Description of an entity to be spawned
 #[derive(Debug, Default)]
@@ -47,7 +48,7 @@ impl EntitySpawnDescription {
     /// Normally this should only be called by the internal engine. Prefer to use DataGroup::Prepare
     pub fn add_datagroup<D>(&mut self, init_args: DataGroupInitType) -> Option<DataGroupInitType>
     where
-        D: DataGroupMetadataLocator,
+        D: ids::IDLocator,
     {
         self.add_datagroup_by_id(get_id!(D), init_args)
     }

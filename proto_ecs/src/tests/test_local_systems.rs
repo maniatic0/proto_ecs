@@ -38,7 +38,7 @@ mod local_system_test {
     }
 
     impl TestOptLocalSystem for TestOpt {
-        fn stage_0(animation_data_group: &mut AnimationDataGroup, mesh_data_group:Option<&mut MeshDataGroup>) {
+        fn stage_0(_animation_data_group: &mut AnimationDataGroup, _mesh_data_group:Option<&mut MeshDataGroup>) {
             
         }
     }
