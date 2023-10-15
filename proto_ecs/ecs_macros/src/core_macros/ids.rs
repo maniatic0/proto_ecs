@@ -1,4 +1,3 @@
-use proc_macro;
 use syn;
 use quote::quote;
 

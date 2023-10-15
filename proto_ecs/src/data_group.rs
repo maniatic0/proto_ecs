@@ -197,14 +197,14 @@ impl DataGroupRegistry {
 
     #[inline]
     pub fn get_entry_by_id(&self, id: DataGroupID) -> &DataGroupRegistryEntry {
-        assert!((id as usize) < self.entries.len(), "Invalid id");
+    debug_assert!((id as usize) < self.entries.len(), "Invalid id");
         return &self.entries[id as usize];
     }
 
     #[inline(always)]
     pub fn get_entry<D>(&self) -> &DataGroupRegistryEntry
     where
-        D: ids::IDLocator,
+        D: ids::IDLocator + DataGroup
     {
         self.get_entry_by_id(get_id!(D))
     }
@@ -218,7 +218,7 @@ impl DataGroupRegistry {
     #[inline(always)]
     pub fn create<D>(&self) -> Box<dyn DataGroup>
     where
-        D: ids::IDLocator,
+        D: ids::IDLocator + DataGroup,
     {
         self.create_by_id(get_id!(D))
     }

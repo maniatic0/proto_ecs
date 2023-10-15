@@ -55,9 +55,7 @@ mod local_system_test {
         let anim = dg_registry.create::<AnimationDataGroup>();
         let mut dgs = vec![anim, mesh];
         let indices: [usize; 2] = [0, 1];
-        // TODO we need a better way to locate a system
-        let id = 2018365746u32; // Hardcoded crc32 from the local system function
-        let entry = ls_registry.get_entry_by_id(id);
+        let entry = ls_registry.get_entry::<Test>();
         for f in entry.functions {
             match f {
                 Some(f) => (f)(&indices, &mut dgs),

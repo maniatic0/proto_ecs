@@ -3,7 +3,7 @@ use syn::{
 };
 use quote::{quote, ToTokens};
 use crate::utils::{self, to_camel_case};
-
+use crate::core_macros::ids;
 
 
 enum OptionalDep {
@@ -293,7 +293,10 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
         .map(|lit| syn::Index::from(lit.base10_parse::<usize>().unwrap()));
     let struct_id = &args.struct_id;
 
-    return quote!{
+    let mut result = quote!{};
+    let id_magic_ident = ids::implement_id_traits(struct_id, &mut result);
+
+    result.extend(quote!{
 
         // For static assertions
         const _ : fn() = || {
@@ -322,7 +325,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                             let mut func_map : [Option<proto_ecs::local_systems::SystemFn>; 255] = [None; 255];
                             #( dependencies.push(#deps);)*
                             #( func_map[#stage_indices] = Some(#glue_function_ids);)*
-                            registry.register_internal(
+                            let new_id = registry.register(
                                 proto_ecs::local_systems::LocalSystemRegistryEntry{
                                     id : u32::MAX,
                                     name_crc : #name_crc,
@@ -330,10 +333,13 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                                     functions : func_map
                                 }
                             );
+                            #id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
                         }
                     )
                 );
             }
         };
-    }.into();
+    });
+
+    return result.into();
 }

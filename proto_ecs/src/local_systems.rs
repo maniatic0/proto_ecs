@@ -11,6 +11,8 @@ use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::data_group::DataGroupID;
+use proto_ecs::get_id;
+use proto_ecs::core::ids;
 
 use crate::data_group::DataGroup;
 
@@ -64,10 +66,13 @@ pub struct LocalSystemRegistry {
 }
 
 impl LocalSystemRegistry {
+
+    #[inline]
     pub fn new() -> Self {
         LocalSystemRegistry::default()
     }
 
+    #[inline]
     fn get_temp_global_registry() -> &'static RwLock<TempRegistryLambdas> {
         &LOCAL_SYSTEM_REGISTRY_TEMP
     }
@@ -78,44 +83,67 @@ impl LocalSystemRegistry {
             .push(lambda)
     }
 
+    #[inline]
     pub fn get_global_registry() -> &'static RwLock<Self> {
         &GLOBAL_SYSTEM
     }
 
-    pub fn register_internal(&mut self, mut entry: LocalSystemRegistryEntry) {
-        entry.id = self.entries.len() as u32;
+    pub fn register(&mut self, mut entry: LocalSystemRegistryEntry) -> SystemClassID {
+        let new_id = self.entries.len() as u32;
+        entry.id = new_id;
         self.entries.push(entry);
+        return new_id;
     }
 
-    pub fn get_entry_by_id(&self, id: u32) -> &LocalSystemRegistryEntry {
-        // TODO Improve this search
-        self.entries
-            .iter()
-            .find(|reg| reg.name_crc == id)
-            .expect("Invalid id")
-    }
-
+    #[inline]
     pub fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 
+    /// Initialize the global registry
     pub fn initialize() {
-        let mut locals: TempRegistryLambdas = TempRegistryLambdas::new();
         let mut registry = LocalSystemRegistry::get_global_registry().write();
         assert!(
             !registry.is_initialized,
             "Local System registry was already initialized!"
         );
+        
+        registry.load_registered_local_systems();
+        registry.init();
+    }
 
+    /// Initialize this registry entry
+    pub fn init(&mut self)
+    {
+        self.entries.sort_unstable_by(|this, other| this.id.cmp(&other.id));
+        self.is_initialized = true;
+    }
+
+    /// Consume globally registered local systems and load them to this registry
+    pub fn load_registered_local_systems(&mut self)
+    {
+        let mut locals: TempRegistryLambdas = TempRegistryLambdas::new();
         let mut globals = LocalSystemRegistry::get_temp_global_registry().write();
 
         // Clear globals
         std::mem::swap(&mut locals, &mut globals);
 
         // Consume locals
-        locals.into_iter().for_each(|lambda| lambda(&mut registry));
+        locals.into_iter().for_each(|lambda| lambda(self));
+    }
 
-        registry.is_initialized = true;
+    #[inline]
+    pub fn get_entry_by_id(&self, id: SystemClassID) -> &LocalSystemRegistryEntry 
+    {
+        debug_assert!((id as usize) < self.entries.len(), "Invalid ID");
+        &self.entries[id as usize]
+    }
+
+    /// Get the entry for a specific LocalSystem
+    pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry 
+        where S : ids::IDLocator // TODO Add local system trait here if we decide we need one
+    {
+        self.get_entry_by_id(get_id!(S))
     }
 }
 

@@ -2,7 +2,7 @@ use crc32fast;
 use proc_macro;
 use quote::quote;
 use syn::{self, parenthesized, parse::Parse, parse_macro_input, token};
-use crate::core_macros::ids_macros;
+use crate::core_macros::ids;
 
 // -- < Datagroups > -----------------------------------
 
@@ -180,7 +180,7 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
     
     let mut result = quote!();
-    let datagroup_id_magic_ident = ids_macros::implement_id_traits(&datagroup, &mut result);
+    let datagroup_id_magic_ident = ids::implement_id_traits(&datagroup, &mut result);
 
     result.extend(quote! {
 
