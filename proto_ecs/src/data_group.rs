@@ -43,9 +43,6 @@ pub enum DataGroupInitType {
     OptionalArg(Option<GenericDataGroupInitArg>),
 }
 
-/// For use in macros
-pub use once_cell::sync::OnceCell;
-
 /// This trait is the user implementable part of a datagroup.
 /// Users will create a DataGroup and register it with a macro to be
 /// available for construction.
