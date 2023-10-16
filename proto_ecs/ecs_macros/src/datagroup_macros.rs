@@ -1,8 +1,8 @@
+use crate::core_macros::ids;
 use crc32fast;
 use proc_macro;
 use quote::quote;
 use syn::{self, parenthesized, parse::Parse, parse_macro_input, token};
-use crate::core_macros::ids;
 
 // -- < Datagroups > -----------------------------------
 
@@ -10,9 +10,13 @@ use crate::core_macros::ids;
 /// If it has one, it can specify if it doesn't take an argument,
 /// if the argument is required, or if the argument is optional
 enum DataGroupInit {
+    /// No Init
     None,
+    /// Init with no Args
     NoArg,
+    /// Init with Args
     Arg(syn::Ident),
+    /// Init with optional Args
     OptionalArg(syn::Ident),
 }
 
@@ -64,12 +68,10 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         DataGroupInit::None => quote! {},
         DataGroupInit::NoArg => quote! {fn init(&mut self);},
         DataGroupInit::Arg(arg) => {
-            let arg_clone = arg.clone();
-            quote!(fn init(&mut self, init_data : Box<#arg_clone>);)
+            quote!(fn init(&mut self, init_data : Box<#arg>);)
         }
         DataGroupInit::OptionalArg(arg) => {
-            let arg_clone = arg.clone();
-            quote!(fn init(&mut self, init_data : std::option::Option<Box<#arg_clone>>);)
+            quote!(fn init(&mut self, init_data : std::option::Option<Box<#arg>>);)
         }
     };
 
@@ -100,7 +102,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         }
     };
 
-    let init_fn_internal = match info.init_type {
+    let init_fn_internal = match &info.init_type {
         DataGroupInit::None => quote! {
             fn __init__(&mut self, _init_data: std::option::Option<proto_ecs::data_group::GenericDataGroupInitArg>)
             {
@@ -133,6 +135,70 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
     let datagroup = &info.datagroup_name;
 
+    let prepare_fn = match &info.init_type {
+        DataGroupInit::None => {
+            let msg = format!(
+                "Add data group {} to an entity being prepared to spawn",
+                datagroup
+            );
+
+            quote!(
+                impl #datagroup
+                {
+                    #[doc = #msg]
+                    pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                        spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::NoInit)
+                    }
+                }
+            )
+        }
+        DataGroupInit::NoArg => {
+            let msg = format!(
+                "Add data group {} to an entity being prepared to spawn. It will init",
+                datagroup
+            );
+
+            quote!(
+                impl #datagroup
+                {
+                    #[doc = #msg]
+                    pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                        spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::NoArg)
+                    }
+                }
+            )
+        }
+        DataGroupInit::Arg(arg) => {
+            let msg = format!(
+                "Add data group {} to an entity being prepared to spawn. It will init with arg {}",
+                datagroup, arg
+            );
+
+            quote!(
+                impl #datagroup
+                {
+                    #[doc = #msg]
+                    pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription, arg : Box<#arg>) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                        spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::Arg(arg))
+                    }
+                }
+            )
+        }
+        DataGroupInit::OptionalArg(arg) => {
+            let msg = format!("Add data group {} to an entity being prepared to spawn. It will init with optional arg {}", datagroup, arg);
+
+            quote!(
+                impl #datagroup
+                {
+                    #[doc = #msg]
+                    pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription, arg : std::option::Option<Box<#arg>>) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                        spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::OptionalArg(arg))
+                    }
+                }
+            )
+        }
+    };
+
     let result = quote! {
         #init_fn_arg_trait_check
         trait #datagroup_desc_trait {
@@ -143,6 +209,8 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         {
             #init_fn_internal
         }
+
+        #prepare_fn
     };
 
     return result.into();
@@ -178,7 +246,7 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
     let datagroup_str = datagroup.to_string();
     let name_crc = crc32fast::hash(datagroup_str.as_bytes());
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
-    
+
     let mut result = quote!();
     let datagroup_id_magic_ident = ids::implement_id_traits(&datagroup, &mut result);
 
@@ -215,4 +283,3 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
 
     return result.into();
 }
-

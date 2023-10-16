@@ -1,8 +1,13 @@
 // -- < Testing datagroups API > ---------------------------
 #[cfg(test)]
 pub mod datagroup_test {
-    use crate::{app::App, core::casting::cast_mut, create_datagroup, get_id};
+    use crate::{
+        app::App,
+        core::casting::{cast, cast_mut},
+        create_datagroup, get_id,
+    };
     use proto_ecs::data_group::*;
+    use proto_ecs::entity_spawn_desc::*;
 
     use super::super::shared_datagroups::sdg::*;
 
@@ -84,5 +89,40 @@ pub mod datagroup_test {
         let anim_datagroup: &mut AnimationDataGroup = cast_mut(&mut anim_datagroup);
         assert_eq!(anim_datagroup.clip_name.as_str(), "hello world");
         assert_eq!(anim_datagroup.duration, 4.20);
+    }
+
+    #[test]
+    fn test_datagroup_entity_spawn_desc() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
+        let mut spawn_desc = EntitySpawnDescription::default();
+        let init_params = Box::new(AnimationDataGroup {
+            clip_name: "hello world".to_string(),
+            duration: 4.20,
+        });
+
+        let empty = AnimationDataGroup::prepare_spawn(&mut spawn_desc, init_params);
+
+        assert!(empty.is_none());
+
+        let init_params = spawn_desc
+            .get_datagroups()
+            .get(&get_id!(AnimationDataGroup));
+        assert!(init_params.is_some());
+        let init_params = init_params.expect("Failed to add test params!");
+
+        let init_params = match init_params {
+            DataGroupInitType::Uninitialized(_) => panic!("Unexpected init arg type!"),
+            DataGroupInitType::NoInit => panic!("Unexpected init arg type!"),
+            DataGroupInitType::NoArg => panic!("Unexpected init arg type!"),
+            DataGroupInitType::Arg(params) => params,
+            DataGroupInitType::OptionalArg(_) => panic!("Unexpected init arg type!"),
+        };
+
+        let init_params: &AnimationDataGroup = cast(init_params);
+        assert_eq!(init_params.clip_name.as_str(), "hello world");
+        assert_eq!(init_params.duration, 4.20);
     }
 }

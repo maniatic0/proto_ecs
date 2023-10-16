@@ -44,6 +44,7 @@ impl EntitySpawnDescription {
         self.data_groups.insert(id, init_args)
     }
 
+    #[inline(always)]
     /// Add a datagroup to an entity to be spawned
     /// Normally this should only be called by the internal engine. Prefer to use DataGroup::Prepare
     pub fn add_datagroup<D>(&mut self, init_args: DataGroupInitType) -> Option<DataGroupInitType>
