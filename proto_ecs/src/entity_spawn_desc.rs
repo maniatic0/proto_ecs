@@ -82,7 +82,8 @@ impl EntitySpawnDescription {
 
     #[inline(always)]
     /// Get current datagroups to be created for this entity
-    pub fn get_datagroups_mut(&mut self) -> &mut IntMap<DataGroupID, DataGroupInitType> {
+    /// Internal method to avoid modifications to the presence of a datagroup
+    fn get_datagroups_mut(&mut self) -> &mut IntMap<DataGroupID, DataGroupInitType> {
         &mut self.data_groups
     }
 
