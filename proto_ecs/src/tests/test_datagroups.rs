@@ -31,6 +31,15 @@ pub mod datagroup_test {
             anim_id
         );
         assert_eq!(global_registry.get_entry::<MeshDataGroup>().id, mesh_id);
+
+        assert_eq!(anim_entry.name, AnimationDataGroup::NAME);
+        assert_eq!(mesh_entry.name, MeshDataGroup::NAME);
+
+        assert_eq!(anim_entry.name_crc, AnimationDataGroup::NAME_CRC);
+        assert_eq!(mesh_entry.name_crc, MeshDataGroup::NAME_CRC);
+
+        assert_eq!(anim_entry.factory_func, AnimationDataGroup::FACTORY);
+        assert_eq!(mesh_entry.factory_func, MeshDataGroup::FACTORY);
     }
 
     #[test]

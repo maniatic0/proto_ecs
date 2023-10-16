@@ -102,6 +102,16 @@ pub enum DataGroupInitDesc {
 /// Factory function to create default Data Groups
 pub type DataGroupFactory = fn() -> Box<dyn DataGroup>;
 
+/// Datagroup's static description
+pub trait DatagroupDesc {
+    /// Name of this datagroup
+    const NAME: &'static str;
+    /// Name's crc
+    const NAME_CRC: u32;
+    /// Factory to create new instances of this datagroup
+    const FACTORY: DataGroupFactory;
+}
+
 /// Entry for the datagroup Registry
 ///
 /// Specifies the data describing a specific datagroup

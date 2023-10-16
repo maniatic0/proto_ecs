@@ -288,6 +288,16 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
             // Based on https://docs.rs/static_assertions/latest/static_assertions/macro.assert_impl_all.html
         };
 
+        impl proto_ecs::data_group::DatagroupDesc for #datagroup
+        {
+            #[doc = "Name of this datagroup"]
+            const NAME : &'static str = #datagroup_str;
+            #[doc = "Name's crc"]
+            const NAME_CRC : u32 = #name_crc;
+            #[doc = "Factory to create new instances of this datagroup"]
+            const FACTORY : proto_ecs::data_group::DataGroupFactory = #factory;
+        }
+
         // Registration in the global datagroup registry
         const _ : () = {
             #[ctor::ctor]
@@ -297,9 +307,9 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
                     Box::new(
                         |registry| {
                             let new_id = registry.register(proto_ecs::data_group::DataGroupRegistryEntry{
-                                name: #datagroup_str,
-                                name_crc: #name_crc,
-                                factory_func: #factory,
+                                name: <#datagroup as proto_ecs::data_group::DatagroupDesc>::NAME,
+                                name_crc: <#datagroup as proto_ecs::data_group::DatagroupDesc>::NAME_CRC,
+                                factory_func: <#datagroup as proto_ecs::data_group::DatagroupDesc>::FACTORY,
                                 init_desc: <#datagroup as proto_ecs::data_group::DataGroupInitDescTrait>::INIT_DESC,
                                 id: proto_ecs::data_group::DataGroupID::MAX
                             });
