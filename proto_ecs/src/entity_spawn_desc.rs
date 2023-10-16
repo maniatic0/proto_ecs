@@ -81,6 +81,27 @@ impl EntitySpawnDescription {
     }
 
     #[inline(always)]
+    /// Get current datagroups to be created for this entity
+    pub fn get_datagroups_mut(&mut self) -> &mut IntMap<DataGroupID, DataGroupInitType> {
+        &mut self.data_groups
+    }
+
+    #[inline]
+    /// Get current data group init data
+    pub fn get_datagroup_mut_by_id(&mut self, id: &DataGroupID) -> Option<&mut DataGroupInitType> {
+        self.get_datagroups_mut().get_mut(id)
+    }
+
+    #[inline]
+    /// Get current data group init data
+    pub fn get_datagroup_mut<D>(&mut self) -> Option<&mut DataGroupInitType>
+    where
+        D: ids::IDLocator,
+    {
+        self.get_datagroup_mut_by_id(&get_id!(D))
+    }
+
+    #[inline(always)]
     /// Add a local system to an entity to be spawned
     pub fn add_local_system_by_id(&mut self, id: SystemClassID) -> bool {
         self.local_systems.insert(id)
