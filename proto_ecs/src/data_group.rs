@@ -14,9 +14,9 @@ pub use ecs_macros::{register_datagroup, register_datagroup_init};
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
-use std::fmt::Debug;
 use proto_ecs::core::ids;
 use proto_ecs::get_id;
+use std::fmt::Debug;
 
 pub type DataGroupID = u32;
 
@@ -26,6 +26,7 @@ pub trait GenericDataGroupInitArgTrait: CanCast + Debug {}
 /// Generic Data Group Init Arg
 pub type GenericDataGroupInitArg = Box<dyn GenericDataGroupInitArgTrait>;
 
+#[derive(Debug)]
 /// Whether a DataGroup has an init function
 /// If it has one, it can specify if it doesn't take an argument,
 /// if the argument is required, or if the argument is optional
@@ -42,23 +43,8 @@ pub enum DataGroupInitType {
     OptionalArg(Option<GenericDataGroupInitArg>),
 }
 
-impl Debug for DataGroupInitType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Uninitialized(arg0) => f.debug_tuple("Uninitialized").field(arg0).finish(),
-            Self::NoInit => write!(f, "NoInit"),
-            Self::NoArg => write!(f, "NoArg"),
-            Self::Arg(arg0) => f.debug_tuple("Arg").field(arg0).finish(),
-            Self::OptionalArg(arg0) => f.debug_tuple("OptionalArg").field(arg0).finish(),
-        }
-    }
-}
-
 /// For use in macros
 pub use once_cell::sync::OnceCell;
-
-/// return the ID of the given datagroup
-
 
 /// This trait is the user implementable part of a datagroup.
 /// Users will create a DataGroup and register it with a macro to be
@@ -91,6 +77,21 @@ pub trait DataGroup: ids::HasID + CanCast {
     fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 
+#[derive(Debug, PartialEq)]
+/// Whether a DataGroup has an init function
+/// If it has one, it can specify if it doesn't take an argument,
+/// if the argument is required, or if the argument is optional
+pub enum DataGroupInitDesc {
+    /// Datagroup without init
+    NoInit,
+    /// Datagroup with init but no args
+    NoArg,
+    /// Datagroup with init and args
+    Arg,
+    /// Datagroup with init and optional args
+    OptionalArg,
+}
+
 /// Factory function to create default Data Groups
 pub type DataGroupFactory = fn() -> Box<dyn DataGroup>;
 
@@ -102,6 +103,7 @@ pub struct DataGroupRegistryEntry {
     pub name: &'static str,
     pub name_crc: u32,
     pub factory_func: DataGroupFactory,
+    pub init_desc: DataGroupInitDesc,
     pub id: DataGroupID,
 }
 
@@ -197,14 +199,14 @@ impl DataGroupRegistry {
 
     #[inline]
     pub fn get_entry_by_id(&self, id: DataGroupID) -> &DataGroupRegistryEntry {
-    debug_assert!((id as usize) < self.entries.len(), "Invalid id");
+        debug_assert!((id as usize) < self.entries.len(), "Invalid id");
         return &self.entries[id as usize];
     }
 
     #[inline(always)]
     pub fn get_entry<D>(&self) -> &DataGroupRegistryEntry
     where
-        D: ids::IDLocator + DataGroup
+        D: ids::IDLocator + DataGroup,
     {
         self.get_entry_by_id(get_id!(D))
     }

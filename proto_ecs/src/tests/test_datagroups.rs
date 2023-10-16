@@ -79,6 +79,15 @@ pub mod datagroup_test {
             App::initialize();
         }
 
+        assert_eq!(AnimationDataGroup::INIT_DESC, DataGroupInitDesc::Arg);
+        assert_eq!(
+            proto_ecs::data_group::DataGroupRegistry::get_global_registry()
+                .read()
+                .get_entry::<AnimationDataGroup>()
+                .init_desc,
+            DataGroupInitDesc::Arg
+        );
+
         let mut anim_datagroup = create_datagroup!(AnimationDataGroup);
         let init_params = AnimationDataGroup {
             clip_name: "hello world".to_string(),
