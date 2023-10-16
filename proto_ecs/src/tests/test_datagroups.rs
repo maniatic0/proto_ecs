@@ -107,9 +107,7 @@ pub mod datagroup_test {
 
         assert!(empty.is_none());
 
-        let init_params = spawn_desc
-            .get_datagroups()
-            .get(&get_id!(AnimationDataGroup));
+        let init_params = spawn_desc.get_datagroup::<AnimationDataGroup>();
         assert!(init_params.is_some());
         let init_params = init_params.expect("Failed to add test params!");
 
