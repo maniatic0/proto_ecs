@@ -74,6 +74,8 @@ pub trait DataGroup: ids::HasID + CanCast {
     fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 
+/// Trait to implement the description of the init step for a datagroup
+/// This is automatically implemented by macros
 pub trait DataGroupInitDescTrait
 {
     /// Init Description of this DataGroup
