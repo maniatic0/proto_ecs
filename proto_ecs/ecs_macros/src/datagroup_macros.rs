@@ -134,7 +134,22 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         },
     };
 
-    let init_desc = match &info.init_type {
+    let init_arg_type_desc = match &info.init_type {
+        DataGroupInit::NoInit => {
+            quote! {type ArgType = ();}
+        }
+        DataGroupInit::NoArg => {
+            quote! {type ArgType = ();}
+        }
+        DataGroupInit::Arg(arg) => {
+            quote! {type ArgType = #arg;}
+        }
+        DataGroupInit::OptionalArg(arg) => {
+            quote! {type ArgType = #arg;}
+        }
+    };
+
+    let init_const_desc = match &info.init_type {
         DataGroupInit::NoInit => {
             quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoInit;}
         }
@@ -214,8 +229,11 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
         impl proto_ecs::data_group::DataGroupInitDescTrait for #datagroup
         {
+            #[doc = "Arg type, if any"]
+            #init_arg_type_desc
+
             #[doc = "Init Description of this DataGroup"]
-            #init_desc
+            #init_const_desc
         }
 
         impl #datagroup

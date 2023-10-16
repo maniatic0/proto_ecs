@@ -76,10 +76,12 @@ pub trait DataGroup: ids::HasID + CanCast {
 
 /// Trait to implement the description of the init step for a datagroup
 /// This is automatically implemented by macros
-pub trait DataGroupInitDescTrait
-{
+pub trait DataGroupInitDescTrait {
+    /// Arg type, if any
+    type ArgType;
+
     /// Init Description of this DataGroup
-    const INIT_DESC :  DataGroupInitDesc;
+    const INIT_DESC: DataGroupInitDesc;
 }
 
 #[derive(Debug, PartialEq)]

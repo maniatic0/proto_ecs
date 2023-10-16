@@ -81,6 +81,10 @@ pub mod datagroup_test {
 
         assert_eq!(AnimationDataGroup::INIT_DESC, DataGroupInitDesc::Arg);
         assert_eq!(
+            <AnimationDataGroup as DataGroupInitDescTrait>::ArgType::INIT_DESC,
+            DataGroupInitDesc::Arg
+        );
+        assert_eq!(
             proto_ecs::data_group::DataGroupRegistry::get_global_registry()
                 .read()
                 .get_entry::<AnimationDataGroup>()
