@@ -74,6 +74,12 @@ pub trait DataGroup: ids::HasID + CanCast {
     fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 
+pub trait DataGroupInitDescTrait
+{
+    /// Init Description of this DataGroup
+    const INIT_DESC :  DataGroupInitDesc;
+}
+
 #[derive(Debug, PartialEq)]
 /// Whether a DataGroup has an init function
 /// If it has one, it can specify if it doesn't take an argument,

@@ -136,16 +136,16 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
     let init_desc = match &info.init_type {
         DataGroupInit::NoInit => {
-            quote! {pub const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoInit;}
+            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoInit;}
         }
         DataGroupInit::NoArg => {
-            quote! {pub const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoArg;}
+            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoArg;}
         }
         DataGroupInit::Arg(_) => {
-            quote! {pub const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::Arg;}
+            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::Arg;}
         }
         DataGroupInit::OptionalArg(_) => {
-            quote! {pub const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::OptionalArg;}
+            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::OptionalArg;}
         }
     };
 
@@ -212,11 +212,14 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
             #init_fn_internal
         }
 
-        impl #datagroup
+        impl proto_ecs::data_group::DataGroupInitDescTrait for #datagroup
         {
             #[doc = "Init Description of this DataGroup"]
             #init_desc
+        }
 
+        impl #datagroup
+        {
             #prepare_fn
         }
     };
@@ -279,7 +282,7 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
                                 name: #datagroup_str,
                                 name_crc: #name_crc,
                                 factory_func: #factory,
-                                init_desc: #datagroup::INIT_DESC,
+                                init_desc: <#datagroup as proto_ecs::data_group::DataGroupInitDescTrait>::INIT_DESC,
                                 id: proto_ecs::data_group::DataGroupID::MAX
                             });
                             #datagroup_id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
