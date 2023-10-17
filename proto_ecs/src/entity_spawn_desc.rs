@@ -138,3 +138,34 @@ impl EntitySpawnDescription {
         self.get_local_system_by_id(&get_id!(S))
     }
 }
+
+/// Helpers to handle common uses cases for entity spawn descriptions
+pub mod helpers {
+    use crate::{
+        core::ids,
+        data_group::{DataGroup, DataGroupInitDesc, DataGroupInitDescTrait, DataGroupInitType},
+        get_id,
+    };
+
+    use super::EntitySpawnDescription;
+
+    /// Add an uninitialized datagroup dependency to the spawn description
+    pub fn local_system_try_add_datagroup<D>(
+        spawn_desc: &mut EntitySpawnDescription,
+        msg: &'static str,
+    ) where
+        D: ids::IDLocator + DataGroup + DataGroupInitDescTrait,
+    {
+        let default_init = match <D as DataGroupInitDescTrait>::INIT_DESC {
+            DataGroupInitDesc::NoInit => DataGroupInitType::NoInit,
+            DataGroupInitDesc::NoArg => DataGroupInitType::NoArg,
+            DataGroupInitDesc::Arg => DataGroupInitType::Uninitialized(msg),
+            DataGroupInitDesc::OptionalArg => DataGroupInitType::OptionalArg(None),
+        };
+
+        spawn_desc
+            .get_datagroups_mut()
+            .entry(get_id!(D))
+            .or_insert_with(|| default_init);
+    }
+}

@@ -247,6 +247,20 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
         args.struct_id.span(),
     );
 
+    // Generate the simple spawn preparation for dependency datagroups
+    let datagroups_simple_prepare: Vec<proc_macro2::TokenStream> = deps.iter().filter_map(|dep| {
+        match dep {
+            OptionalDep::OptionalDep(_) => None,
+            OptionalDep::Dependency(d) => {
+                let msg = format!("Local System '{}' added Datagroup dependency '{d}'", args.struct_id);
+
+                Some(quote!{
+                    proto_ecs::entity_spawn_desc::helpers::local_system_try_add_datagroup::<#d>(spawn_desc, #msg);
+                })
+            },
+        }
+    }).collect();
+
     // Generate function arguments for trait functions
     let function_args = deps
         .iter()
@@ -311,6 +325,17 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
         }
 
         #(#glue_function_bodies)*
+
+        impl #struct_id
+        {
+            #[doc = "Simple preparation of this local system. Dependencies that require init args are left uninitialized. Dependencies with optional args are left empty"]
+            pub fn simple_prepare(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription) -> bool
+            {
+                #(#datagroups_simple_prepare)*
+
+                spawn_desc.add_local_system::<#struct_id>()
+            }
+        }
 
         // Register this new local system to be loaded later
         const _ : () =
