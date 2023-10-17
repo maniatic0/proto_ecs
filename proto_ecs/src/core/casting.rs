@@ -8,27 +8,24 @@ pub trait CanCast {
 }
 
 #[inline(always)]
-pub fn safe_cast<V, T>(v: &Box<V>) -> Option<&T>
+pub fn safe_cast<T>(v: &Box<impl CanCast + ?Sized>) -> Option<&T>
 where
-    V: CanCast + ?Sized,
     T: 'static,
 {
     v.as_any().downcast_ref::<T>()
 }
 
 #[inline(always)]
-pub fn safe_cast_mut<V, T>(v: &mut Box<V>) -> Option<&mut T>
+pub fn safe_cast_mut<T>(v: &mut Box<impl CanCast + ?Sized>) -> Option<&mut T>
 where
-    V: CanCast + ?Sized,
     T: 'static,
 {
     v.as_any_mut().downcast_mut::<T>()
 }
 
 #[inline(always)]
-pub fn cast<V, T>(v: &Box<V>) -> &T
+pub fn cast<T>(v: &Box<impl CanCast + ?Sized>) -> &T
 where
-    V: CanCast + ?Sized,
     T: 'static,
 {
     v.as_any()
@@ -37,9 +34,8 @@ where
 }
 
 #[inline(always)]
-pub fn cast_mut<V, T>(v: &mut Box<V>) -> &mut T
+pub fn cast_mut<T>(v: &mut Box<impl CanCast + ?Sized>) -> &mut T
 where
-    V: CanCast + ?Sized,
     T: 'static,
 {
     v.as_any_mut()
@@ -48,9 +44,8 @@ where
 }
 
 #[inline(always)]
-pub fn into_any<V, T>(v: Box<V>) -> Box<T>
+pub fn into_any<T>(v: Box<impl CanCast + ?Sized>) -> Box<T>
 where
-    V: CanCast + ?Sized,
     T: 'static,
 {
     v.into_any().downcast().expect("Cast is not possible")
