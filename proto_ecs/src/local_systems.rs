@@ -10,9 +10,9 @@ pub use ecs_macros::register_local_system;
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
+use proto_ecs::core::ids;
 use proto_ecs::data_group::DataGroupID;
 use proto_ecs::get_id;
-use proto_ecs::core::ids;
 
 use crate::data_group::DataGroup;
 
@@ -54,6 +54,7 @@ impl Dependency {
 #[derive(Debug)]
 pub struct LocalSystemRegistryEntry {
     pub id: SystemClassID,
+    pub name: &'static str,
     pub name_crc: u32,
     pub dependencies: Vec<Dependency>,
     pub functions: StageMap,
@@ -66,7 +67,6 @@ pub struct LocalSystemRegistry {
 }
 
 impl LocalSystemRegistry {
-
     #[inline]
     pub fn new() -> Self {
         LocalSystemRegistry::default()
@@ -107,21 +107,20 @@ impl LocalSystemRegistry {
             !registry.is_initialized,
             "Local System registry was already initialized!"
         );
-        
+
         registry.load_registered_local_systems();
         registry.init();
     }
 
     /// Initialize this registry entry
-    pub fn init(&mut self)
-    {
-        self.entries.sort_unstable_by(|this, other| this.id.cmp(&other.id));
+    pub fn init(&mut self) {
+        self.entries
+            .sort_unstable_by(|this, other| this.id.cmp(&other.id));
         self.is_initialized = true;
     }
 
     /// Consume globally registered local systems and load them to this registry
-    pub fn load_registered_local_systems(&mut self)
-    {
+    pub fn load_registered_local_systems(&mut self) {
         let mut locals: TempRegistryLambdas = TempRegistryLambdas::new();
         let mut globals = LocalSystemRegistry::get_temp_global_registry().write();
 
@@ -133,15 +132,15 @@ impl LocalSystemRegistry {
     }
 
     #[inline]
-    pub fn get_entry_by_id(&self, id: SystemClassID) -> &LocalSystemRegistryEntry 
-    {
+    pub fn get_entry_by_id(&self, id: SystemClassID) -> &LocalSystemRegistryEntry {
         debug_assert!((id as usize) < self.entries.len(), "Invalid ID");
         &self.entries[id as usize]
     }
 
     /// Get the entry for a specific LocalSystem
-    pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry 
-        where S : ids::IDLocator // TODO Add local system trait here if we decide we need one
+    pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry
+    where
+        S: ids::IDLocator, // TODO Add local system trait here if we decide we need one
     {
         self.get_entry_by_id(get_id!(S))
     }

@@ -1,7 +1,7 @@
 use crate::core::ids;
-use crate::data_group::{self, DataGroupID, DataGroupInitType, DataGroupRegistry};
+use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupRegistry};
 use crate::get_id;
-use crate::local_systems::SystemClassID;
+use crate::local_systems::{Dependency, LocalSystemRegistry, SystemClassID};
 use nohash_hasher::{IntMap, IntSet};
 
 /// Description of an entity to be spawned
@@ -139,19 +139,48 @@ impl EntitySpawnDescription {
     }
 
     /// Checks if the datagroups of this entity make sense, else panic
-    fn check_datagroups_panic(&self) {
+    pub fn check_datagroups_panic(&self) {
         let registry = DataGroupRegistry::get_global_registry().read();
 
         self.get_datagroups().iter().for_each(|(id, init_param)| {
             let entry = registry.get_entry_by_id(*id);
 
-            data_group::helpers::check_init_params_panic(init_param, entry)
+            helpers::check_init_params_panic(init_param, entry)
+        });
+    }
+
+    /// Checks if the local systems of this entity have their dependencies met
+    pub fn check_local_systems_panic(&self) {
+        let registry = LocalSystemRegistry::get_global_registry().read();
+
+        self.get_local_systems().iter().for_each(|id| {
+            let entry = registry.get_entry_by_id(*id);
+
+            entry.dependencies.iter().for_each(|dep| {
+                let dg_id = match dep {
+                    Dependency::DataGroup(id) => id,
+                    Dependency::OptionalDG(_) => return,
+                };
+
+                if self.get_datagroups().contains_key(dg_id) {
+                    return;
+                }
+
+                let dg_registry = DataGroupRegistry::get_global_registry().read();
+
+                panic!(
+                    "Local System '{}' is missing dependency Datagroup '{}'",
+                    entry.name,
+                    dg_registry.get_entry_by_id(*dg_id).name
+                );
+            });
         });
     }
 
     /// Check if the entity to be spawned makes sense, else panic
     pub fn check_panic(&self) {
         self.check_datagroups_panic();
+        self.check_local_systems_panic();
     }
 }
 
@@ -159,7 +188,10 @@ impl EntitySpawnDescription {
 pub mod helpers {
     use crate::{
         core::ids,
-        data_group::{DataGroup, DataGroupInitDesc, DataGroupInitDescTrait, DataGroupInitType},
+        data_group::{
+            DataGroup, DataGroupInitDesc, DataGroupInitDescTrait, DataGroupInitType,
+            DataGroupRegistryEntry,
+        },
         get_id,
     };
 
@@ -183,5 +215,38 @@ pub mod helpers {
             .get_datagroups_mut()
             .entry(get_id!(D))
             .or_insert_with(|| default_init);
+    }
+
+    /// Checks if the init params of a DataGroup matches what it expects them to be. If they are not correct, it panics
+    pub fn check_init_params_panic(init_param: &DataGroupInitType, entry: &DataGroupRegistryEntry) {
+        if let DataGroupInitType::Uninitialized(msg) = init_param {
+            panic!(
+                "Found Uninitialized init param for DataGroup '{}' params: {msg}",
+                entry.name
+            );
+        }
+
+        match entry.init_desc {
+            DataGroupInitDesc::NoInit => assert!(
+                matches!(init_param, DataGroupInitType::NoInit),
+                "Datagroup '{}' expects a NoInit param, but found: {init_param:?}",
+                entry.name
+            ),
+            DataGroupInitDesc::NoArg => assert!(
+                matches!(init_param, DataGroupInitType::NoArg),
+                "Datagroup '{}' expects a NoArg param, but found: {init_param:?}",
+                entry.name
+            ),
+            DataGroupInitDesc::Arg => assert!(
+                matches!(init_param, DataGroupInitType::Arg(_)),
+                "Datagroup '{}' expects a Arg param, but found: {init_param:?}",
+                entry.name
+            ),
+            DataGroupInitDesc::OptionalArg => assert!(
+                matches!(init_param, DataGroupInitType::OptionalArg(_)),
+                "Datagroup '{}' expects a OptionalArg param, but found: {init_param:?}",
+                entry.name
+            ),
+        }
     }
 }

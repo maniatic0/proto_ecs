@@ -353,6 +353,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                             let new_id = registry.register(
                                 proto_ecs::local_systems::LocalSystemRegistryEntry{
                                     id : u32::MAX,
+                                    name : #struct_id_str,
                                     name_crc : #name_crc,
                                     dependencies : dependencies,
                                     functions : func_map
