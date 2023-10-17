@@ -145,4 +145,31 @@ pub mod datagroup_test {
         assert_eq!(init_params.clip_name.as_str(), "hello world");
         assert_eq!(init_params.duration, 4.20);
     }
+
+    #[test]
+    #[should_panic]
+    fn test_datagroup_wrong_data() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
+        let mut spawn_desc = EntitySpawnDescription::default();
+
+        spawn_desc.add_datagroup::<AnimationDataGroup>(DataGroupInitType::NoInit);
+        spawn_desc.check_panic();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_datagroup_uninitialized() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
+        let mut spawn_desc = EntitySpawnDescription::default();
+
+        spawn_desc
+            .add_datagroup::<AnimationDataGroup>(DataGroupInitType::Uninitialized("Test message"));
+        spawn_desc.check_panic();
+    }
 }

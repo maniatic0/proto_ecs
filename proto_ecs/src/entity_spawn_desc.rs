@@ -1,5 +1,5 @@
 use crate::core::ids;
-use crate::data_group::{DataGroupID, DataGroupInitType};
+use crate::data_group::{self, DataGroupID, DataGroupInitType, DataGroupRegistry};
 use crate::get_id;
 use crate::local_systems::SystemClassID;
 use nohash_hasher::{IntMap, IntSet};
@@ -67,17 +67,17 @@ impl EntitySpawnDescription {
 
     #[inline]
     /// Get current data group init data
-    pub fn get_datagroup_by_id(&self, id: &DataGroupID) -> Option<&DataGroupInitType> {
-        self.get_datagroups().get(id)
+    pub fn get_datagroup_by_id(&self, id: DataGroupID) -> Option<&DataGroupInitType> {
+        self.get_datagroups().get(&id)
     }
 
-    #[inline]
+    #[inline(always)]
     /// Get current data group init data
     pub fn get_datagroup<D>(&self) -> Option<&DataGroupInitType>
     where
         D: ids::IDLocator,
     {
-        self.get_datagroup_by_id(&get_id!(D))
+        self.get_datagroup_by_id(get_id!(D))
     }
 
     #[inline(always)]
@@ -89,17 +89,17 @@ impl EntitySpawnDescription {
 
     #[inline]
     /// Get current data group init data
-    pub fn get_datagroup_mut_by_id(&mut self, id: &DataGroupID) -> Option<&mut DataGroupInitType> {
-        self.get_datagroups_mut().get_mut(id)
+    pub fn get_datagroup_mut_by_id(&mut self, id: DataGroupID) -> Option<&mut DataGroupInitType> {
+        self.get_datagroups_mut().get_mut(&id)
     }
 
-    #[inline]
+    #[inline(always)]
     /// Get current data group init data
     pub fn get_datagroup_mut<D>(&mut self) -> Option<&mut DataGroupInitType>
     where
         D: ids::IDLocator,
     {
-        self.get_datagroup_mut_by_id(&get_id!(D))
+        self.get_datagroup_mut_by_id(get_id!(D))
     }
 
     #[inline(always)]
@@ -108,7 +108,7 @@ impl EntitySpawnDescription {
         self.local_systems.insert(id)
     }
 
-    #[inline]
+    #[inline(always)]
     /// Add a local system to an entity to be spawned
     pub fn add_local_system<S>(&mut self) -> bool
     where
@@ -125,17 +125,33 @@ impl EntitySpawnDescription {
 
     #[inline(always)]
     /// Get if a local system will be used by this entity
-    pub fn get_local_system_by_id(&self, id: &SystemClassID) -> bool {
-        self.get_local_systems().contains(id)
+    pub fn get_local_system_by_id(&self, id: SystemClassID) -> bool {
+        self.get_local_systems().contains(&id)
     }
 
-    #[inline]
+    #[inline(always)]
     /// Get if a local system will be used by this entity
     pub fn get_local_system<S>(&self) -> bool
     where
         S: ids::IDLocator,
     {
-        self.get_local_system_by_id(&get_id!(S))
+        self.get_local_system_by_id(get_id!(S))
+    }
+
+    /// Checks if the datagroups of this entity make sense, else panic
+    fn check_datagroups_panic(&self) {
+        let registry = DataGroupRegistry::get_global_registry().read();
+
+        self.get_datagroups().iter().for_each(|(id, init_param)| {
+            let entry = registry.get_entry_by_id(*id);
+
+            data_group::helpers::check_init_params_panic(init_param, entry)
+        });
+    }
+
+    /// Check if the entity to be spawned makes sense, else panic
+    pub fn check_panic(&self) {
+        self.check_datagroups_panic();
     }
 }
 
