@@ -220,7 +220,7 @@ fn create_glue_function(
 ) -> (syn::Ident, proc_macro2::TokenStream) {
     let new_function_id = syn::Ident::new(
         format!(
-            "__{}_{}__", 
+            "_{}_{}_", 
             to_camel_case(
                 struct_id.to_string().as_str()), 
                 function_id.to_string()
