@@ -127,6 +127,7 @@ pub mod datagroup_test {
 
         let empty = AnimationDataGroup::prepare_spawn(&mut spawn_desc, init_params);
 
+        spawn_desc.check_datagroups_panic();
         assert!(empty.is_none());
 
         let init_params = spawn_desc.get_datagroup::<AnimationDataGroup>();
@@ -148,7 +149,7 @@ pub mod datagroup_test {
 
     #[test]
     #[should_panic]
-    fn test_datagroup_wrong_data() {
+    fn test_datagroup_wrong_init_data() {
         if !App::is_initialized() {
             App::initialize();
         }
@@ -156,12 +157,12 @@ pub mod datagroup_test {
         let mut spawn_desc = EntitySpawnDescription::default();
 
         spawn_desc.add_datagroup::<AnimationDataGroup>(DataGroupInitType::NoInit);
-        spawn_desc.check_panic();
+        spawn_desc.check_datagroups_panic();
     }
 
     #[test]
     #[should_panic]
-    fn test_datagroup_uninitialized() {
+    fn test_datagroup_uninitialized_init_data() {
         if !App::is_initialized() {
             App::initialize();
         }
@@ -170,6 +171,6 @@ pub mod datagroup_test {
 
         spawn_desc
             .add_datagroup::<AnimationDataGroup>(DataGroupInitType::Uninitialized("Test message"));
-        spawn_desc.check_panic();
+        spawn_desc.check_datagroups_panic();
     }
 }

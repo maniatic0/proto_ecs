@@ -1,6 +1,3 @@
-use std::alloc::System;
-
-pub use ecs_macros::register_local_system;
 /// Local systems are basically functions that operate on datagroups from
 /// an entity. To define a local system, the user should be able to
 /// write a function with datagroups it expects as parameters and
@@ -12,9 +9,10 @@ pub use ecs_macros::register_local_system;
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
+use proto_ecs::core::ids;
 use proto_ecs::data_group::DataGroupID;
 use proto_ecs::get_id;
-use proto_ecs::core::ids;
+pub use ecs_macros::register_local_system;
 
 use crate::data_group::DataGroup;
 
@@ -56,6 +54,7 @@ impl Dependency {
 #[derive(Debug)]
 pub struct LocalSystemRegistryEntry {
     pub id: SystemClassID,
+    pub name: &'static str,
     pub name_crc: u32,
     pub dependencies: Vec<Dependency>,
     pub functions: StageMap,
@@ -70,7 +69,6 @@ pub struct LocalSystemRegistry {
 }
 
 impl LocalSystemRegistry {
-
     #[inline]
     pub fn new() -> Self {
         LocalSystemRegistry::default()
@@ -143,19 +141,20 @@ impl LocalSystemRegistry {
         self.entries.sort_unstable_by(|this, other| this.id.cmp(&other.id));
         dependency_registry_fns.into_iter().for_each(|lambda| lambda(self));
 
+
         self.is_initialized = true;
     }
 
     #[inline]
-    pub fn get_entry_by_id(&self, id: SystemClassID) -> &LocalSystemRegistryEntry 
-    {
+    pub fn get_entry_by_id(&self, id: SystemClassID) -> &LocalSystemRegistryEntry {
         debug_assert!((id as usize) < self.entries.len(), "Invalid ID");
         &self.entries[id as usize]
     }
 
     /// Get the entry for a specific LocalSystem
-    pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry 
-        where S : ids::IDLocator // TODO Add local system trait here if we decide we need one
+    pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry
+    where
+        S: ids::IDLocator, // TODO Add local system trait here if we decide we need one
     {
         self.get_entry_by_id(get_id!(S))
     }

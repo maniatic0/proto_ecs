@@ -96,6 +96,7 @@ mod local_system_test {
 
             Test::simple_prepare(&mut spawn_desc);
             assert!(spawn_desc.get_local_system::<Test>());
+            spawn_desc.check_local_systems_panic();
 
             assert!(matches!(
                 spawn_desc.get_datagroup::<AnimationDataGroup>(),
@@ -120,6 +121,7 @@ mod local_system_test {
                 spawn_desc.get_datagroup::<AnimationDataGroup>(),
                 Some(DataGroupInitType::Arg(_))
             ));
+            spawn_desc.check_local_systems_panic();
 
             Test::simple_prepare(&mut spawn_desc);
             assert!(spawn_desc.get_local_system::<Test>());
@@ -133,6 +135,17 @@ mod local_system_test {
                 Some(DataGroupInitType::NoArg)
             ));
         }
+    }
+
+    #[should_panic]
+    fn test_local_system_missing_dependency() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
+        let mut spawn_desc = EntitySpawnDescription::default();
+        spawn_desc.add_local_system::<Test>();
+        spawn_desc.check_local_systems_panic();
     }
 
     #[test]
