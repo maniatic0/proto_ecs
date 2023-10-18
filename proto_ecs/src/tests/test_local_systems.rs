@@ -137,6 +137,7 @@ mod local_system_test {
         }
     }
 
+    #[test]
     #[should_panic]
     fn test_local_system_missing_dependency() {
         if !App::is_initialized() {
