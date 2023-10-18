@@ -120,7 +120,8 @@ impl LocalSystemRegistry {
         let new_id = self.entries.len() as u32;
         entry.id = new_id;
         self.entries.push(entry);
-        return new_id;
+
+        new_id
     }
 
     #[inline]

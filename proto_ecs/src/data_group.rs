@@ -211,13 +211,13 @@ impl DataGroupRegistry {
     /// This is the registry used by default to gather all structs registered
     /// with the register_datagroup! macro
     pub fn get_global_registry() -> &'static RwLock<DataGroupRegistry> {
-        return &GLOBAL_REGISTRY;
+        &GLOBAL_REGISTRY
     }
 
     #[inline]
     pub fn get_entry_by_id(&self, id: DataGroupID) -> &DataGroupRegistryEntry {
         debug_assert!((id as usize) < self.entries.len(), "Invalid id");
-        return &self.entries[id as usize];
+        &self.entries[id as usize]
     }
 
     #[inline(always)]
@@ -231,7 +231,7 @@ impl DataGroupRegistry {
     #[inline]
     pub fn create_by_id(&self, id: DataGroupID) -> Box<dyn DataGroup> {
         let entry = self.get_entry_by_id(id);
-        return (entry.factory_func)();
+        (entry.factory_func)()
     }
 
     #[inline(always)]
