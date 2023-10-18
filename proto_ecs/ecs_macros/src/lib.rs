@@ -27,39 +27,6 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
     datagroup_macros::register_datagroup(args)
 }
 
-// -- < Entities > ---------------------------------------------------
-
-static ENTITY_CLASS_COUNT: AtomicU32 = AtomicU32::new(0);
-
-#[proc_macro_attribute]
-pub fn entity(
-    attr: proc_macro::TokenStream,
-    item: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    assert!(attr.is_empty());
-    let mut item_copy = item.clone();
-    let DeriveInput { ident, .. } = parse_macro_input!(item);
-    let next_id = ENTITY_CLASS_COUNT.fetch_add(1, Ordering::Relaxed);
-    let trait_impls = quote! {
-        impl EntityDesc for #ident
-        {
-            fn get_class_id() -> EntityClassID
-            {
-                #next_id
-            }
-
-            fn get_class_name() -> &'static str
-            {
-                std::any::type_name::<#ident>()
-            }
-        }
-
-    };
-
-    item_copy.extend::<proc_macro::TokenStream>(trait_impls.into());
-    return item_copy;
-}
-
 // -- < Local systems > --------------------------------------
 
 mod local_systems_macros;
@@ -108,6 +75,7 @@ pub fn derive_can_cast(item: proc_macro::TokenStream) -> proc_macro::TokenStream
             {
                 self as &dyn std::any::Any
             }
+            
             fn as_any_mut(&mut self) ->&mut dyn std::any::Any
             {
                 self as &mut dyn std::any::Any
