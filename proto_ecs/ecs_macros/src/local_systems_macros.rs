@@ -396,12 +396,12 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                     Box::new(
                         |registry| {
                             let mut dependencies = Vec::new();
-                            let mut func_map : [Option<proto_ecs::local_systems::SystemFn>; 255] = [None; 255];
+                            let mut func_map  = proto_ecs::local_systems::EMPTY_STAGE_MAP;
                             #( dependencies.push(#deps);)*
                             #( func_map[#stage_indices] = Some(#glue_function_ids);)*
                             let new_id = registry.register(
                                 proto_ecs::local_systems::LocalSystemRegistryEntry{
-                                    id : u32::MAX,
+                                    id : proto_ecs::local_systems::INVALID_SYSTEM_CLASS_ID,
                                     name : #struct_id_str,
                                     name_crc : #name_crc,
                                     dependencies : dependencies,
