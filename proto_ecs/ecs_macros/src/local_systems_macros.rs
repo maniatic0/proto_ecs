@@ -410,7 +410,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                                     after : Vec::new(),
                                 }
                             );
-                            #id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
+                            #id_magic_ident.set(new_id).expect("Failed to register Local System ID");
                         }
                     )
                 );
