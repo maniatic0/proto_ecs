@@ -1,6 +1,6 @@
 use crate::{
     data_group::{DataGroup, DataGroupID},
-    entity_spawn_desc::EntitySpawnDescription,
+    entities::entity_spawn_desc::EntitySpawnDescription,
 };
 use proto_ecs::local_systems::{StageID, SystemClassID, SystemFn, STAGE_COUNT};
 
@@ -11,7 +11,7 @@ use vector_map::{set::VecSet, VecMap};
 pub type EntityID = u64;
 
 /// The invalid entity ID
-pub const INVALID_ENTITY_ID: EntityID = EntityID::MAX;
+pub const INVALID_ENTITY_ID: EntityID = 0;
 
 /// Map type used by entities to store datagroups
 pub type DataGroupMap = VecMap<DataGroupID, Box<dyn DataGroup>>;
@@ -31,6 +31,7 @@ pub type ChildrenMap = VecSet<EntityID>;
 pub struct Entity {
     id: EntityID,
     name: String,
+    debug_info: String,
 
     datagroups: DataGroupMap,
 
@@ -44,7 +45,26 @@ pub struct Entity {
 
 impl Entity {
     pub fn new(id: EntityID, spawn_desc: EntitySpawnDescription) -> Self {
-        todo!()
+        let EntitySpawnDescription {
+            name,
+            debug_info,
+            data_groups,
+            local_systems,
+            parent,
+            children,
+        } = spawn_desc;
+
+        Self {
+            id,
+            name,
+            debug_info,
+            datagroups: todo!(),
+            local_systems_map: todo!(),
+            stage_enabled_map: todo!(),
+            stage_map: todo!(),
+            parent,
+            children,
+        }
     }
 
     #[inline(always)]
@@ -55,6 +75,11 @@ impl Entity {
     #[inline(always)]
     pub fn get_name(&self) -> &str {
         &self.name
+    }
+
+    #[inline(always)]
+    pub fn get_debug_info(&self) -> &str {
+        &self.debug_info
     }
 
     #[inline(always)]
@@ -84,8 +109,34 @@ impl Entity {
     }
 
     #[inline(always)]
+    /// Only to be used by the entity system
+    pub(super) fn set_parent(&mut self, parent: EntityID) {
+        self.parent = parent
+    }
+
+    #[inline(always)]
     pub fn get_children(&self) -> &ChildrenMap {
         &self.children
+    }
+
+    #[inline(always)]
+    /// Only to be used by the entity system
+    pub(super) fn get_children_mut(&mut self) -> &mut ChildrenMap {
+        &mut self.children
+    }
+
+    #[inline(always)]
+    /// Add a child to this entity
+    /// Only to be used by the entity system
+    pub(super) fn add_child(&mut self, child: EntityID) {
+        self.children.insert(child);
+    }
+
+    #[inline(always)]
+    /// Remove a child to this entity
+    /// Only to be used by the entity system
+    pub(super) fn remove_child(&mut self, child: EntityID) {
+        self.children.remove(&child);
     }
 
     pub fn run_stage(&mut self, stage_id: StageID) {

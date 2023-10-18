@@ -302,7 +302,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                 let msg = format!("Local System '{}' added Datagroup dependency '{d}'", args.struct_id);
 
                 Some(quote!{
-                    proto_ecs::entity_spawn_desc::helpers::local_system_try_add_datagroup::<#d>(spawn_desc, #msg);
+                    proto_ecs::entities::entity_spawn_desc::helpers::local_system_try_add_datagroup::<#d>(spawn_desc, #msg);
                 })
             },
         }
@@ -378,7 +378,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
         impl #struct_id
         {
             #[doc = "Simple preparation of this local system. Dependencies that require init args are left uninitialized. Dependencies with optional args are left empty"]
-            pub fn simple_prepare(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription) -> bool
+            pub fn simple_prepare(spawn_desc : &mut proto_ecs::entities::entity_spawn_desc::EntitySpawnDescription) -> bool
             {
                 #(#datagroups_simple_prepare)*
 

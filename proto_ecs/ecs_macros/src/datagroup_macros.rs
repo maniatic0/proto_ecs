@@ -173,7 +173,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
             quote!(
                 #[doc = #msg]
-                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entities::entity_spawn_desc::EntitySpawnDescription) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
                     spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::NoInit)
                 }
             )
@@ -186,7 +186,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
             quote!(
                 #[doc = #msg]
-                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entities::entity_spawn_desc::EntitySpawnDescription) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
                     spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::NoArg)
                 }
             )
@@ -199,7 +199,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
             quote!(
                 #[doc = #msg]
-                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription, arg : std::boxed::Box<#arg>) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entities::entity_spawn_desc::EntitySpawnDescription, arg : std::boxed::Box<#arg>) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
                     spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::Arg(arg))
                 }
             )
@@ -209,7 +209,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
 
             quote!(
                 #[doc = #msg]
-                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entity_spawn_desc::EntitySpawnDescription, arg : std::option::Option<std::boxed::Box<#arg>>) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
+                pub fn prepare_spawn(spawn_desc : &mut proto_ecs::entities::entity_spawn_desc::EntitySpawnDescription, arg : std::option::Option<std::boxed::Box<#arg>>) -> std::option::Option<proto_ecs::data_group::DataGroupInitType> {
                     spawn_desc.add_datagroup::<#datagroup>(proto_ecs::data_group::DataGroupInitType::OptionalArg(arg))
                 }
             )

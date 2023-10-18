@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod local_system_test {
     use super::super::shared_datagroups::sdg::*;
-    use crate::entity_spawn_desc::EntitySpawnDescription;
+    use crate::entities::entity_spawn_desc::EntitySpawnDescription;
     use crate::{app::App, core::casting::cast, get_id, local_systems::LocalSystemRegistry};
     use proto_ecs::data_group::*;
     use proto_ecs::local_systems::register_local_system;
