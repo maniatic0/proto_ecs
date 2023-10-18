@@ -25,10 +25,14 @@ impl OptionalDep {
 struct Dependencies(Vec<OptionalDep>);
 struct Stages(Vec<syn::LitInt>);
 
+struct DependencyList(Vec<syn::Ident>);
+
 struct LocalSystemArgs {
     struct_id: syn::Ident,
     dependencies: Dependencies,
     stages: Stages,
+    before: DependencyList,
+    after: DependencyList
 }
 
 impl syn::parse::Parse for OptionalDep {
@@ -77,6 +81,17 @@ impl syn::parse::Parse for Stages {
     }
 }
 
+impl syn::parse::Parse for DependencyList {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let content;
+        let _ = parenthesized!(content in input);
+        let dependency_list =
+            syn::punctuated::Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated(&content)?;
+
+        Ok(DependencyList(dependency_list.into_iter().collect()))
+    }
+}
+
 impl ToTokens for OptionalDep {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
@@ -104,6 +119,8 @@ impl syn::parse::Parse for LocalSystemArgs {
         let _ = input.parse::<token::Comma>()?;
         let mut dependencies: Option<Dependencies> = None;
         let mut stages: Option<Stages> = None;
+        let mut before: Option<DependencyList> = None;
+        let mut after: Option<DependencyList> = None;
 
         // Use this loop to parse a list of keyword arguments:
         // A = ...,
@@ -141,6 +158,26 @@ impl syn::parse::Parse for LocalSystemArgs {
 
                     stages = Some(input.parse::<Stages>()?);
                 }
+                "before" => {
+                    if before.is_some() {
+                        return Err(syn::Error::new(
+                            keyword_arg.span(),
+                            "Duplicated keyword argument: stages",
+                        ));
+                    }
+
+                    before = Some(input.parse::<DependencyList>()?);
+                },
+                "after" => {
+                    if after.is_some() {
+                        return Err(syn::Error::new(
+                            keyword_arg.span(),
+                            "Duplicated keyword argument: stages",
+                        ));
+                    }
+
+                    after = Some(input.parse::<DependencyList>()?);
+                }
                 _ => {
                     return Err(syn::Error::new(
                         keyword_arg.span(),
@@ -167,6 +204,8 @@ impl syn::parse::Parse for LocalSystemArgs {
             struct_id,
             dependencies: dependencies.unwrap_or(Dependencies(vec![])),
             stages: stages.unwrap_or(Stages(vec![])),
+            before: before.unwrap_or(DependencyList(vec![])),
+            after: after.unwrap_or(DependencyList(vec![])),
         })
     }
 }
@@ -180,12 +219,20 @@ fn create_glue_function(
     args: &Vec<OptionalDep>,
 ) -> (syn::Ident, proc_macro2::TokenStream) {
     let new_function_id = syn::Ident::new(
-        format!("__{}_{}__", to_camel_case(struct_id.to_string().as_str()), function_id.to_string()).as_str(),
+        format!(
+            "__{}_{}__", 
+            to_camel_case(
+                struct_id.to_string().as_str()), 
+                function_id.to_string()
+            ).as_str(),
         function_id.span(),
     );
 
     let arg_ids =
-        (0..args.len()).map(|i| syn::Ident::new(format!("arg{i}").as_str(), function_id.span()));
+        (0..args.len()).map(
+            |i| 
+            syn::Ident::new(format!("arg{i}").as_str(), function_id.span())
+        );
 
     // required to prevent use-after-move error later on this function
     let arg_ids_copy = arg_ids.clone();
@@ -309,6 +356,8 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
 
     let mut result = quote!{};
     let id_magic_ident = ids::implement_id_traits(struct_id, &mut result);
+    let before = args.before.0;
+    let after = args.after.0;
 
     result.extend(quote!{
 
@@ -355,10 +404,31 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                                     id : u32::MAX,
                                     name_crc : #name_crc,
                                     dependencies : dependencies,
-                                    functions : func_map
+                                    functions : func_map,
+                                    before : Vec::new(),
+                                    after : Vec::new(),
                                 }
                             );
                             #id_magic_ident.set(new_id).expect("Failed to register DataGroup ID");
+                        }
+                    )
+                );
+            }
+
+            #[ctor::ctor]
+            fn __register_local_system_dependencies__()
+            {
+                proto_ecs::local_systems::LocalSystemRegistry::register_dependency_lambda(
+                    Box::new(
+                        |registry| {
+                            registry.set_dependencies::<#struct_id>(
+                                vec![
+                                    #(proto_ecs::get_id!(#before)),*
+                                ],
+                                vec![
+                                    #(proto_ecs::get_id!(#after)),*
+                                ]
+                            );
                         }
                     )
                 );

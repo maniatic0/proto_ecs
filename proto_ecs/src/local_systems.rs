@@ -1,3 +1,5 @@
+use std::alloc::System;
+
 pub use ecs_macros::register_local_system;
 /// Local systems are basically functions that operate on datagroups from
 /// an entity. To define a local system, the user should be able to
@@ -57,6 +59,8 @@ pub struct LocalSystemRegistryEntry {
     pub name_crc: u32,
     pub dependencies: Vec<Dependency>,
     pub functions: StageMap,
+    pub before: Vec<SystemClassID>,
+    pub after: Vec<SystemClassID>,
 }
 
 #[derive(Debug, Default)]
@@ -77,8 +81,19 @@ impl LocalSystemRegistry {
         &LOCAL_SYSTEM_REGISTRY_TEMP
     }
 
+    #[inline]
+    fn get_temp_global_dependency_registry() -> &'static RwLock<TempRegistryLambdas> {
+        &LOCAL_SYSTEM_DEPENDENCY_REGISTRY_TEMP
+    }
+
     pub fn register_lambda(lambda: TempRegistryLambda) {
         LocalSystemRegistry::get_temp_global_registry()
+            .write()
+            .push(lambda)
+    }
+
+    pub fn register_dependency_lambda(lambda: TempRegistryLambda) {
+        LocalSystemRegistry::get_temp_global_dependency_registry()
             .write()
             .push(lambda)
     }
@@ -108,28 +123,27 @@ impl LocalSystemRegistry {
             "Local System registry was already initialized!"
         );
         
-        registry.load_registered_local_systems();
-        registry.init();
-    }
+        let mut locals_register_fns = TempRegistryLambdas::new();
+        let mut globals_register_fns = LocalSystemRegistry::get_temp_global_registry().write();
 
-    /// Initialize this registry entry
-    pub fn init(&mut self)
-    {
-        self.entries.sort_unstable_by(|this, other| this.id.cmp(&other.id));
-        self.is_initialized = true;
-    }
-
-    /// Consume globally registered local systems and load them to this registry
-    pub fn load_registered_local_systems(&mut self)
-    {
-        let mut locals: TempRegistryLambdas = TempRegistryLambdas::new();
-        let mut globals = LocalSystemRegistry::get_temp_global_registry().write();
+        let mut locals_dep_register_fns = TempRegistryLambdas::new();
+        let mut globals_dep_register_fns = LocalSystemRegistry::get_temp_global_dependency_registry().write();
 
         // Clear globals
-        std::mem::swap(&mut locals, &mut globals);
+        std::mem::swap(&mut locals_register_fns, &mut globals_register_fns);
+        std::mem::swap(&mut locals_dep_register_fns, &mut globals_dep_register_fns);
 
-        // Consume locals
-        locals.into_iter().for_each(|lambda| lambda(self));
+        registry.init(locals_register_fns, locals_dep_register_fns);
+    }
+    
+    /// Initialize this registry entry
+    pub fn init(&mut self, registry_fns : TempRegistryLambdas, dependency_registry_fns : TempRegistryLambdas)
+    {
+        registry_fns.into_iter().for_each(|lambda| lambda(self));
+        self.entries.sort_unstable_by(|this, other| this.id.cmp(&other.id));
+        dependency_registry_fns.into_iter().for_each(|lambda| lambda(self));
+
+        self.is_initialized = true;
     }
 
     #[inline]
@@ -145,13 +159,35 @@ impl LocalSystemRegistry {
     {
         self.get_entry_by_id(get_id!(S))
     }
+
+    pub fn set_dependencies<S>(&mut self, before : Vec<SystemClassID>, after : Vec<SystemClassID>)
+        where S : ids::IDLocator
+    {
+        // We won't allow changing dependencies in runtime
+        debug_assert!(
+            !self.is_initialized, 
+            "You can only set dependencies before initializing local systems"
+        );
+        let entry = &mut self.entries[get_id!(S) as usize];
+        entry.before = before;
+        entry.after = after;
+    }
 }
 
 pub type TempRegistryLambda = Box<dyn FnOnce(&mut LocalSystemRegistry) + Sync + Send + 'static>;
 type TempRegistryLambdas = Vec<TempRegistryLambda>;
 
 lazy_static! {
+
+    // This registry holds functions that register a local system. 
+    // It's filled before main so that we choose when to call this functions.
     static ref LOCAL_SYSTEM_REGISTRY_TEMP: RwLock<TempRegistryLambdas> =
+        RwLock::from(TempRegistryLambdas::new());
+
+    // This registry holds functions that register dependencies for a local system. 
+    // Note that this functions depend on local systems being loaded and sorted, so call
+    // this functions only if you are sure that's the case.
+    static ref LOCAL_SYSTEM_DEPENDENCY_REGISTRY_TEMP : RwLock<TempRegistryLambdas> =
         RwLock::from(TempRegistryLambdas::new());
 }
 
