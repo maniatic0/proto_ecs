@@ -1,29 +1,23 @@
 use proc_macro;
 use quote::quote;
-use std::sync::atomic::{AtomicU32, Ordering};
-use syn::{
-    self, DeriveInput, parse_macro_input,
-};
+use syn::{self, parse_macro_input, DeriveInput};
 
+mod core_macros;
 mod tests;
 mod utils;
-mod core_macros;
-
 
 // -- < Datagroups > -----------------------------------
 mod datagroup_macros;
 
 /// Register the way a datagroup struct initializes
 #[proc_macro]
-pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::TokenStream
-{
+pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
     datagroup_macros::register_datagroup_init(args)
 }
 
 /// Register a datagroup struct as a new datagroup class in the global registry
 #[proc_macro]
-pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStream 
-{
+pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
     datagroup_macros::register_datagroup(args)
 }
 
@@ -31,23 +25,23 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
 
 mod local_systems_macros;
 
-/// Register a struct as a local system. 
-/// 
+/// Register a struct as a local system.
+///
 /// Example usage:
 /// ```ignore
 /// struct Example;
-/// 
+///
 /// register_local_system!{
 ///     Example,
 ///     dependencies = (DataGroup1, Optional(DataGroup2)),
 ///     stages = (0,1)
 /// }
-/// 
+///
 /// impl ExampleLocalSystem for Example
 /// {
 ///     fn stage_0(dg1 : &mut DataGroup1, dg2 : Option<&mut DataGroup2>)
 ///     { todo!()}
-/// 
+///
 ///     fn stage_1(dg1 : &mut DataGroup1, dg2 : Option<&mut DataGroup2>)
 ///     { todo!()}
 /// }
@@ -75,7 +69,7 @@ pub fn derive_can_cast(item: proc_macro::TokenStream) -> proc_macro::TokenStream
             {
                 self as &dyn std::any::Any
             }
-            
+
             fn as_any_mut(&mut self) ->&mut dyn std::any::Any
             {
                 self as &mut dyn std::any::Any
