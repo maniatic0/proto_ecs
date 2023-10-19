@@ -35,7 +35,7 @@ pub trait LocalSystemMeta {
 
 pub type LocalSystemFactory = fn() -> Box<dyn LocalSystem>;
 
-pub type SystemFn = fn(&[DataGroupIndexingType], &mut [Box<dyn DataGroup>]) -> ();
+pub type SystemFn = fn(entity : proto_ecs::entities::entity::EntityID, &[DataGroupIndexingType], &mut [Box<dyn DataGroup>]) -> ();
 
 // BEGIN TODO: Move this to be shared with global systems as well (?)
 

@@ -286,7 +286,7 @@ impl Entity {
             .expect("Unitialized Entity or Entity in undefined state!");
 
         for (dependencies, local_sys_fun) in stage {
-            (local_sys_fun)(&dependencies, &mut self.datagroups)
+            (local_sys_fun)(self.id, &dependencies, &mut self.datagroups)
         }
     }
 }

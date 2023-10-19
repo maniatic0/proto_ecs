@@ -26,7 +26,7 @@ mod local_system_test {
 
         for f in entry.functions {
             match f {
-                Some(f) => (f)(&indices, &mut dgs),
+                Some(f) => (f)(0, &indices, &mut dgs),
                 _ => {}
             }
         }

@@ -266,7 +266,7 @@ fn create_glue_function(
     });
 
     let new_function = quote! {
-        fn #new_function_id(indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut [std::boxed::Box<dyn proto_ecs::data_group::DataGroup>])
+        fn #new_function_id(entity : proto_ecs::entities::entity::EntityID, indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut [std::boxed::Box<dyn proto_ecs::data_group::DataGroup>])
         {
             debug_assert!({
                 let mut unique_set = std::collections::HashSet::new();
@@ -276,7 +276,7 @@ fn create_glue_function(
             unsafe {
                 let entity_datagroups_ptr = entity_datagroups.as_mut_ptr();
                 #(let #arg_ids = #arg_values;)*
-                #struct_id :: #function_id (#( #arg_ids_copy, )*);
+                #struct_id :: #function_id (entity, #( #arg_ids_copy, )*);
             }
         }
     };
@@ -310,27 +310,37 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
     }).collect();
 
     // Generate function arguments for trait functions
-    let function_args = deps
-        .iter()
-        .map(|dep| {
-            let to_arg_name = |d: &syn::Ident| {
-                let ident_str = utils::to_camel_case(d.to_string().as_str());
-                return syn::Ident::new(ident_str.as_str(), d.span());
-            };
+    let function_args = 
+        {
+            // Id of the entity holding this local system
+            let mut args = vec![quote!(entity_id : proto_ecs::entities::entity::EntityID)];
 
-            match dep {
-                OptionalDep::Dependency(d) => {
-                    let arg_name = to_arg_name(d);
-                    quote! { #arg_name : &mut #d }
-                }
-                OptionalDep::OptionalDep(d) => {
-                    let arg_name = to_arg_name(d);
-                    quote! { #arg_name : Option<&mut #d> }
-                }
-            }
-        })
-        .collect::<Vec<proc_macro2::TokenStream>>();
+            // Actual datagroup arguments
+            args.extend(
+                deps
+                .iter()
+                .map(|dep| {
+                    let to_arg_name = |d: &syn::Ident| {
+                        let ident_str = utils::to_camel_case(d.to_string().as_str());
+                        return syn::Ident::new(ident_str.as_str(), d.span());
+                    };
 
+                    match dep {
+                        OptionalDep::Dependency(d) => {
+                            let arg_name = to_arg_name(d);
+                            quote! { #arg_name : &mut #d }
+                        }
+                        OptionalDep::OptionalDep(d) => {
+                            let arg_name = to_arg_name(d);
+                            quote! { #arg_name : Option<&mut #d> }
+                        }
+                    }
+                })
+                .collect::<Vec<proc_macro2::TokenStream>>()
+            );
+
+            args
+        };
     let function_ids = stages
         .iter()
         .map(|stage| {
