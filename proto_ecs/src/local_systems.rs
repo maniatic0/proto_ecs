@@ -1,6 +1,3 @@
-use std::alloc::System;
-use std::ops::Index;
-
 /// Local systems are basically functions that operate on datagroups from
 /// an entity. To define a local system, the user should be able to
 /// write a function with datagroups it expects as parameters and
