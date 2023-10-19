@@ -184,8 +184,8 @@ impl LocalSystemRegistry {
     /// can then be sorted by id to get the order in which they should be run
     fn set_toposort_ids(&mut self)
     {
-        let mut ts : TopologicalSort<u32> = TopologicalSort::new();
-        let source_node = 0u32;
+        let mut ts : TopologicalSort<SystemClassID> = TopologicalSort::new();
+        let source_node = SystemClassID::default();
         for entry in self.entries.iter()
         {
             let entry_crc = entry.name_crc;
@@ -233,8 +233,8 @@ impl LocalSystemRegistry {
         for entry in self.entries.iter_mut()
         {
             let id = dependency_order.iter().position(|&crc| entry.name_crc == crc).unwrap();
-            entry.id = id as u32;
-            (entry.set_id_fn)(id as u32);
+            entry.id = id as SystemClassID;
+            (entry.set_id_fn)(id as SystemClassID);
         }
 
     }
