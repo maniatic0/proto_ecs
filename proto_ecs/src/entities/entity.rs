@@ -1,7 +1,9 @@
 use crate::{
+    core::ids::IDLocator,
     data_group::{DataGroup, DataGroupID, DataGroupInitType, DataGroupRegistry},
     entities::entity_spawn_desc::EntitySpawnDescription,
-    local_systems::{Dependency, LocalSystemRegistry},
+    get_id,
+    local_systems::{Dependency, LocalSystemRegistry, LocalSystemDesc},
 };
 use proto_ecs::local_systems::{StageID, SystemClassID, SystemFn, STAGE_COUNT};
 
@@ -15,7 +17,7 @@ pub type EntityID = u64;
 pub const INVALID_ENTITY_ID: EntityID = 0;
 
 /// Map type used by entities to store datagroups
-pub type DataGroupMap = VecMap<DataGroupID, Box<dyn DataGroup>>;
+pub type DataGroupVec = Vec<Box<dyn DataGroup>>;
 
 /// Type for use when indexing datagroups in entities
 /// It defines the max number of them in an entity
@@ -44,7 +46,7 @@ pub struct Entity {
     name: String,
     debug_info: String,
 
-    datagroups: DataGroupMap,
+    datagroups: DataGroupVec,
 
     local_systems_map: LocalSystemMap,
     stage_enabled_map: StageEnabledMap,
@@ -67,7 +69,7 @@ impl Entity {
 
         // Init Datagroups
         let dg_registry = DataGroupRegistry::get_global_registry().read();
-        let mut datagroups = DataGroupMap::new();
+        let mut datagroups = DataGroupVec::new();
 
         for (id, init_params) in data_groups {
             let entry = dg_registry.get_entry_by_id(id);
@@ -84,16 +86,16 @@ impl Entity {
                 DataGroupInitType::OptionalArg(param) => new_dg.__init__(param),
             }
 
-            datagroups.insert(id, new_dg);
+            datagroups.push(new_dg);
         }
 
         // Sort them to be able to use binary search
-        datagroups.sort();
+        datagroups.sort_by_key(|dg| dg.get_id());
 
         // Build temp map for their positions (for Local Systems lookup)
         let mut dg_to_pos_map: IntMap<DataGroupID, DataGroupIndexingType> = IntMap::default();
-        for (pos, dg_id) in datagroups.keys().enumerate() {
-            dg_to_pos_map.insert(*dg_id, pos as DataGroupIndexingType);
+        for (pos, dg_id) in datagroups.iter().enumerate() {
+            dg_to_pos_map.insert(dg_id.get_id(), pos as DataGroupIndexingType);
         }
 
         // Build stage information and collect datagroup indices
@@ -180,13 +182,44 @@ impl Entity {
     }
 
     #[inline(always)]
-    pub fn get_datagroups(&self) -> &DataGroupMap {
+    pub fn get_datagroups(&self) -> &DataGroupVec {
         &self.datagroups
+    }
+
+    #[inline]
+    pub fn get_datagroup_by_id(&self, id: DataGroupID) -> Option<&Box<dyn DataGroup>> {
+        let pos = self.datagroups.binary_search_by_key(&id, |dg| dg.get_id());
+        match pos {
+            Ok(pos) => Some(&self.datagroups[pos]),
+            Err(_) => None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn get_datagroup<DG>(&self) -> Option<&Box<dyn DataGroup>>
+    where
+        DG: IDLocator + DataGroup,
+    {
+        self.get_datagroup_by_id(get_id!(DG))
     }
 
     #[inline(always)]
     pub fn get_local_systems(&self) -> &LocalSystemMap {
         &self.local_systems_map
+    }
+
+    #[inline(always)]
+    pub fn contains_local_system_by_id(&self, id : SystemClassID) -> bool
+    {
+        self.get_local_systems().contains(&id)
+    }
+
+    #[inline(always)]
+    pub fn contains_local_system<S>(&self) -> bool
+    where
+        S: IDLocator + LocalSystemDesc,
+    {
+        self.contains_local_system_by_id(get_id!(S))
     }
 
     #[inline(always)]
@@ -236,7 +269,9 @@ impl Entity {
         self.children.remove(&child);
     }
 
-    pub fn run_stage(&mut self, stage_id: StageID) {
+    /// Runs a stage. Note that it panics if the stage is not enabled
+    /// Only to be called by the entity system
+    pub(super) fn run_stage(&mut self, stage_id: StageID) {
         debug_assert!(
             self.is_stage_enabled(stage_id),
             "Check if the stage is enabled before running it!"
@@ -247,6 +282,8 @@ impl Entity {
             .get_mut(&stage_id)
             .expect("Unitialized Entity or Entity in undefined state!");
 
-        
+        for (dependencies, local_sys_fun) in stage {
+            (local_sys_fun)(&dependencies, &mut self.datagroups)
+        }
     }
 }

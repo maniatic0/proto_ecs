@@ -4,50 +4,9 @@ mod local_system_test {
     use crate::entities::entity::DataGroupIndexingType;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
     use crate::local_systems::LocalSystemDesc;
+    use crate::tests::shared_local_systems::sls::{Test, TestOpt};
     use crate::{app::App, core::casting::cast, get_id, local_systems::LocalSystemRegistry};
     use proto_ecs::data_group::*;
-    use proto_ecs::local_systems::register_local_system;
-
-    // -- Local system creation
-    struct Test;
-
-    register_local_system! {
-        Test,
-        dependencies = (AnimationDataGroup, MeshDataGroup),
-        stages = (0, 1),
-        before = (TestOpt)
-    }
-
-    impl TestLocalSystem for Test {
-        fn stage_0(
-            animation_data_group: &mut AnimationDataGroup,
-            _mesh_data_group: &mut MeshDataGroup,
-        ) {
-            animation_data_group.duration = 4.2;
-        }
-
-        fn stage_1(
-            _animation_data_group: &mut AnimationDataGroup,
-            _mesh_data_group: &mut MeshDataGroup,
-        ) {
-        }
-    }
-
-    struct TestOpt;
-
-    register_local_system! {
-        TestOpt,
-        dependencies = (AnimationDataGroup, Optional(MeshDataGroup)),
-        stages = (0)
-    }
-
-    impl TestOptLocalSystem for TestOpt {
-        fn stage_0(
-            _animation_data_group: &mut AnimationDataGroup,
-            _mesh_data_group: Option<&mut MeshDataGroup>,
-        ) {
-        }
-    }
 
     #[test]
     fn test_local_system_registration() {

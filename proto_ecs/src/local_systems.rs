@@ -35,7 +35,7 @@ pub trait LocalSystemMeta {
 
 pub type LocalSystemFactory = fn() -> Box<dyn LocalSystem>;
 
-pub type SystemFn = fn(&[DataGroupIndexingType], &mut Vec<Box<dyn DataGroup>>) -> ();
+pub type SystemFn = fn(&[DataGroupIndexingType], &mut [Box<dyn DataGroup>]) -> ();
 
 // BEGIN TODO: Move this to be shared with global systems as well (?)
 
@@ -242,14 +242,14 @@ impl LocalSystemRegistry {
     /// Get the entry for a specific LocalSystem
     pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry
     where
-        S: ids::IDLocator, // TODO Add local system trait here if we decide we need one
+        S: ids::IDLocator + LocalSystemDesc,
     {
         self.get_entry_by_id(get_id!(S))
     }
 
     pub fn set_dependencies<S>(&mut self, before: Vec<SystemClassID>, after: Vec<SystemClassID>)
     where
-        S: ids::IDLocator,
+        S: ids::IDLocator + LocalSystemDesc,
     {
         // We won't allow changing dependencies in runtime
         debug_assert!(

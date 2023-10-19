@@ -42,9 +42,7 @@ pub mod sdg {
     register_datagroup_init!(MeshDataGroup, NoArg);
 
     impl MeshDataGroupDesc for MeshDataGroup {
-        fn init(&mut self) {
-            todo!()
-        }
+        fn init(&mut self) {}
     }
 
     register_datagroup!(MeshDataGroup, mesh_factory);

@@ -265,7 +265,7 @@ fn create_glue_function(
     });
 
     let new_function = quote! {
-        fn #new_function_id(indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut Vec<std::boxed::Box<dyn proto_ecs::data_group::DataGroup>>)
+        fn #new_function_id(indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut [std::boxed::Box<dyn proto_ecs::data_group::DataGroup>])
         {
             debug_assert!({
                 let mut unique_set = std::collections::HashSet::new();
