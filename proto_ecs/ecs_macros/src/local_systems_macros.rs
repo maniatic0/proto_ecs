@@ -358,6 +358,9 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
     let id_magic_ident = ids::implement_id_traits(struct_id, &mut result);
     let before = args.before.0;
     let after = args.after.0;
+    let id_set_up_fn_id = syn::Ident::new(
+        format!("__{}_id_register__", to_camel_case(struct_id_str.as_str())).as_str(), 
+        struct_id.span());
 
     result.extend(quote!{
 
@@ -366,6 +369,11 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
             fn check_implements_traits<T : #new_trait_id>(){};
             check_implements_traits::<#struct_id>();
         };
+
+        fn #id_set_up_fn_id (new_id : proto_ecs::local_systems::SystemClassID)
+        {
+            #id_magic_ident.set(new_id).expect("Can't set id twice");
+        }
 
         // Generate the trait to be implemented by the user 
         pub trait #new_trait_id 
@@ -384,6 +392,14 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
 
                 spawn_desc.add_local_system::<#struct_id>()
             }
+        }
+
+        impl proto_ecs::local_systems::LocalSystemDesc for #struct_id 
+        {
+            #[doc = "Name of this local system"]
+            const NAME : &'static str = #struct_id_str;
+            #[doc = "Name's crc"]
+            const NAME_CRC : u32 = #name_crc;
         }
 
         // Register this new local system to be loaded later
@@ -408,9 +424,9 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                                     functions : func_map,
                                     before : Vec::new(),
                                     after : Vec::new(),
+                                    set_id_fn : #id_set_up_fn_id
                                 }
                             );
-                            #id_magic_ident.set(new_id).expect("Failed to register Local System ID");
                         }
                     )
                 );
@@ -424,10 +440,10 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                         |registry| {
                             registry.set_dependencies::<#struct_id>(
                                 vec![
-                                    #(proto_ecs::get_id!(#before)),*
+                                    #(<#before as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
                                 ],
                                 vec![
-                                    #(proto_ecs::get_id!(#after)),*
+                                    #(<#after as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
                                 ]
                             );
                         }

@@ -2,6 +2,7 @@
 mod local_system_test {
     use super::super::shared_datagroups::sdg::*;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
+    use crate::local_systems::LocalSystemDesc;
     use crate::{app::App, core::casting::cast, get_id, local_systems::LocalSystemRegistry};
     use proto_ecs::data_group::*;
     use proto_ecs::local_systems::register_local_system;
@@ -60,6 +61,9 @@ mod local_system_test {
         let mut dgs = vec![anim, mesh];
         let indices: [usize; 2] = [0, 1];
         let entry = ls_registry.get_entry::<Test>();
+
+        assert_eq!(entry.id, get_id!(Test));
+
         for f in entry.functions {
             match f {
                 Some(f) => (f)(&indices, &mut dgs),
@@ -160,6 +164,6 @@ mod local_system_test {
         let entry = global_registry.get_entry::<Test>();
 
         assert_eq!(entry.before.len(), 1, "Wrong number of `before` dependencies");
-        assert_eq!(entry.before[0], get_id!(TestOpt), "Wrong number of `before` dependencies");
+        assert_eq!(entry.before[0], <TestOpt as LocalSystemDesc>::NAME_CRC, "Wrong number of `before` dependencies");
     }
 }
