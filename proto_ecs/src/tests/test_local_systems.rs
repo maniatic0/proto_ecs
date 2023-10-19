@@ -155,16 +155,22 @@ mod local_system_test {
     }
 
     #[test]
-    fn test_local_system_before_after()
-    {
-        if !App::is_initialized()
-        {
+    fn test_local_system_before_after() {
+        if !App::is_initialized() {
             App::initialize();
         }
         let global_registry = LocalSystemRegistry::get_global_registry().read();
         let entry = global_registry.get_entry::<Test>();
 
-        assert_eq!(entry.before.len(), 1, "Wrong number of `before` dependencies");
-        assert_eq!(entry.before[0], <TestOpt as LocalSystemDesc>::NAME_CRC, "Wrong number of `before` dependencies");
+        assert_eq!(
+            entry.before.len(),
+            1,
+            "Wrong number of `before` dependencies"
+        );
+        assert_eq!(
+            entry.before[0],
+            <TestOpt as LocalSystemDesc>::NAME_CRC,
+            "Wrong number of `before` dependencies"
+        );
     }
 }
