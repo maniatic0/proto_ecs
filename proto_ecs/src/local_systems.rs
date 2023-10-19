@@ -101,19 +101,8 @@ impl LocalSystemRegistry {
         &LOCAL_SYSTEM_REGISTRY_TEMP
     }
 
-    #[inline]
-    fn get_temp_global_dependency_registry() -> &'static RwLock<TempRegistryLambdas> {
-        &LOCAL_SYSTEM_DEPENDENCY_REGISTRY_TEMP
-    }
-
     pub fn register_lambda(lambda: TempRegistryLambda) {
         LocalSystemRegistry::get_temp_global_registry()
-            .write()
-            .push(lambda)
-    }
-
-    pub fn register_dependency_lambda(lambda: TempRegistryLambda) {
-        LocalSystemRegistry::get_temp_global_dependency_registry()
             .write()
             .push(lambda)
     }
@@ -143,31 +132,26 @@ impl LocalSystemRegistry {
         let mut locals_register_fns = TempRegistryLambdas::new();
         let mut globals_register_fns = LocalSystemRegistry::get_temp_global_registry().write();
 
-        let mut locals_dep_register_fns = TempRegistryLambdas::new();
-        let mut globals_dep_register_fns =
-            LocalSystemRegistry::get_temp_global_dependency_registry().write();
-
         // Clear globals
         std::mem::swap(&mut locals_register_fns, &mut globals_register_fns);
-        std::mem::swap(&mut locals_dep_register_fns, &mut globals_dep_register_fns);
 
-        registry.init(locals_register_fns, locals_dep_register_fns);
+        registry.init(locals_register_fns);
     }
 
     /// Initialize this registry entry
     pub fn init(
         &mut self,
         registry_fns: TempRegistryLambdas,
-        dependency_registry_fns: TempRegistryLambdas,
     ) {
         registry_fns.into_iter().for_each(|lambda| lambda(self));
         self.set_toposort_ids();
 
         self.entries
-            .sort_unstable_by(|this, other| this.id.cmp(&other.id));
-        dependency_registry_fns
-            .into_iter()
-            .for_each(|lambda| lambda(self));
+            .sort_unstable_by(
+                |this, other| 
+                this.id.cmp(&other.id
+            )
+        );
 
         self.is_initialized = true;
     }
@@ -215,8 +199,8 @@ impl LocalSystemRegistry {
         while ts.len() > 0 {
             let mut non_dependents = ts.pop_all();
             if non_dependents.len() == 0 && ts.len() != 0 {
-                // If there's cyclic dependencies, then the popped list is empty
-                // and ts.len > 0,
+                // If there's cyclic dependencies, 
+                // then the popped list is empty and ts.len > 0,
                 // See: https://docs.rs/topological-sort/latest/topological_sort/struct.TopologicalSort.html#method.pop_all
                 // TODO: better error handling
                 panic!("Cyclic dependencies between local systems!");
@@ -270,12 +254,6 @@ lazy_static! {
     // This registry holds functions that register a local system.
     // It's filled before main so that we choose when to call this functions.
     static ref LOCAL_SYSTEM_REGISTRY_TEMP: RwLock<TempRegistryLambdas> =
-        RwLock::from(TempRegistryLambdas::new());
-
-    // This registry holds functions that register dependencies for a local system.
-    // Note that this functions depend on local systems being loaded and sorted, so call
-    // this functions only if you are sure that's the case.
-    static ref LOCAL_SYSTEM_DEPENDENCY_REGISTRY_TEMP : RwLock<TempRegistryLambdas> =
         RwLock::from(TempRegistryLambdas::new());
 }
 

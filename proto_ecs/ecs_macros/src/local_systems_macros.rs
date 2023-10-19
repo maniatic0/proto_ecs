@@ -221,8 +221,9 @@ fn create_glue_function(
     let new_function_id = syn::Ident::new(
         format!(
             "_{}_{}_", 
-            to_camel_case(
-                struct_id.to_string().as_str()), 
+                to_camel_case(
+                    struct_id.to_string().as_str()
+                ), 
                 function_id.to_string()
             ).as_str(),
         function_id.span(),
@@ -424,36 +425,21 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                                 proto_ecs::entities::entity::MAX_DATAGROUP_INDEX
                             );
 
-                            let new_id = registry.register(
+                            registry.register(
                                 proto_ecs::local_systems::LocalSystemRegistryEntry{
                                     id : proto_ecs::local_systems::INVALID_SYSTEM_CLASS_ID,
                                     name : #struct_id_str,
                                     name_crc : #name_crc,
                                     dependencies : dependencies,
                                     functions : func_map,
-                                    before : Vec::new(),
-                                    after : Vec::new(),
+                                    before : vec![
+                                        #(<#before as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
+                                    ],
+                                    after : vec![
+                                        #(<#after as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
+                                    ],
                                     set_id_fn : #id_set_up_fn_id
                                 }
-                            );
-                        }
-                    )
-                );
-            }
-
-            #[ctor::ctor]
-            fn __register_local_system_dependencies__()
-            {
-                proto_ecs::local_systems::LocalSystemRegistry::register_dependency_lambda(
-                    Box::new(
-                        |registry| {
-                            registry.set_dependencies::<#struct_id>(
-                                vec![
-                                    #(<#before as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
-                                ],
-                                vec![
-                                    #(<#after as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
-                                ]
                             );
                         }
                     )
