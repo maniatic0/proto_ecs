@@ -217,36 +217,3 @@ lazy_static! {
     static ref GLOBAL_SYSTEM: RwLock<LocalSystemRegistry> =
         RwLock::from(LocalSystemRegistry::new());
 }
-
-/* Example usage of a local system:
-
-pub struct Animation;
-
-local_system!{
-    Animation,
-    dependencies = [
-        AnimationDatagroup,
-        MeshDatagroup,
-        Optional(ClothDatagroup)
-    ],
-    stages = [
-        Init,
-        FrameUpdate,
-        127
-    ]
-}
-
-Now implement this auto generated trait:
-impl AnimationLocalSystem for Animation
-{
-    fn Init(animation_datagroup : AnimationDataGroup, mesh_datagroup : MeshDataGroup, cloth_datagroup : optional<ClothDatagroup>)
-    {...}
-
-    fn FrameUpdate(animation_datagroup : AnimationDataGroup, mesh_datagroup : MeshDataGroup)
-    {...}
-
-    fn Stage127(animation_datagroup : AnimationDataGroup, mesh_datagroup : MeshDataGroup)
-    {...}
-}
-
-*/
