@@ -2,11 +2,14 @@
 mod test {
     use crate::{
         app::App,
+        core::ids::{HasID, IDLocator},
         entities::{entity::Entity, entity_spawn_desc::EntitySpawnDescription},
         tests::{
-            shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup},
-            shared_local_systems::sls::Test,
-        }, core::ids::IDLocator,
+            shared_datagroups::sdg::{
+                AnimationDataGroup, MeshDataGroup, TestNumberDataGroup, TestNumberDataGroupArg,
+            },
+            shared_local_systems::sls::{Test, TestAdder, TestMultiplier},
+        },
     };
 
     #[test]
@@ -34,12 +37,37 @@ mod test {
 
         assert!(matches!(
             entity.get_datagroup::<AnimationDataGroup>(),
-            Some(dg) if dg.get_id() == AnimationDataGroup::get_id()
+            Some(dg) if dg.get_id() == <AnimationDataGroup as IDLocator>::get_id()
         ));
         assert!(matches!(
             entity.get_datagroup::<MeshDataGroup>(),
-            Some(dg) if dg.get_id() == MeshDataGroup::get_id()
+            Some(dg) if dg.get_id() == <MeshDataGroup as IDLocator>::get_id()
         ));
         assert!(entity.contains_local_system::<Test>());
+    }
+
+    #[test]
+    fn test_entity_stage_run() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
+        let mut spawn_desc = EntitySpawnDescription::default();
+        let init_params = Box::new(TestNumberDataGroupArg { num: 1 });
+
+        TestNumberDataGroup::prepare_spawn(&mut spawn_desc, init_params);
+        TestAdder::simple_prepare(&mut spawn_desc);
+        TestMultiplier::simple_prepare(&mut spawn_desc);
+        spawn_desc.check_local_systems_panic();
+
+        spawn_desc.set_name("Test Name".to_owned());
+
+        let mut entity = Entity::init(1, spawn_desc);
+
+        entity.run_stage(0);
+        assert_eq!(
+            entity.get_datagroup::<TestNumberDataGroup>().unwrap().num,
+            4
+        );
     }
 }

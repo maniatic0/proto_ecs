@@ -1,9 +1,12 @@
 use crate::{
-    core::ids::IDLocator,
+    core::{
+        casting::{cast, CanCast},
+        ids::IDLocator,
+    },
     data_group::{DataGroup, DataGroupID, DataGroupInitType, DataGroupRegistry},
     entities::entity_spawn_desc::EntitySpawnDescription,
     get_id,
-    local_systems::{Dependency, LocalSystemRegistry, LocalSystemDesc},
+    local_systems::{Dependency, LocalSystemDesc, LocalSystemRegistry},
 };
 use proto_ecs::local_systems::{StageID, SystemClassID, SystemFn, STAGE_COUNT};
 
@@ -196,11 +199,12 @@ impl Entity {
     }
 
     #[inline(always)]
-    pub fn get_datagroup<DG>(&self) -> Option<&Box<dyn DataGroup>>
+    pub fn get_datagroup<DG>(&self) -> Option<&DG>
     where
-        DG: IDLocator + DataGroup,
+        DG: IDLocator + DataGroup + CanCast + Sized + 'static,
     {
         self.get_datagroup_by_id(get_id!(DG))
+            .and_then(|dg| Some(cast(dg)))
     }
 
     #[inline(always)]
@@ -209,8 +213,7 @@ impl Entity {
     }
 
     #[inline(always)]
-    pub fn contains_local_system_by_id(&self, id : SystemClassID) -> bool
-    {
+    pub fn contains_local_system_by_id(&self, id: SystemClassID) -> bool {
         self.get_local_systems().contains(&id)
     }
 

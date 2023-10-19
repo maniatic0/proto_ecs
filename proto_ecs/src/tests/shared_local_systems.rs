@@ -2,7 +2,9 @@
 pub mod sls {
     use proto_ecs::local_systems::register_local_system;
 
-    use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
+    use crate::tests::shared_datagroups::sdg::{
+        AnimationDataGroup, MeshDataGroup, TestNumberDataGroup,
+    };
 
     // -- Local system creation
     pub struct Test;
@@ -42,6 +44,35 @@ pub mod sls {
             _animation_data_group: &mut AnimationDataGroup,
             _mesh_data_group: Option<&mut MeshDataGroup>,
         ) {
+        }
+    }
+
+    pub struct TestAdder;
+
+    register_local_system! {
+        TestAdder,
+        dependencies = (TestNumberDataGroup),
+        stages = (0)
+    }
+
+    impl TestAdderLocalSystem for TestAdder {
+        fn stage_0(test_number_data_group: &mut TestNumberDataGroup) {
+            test_number_data_group.num = test_number_data_group.num + 1
+        }
+    }
+
+    pub struct TestMultiplier;
+
+    register_local_system! {
+        TestMultiplier,
+        dependencies = (TestNumberDataGroup),
+        stages = (0),
+        after = (TestAdder)
+    }
+
+    impl TestMultiplierLocalSystem for TestMultiplier {
+        fn stage_0(test_number_data_group: &mut TestNumberDataGroup) {
+            test_number_data_group.num = test_number_data_group.num * 2
         }
     }
 }
