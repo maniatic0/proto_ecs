@@ -14,6 +14,7 @@ use proto_ecs::data_group::DataGroupID;
 use proto_ecs::get_id;
 use topological_sort::TopologicalSort;
 use crate::data_group::DataGroup;
+use crate::entities::entity::DataGroupIndexingType;
 pub use ecs_macros::register_local_system;
 
 
@@ -35,7 +36,7 @@ pub trait LocalSystemMeta {
 
 pub type LocalSystemFactory = fn() -> Box<dyn LocalSystem>;
 
-pub type SystemFn = fn(&[usize], &mut Vec<Box<dyn DataGroup>>) -> ();
+pub type SystemFn = fn(&[DataGroupIndexingType], &mut Vec<Box<dyn DataGroup>>) -> ();
 
 // BEGIN TODO: Move this to be shared with global systems as well (?)
 

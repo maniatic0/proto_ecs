@@ -241,7 +241,7 @@ fn create_glue_function(
         let index = syn::Index::from(i);
         let type_id = arg.unwrap();
         let arg_value = quote! {
-            (&mut *entity_datagroups_ptr.add(indices[#index]))
+            (&mut *entity_datagroups_ptr.add(indices[#index] as usize))
             .as_any_mut()
             .downcast_mut::<#type_id>()
             .expect("Couldn't perform cast")
@@ -250,7 +250,7 @@ fn create_glue_function(
         match arg {
             OptionalDep::OptionalDep(_) => {
                 quote! {
-                    if indices[#index] == usize::MAX
+                    if indices[#index] == proto_ecs::entities::entity::INVALID_DATAGROUP_INDEX
                     {
                         None
                     }
@@ -265,11 +265,11 @@ fn create_glue_function(
     });
 
     let new_function = quote! {
-        fn #new_function_id(indices : &[usize], entity_datagroups : &mut Vec<std::boxed::Box<dyn proto_ecs::data_group::DataGroup>>)
+        fn #new_function_id(indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut Vec<std::boxed::Box<dyn proto_ecs::data_group::DataGroup>>)
         {
             debug_assert!({
                 let mut unique_set = std::collections::HashSet::new();
-                indices.iter().all(|&i| {{unique_set.insert(i) && i < entity_datagroups.len()}})
+                indices.iter().all(|&i| {{unique_set.insert(i) && (i as usize) < entity_datagroups.len()}})
             }, "Overlapping indices or index out of range");
 
             unsafe {
@@ -415,6 +415,15 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                             let mut func_map  = proto_ecs::local_systems::EMPTY_STAGE_MAP;
                             #( dependencies.push(#deps);)*
                             #( func_map[#stage_indices] = Some(#glue_function_ids);)*
+
+                            assert!(
+                                dependencies.len() <= proto_ecs::entities::entity::MAX_DATAGROUP_INDEX as usize,
+                                "Local System '{}' has more datagroups dependencies than what the indexing type can support: {} (limit {})",
+                                #struct_id_str,
+                                dependencies.len(),
+                                proto_ecs::entities::entity::MAX_DATAGROUP_INDEX
+                            );
+
                             let new_id = registry.register(
                                 proto_ecs::local_systems::LocalSystemRegistryEntry{
                                     id : proto_ecs::local_systems::INVALID_SYSTEM_CLASS_ID,

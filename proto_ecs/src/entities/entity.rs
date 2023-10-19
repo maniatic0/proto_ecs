@@ -1,12 +1,12 @@
 use crate::{
     data_group::{DataGroup, DataGroupID, DataGroupInitType, DataGroupRegistry},
     entities::entity_spawn_desc::EntitySpawnDescription,
-    local_systems::LocalSystemRegistry,
+    local_systems::{Dependency, LocalSystemRegistry},
 };
 use proto_ecs::local_systems::{StageID, SystemClassID, SystemFn, STAGE_COUNT};
 
 use bitvec::prelude::{BitArr, BitArray};
-use nohash_hasher::IntSet;
+use nohash_hasher::{IntMap, IntSet};
 use vector_map::{set::VecSet, VecMap};
 
 pub type EntityID = u64;
@@ -17,6 +17,16 @@ pub const INVALID_ENTITY_ID: EntityID = 0;
 /// Map type used by entities to store datagroups
 pub type DataGroupMap = VecMap<DataGroupID, Box<dyn DataGroup>>;
 
+/// Type for use when indexing datagroups in entities
+/// It defines the max number of them in an entity
+pub type DataGroupIndexingType = u16;
+
+/// This is the index considered invalid
+pub const INVALID_DATAGROUP_INDEX: DataGroupIndexingType = DataGroupIndexingType::MAX;
+
+/// Max number of datagroups that can be in an entity
+pub const MAX_DATAGROUP_INDEX: DataGroupIndexingType = INVALID_DATAGROUP_INDEX - 1;
+
 /// Map type used by entities to store what local systems it has
 pub type LocalSystemMap = IntSet<SystemClassID>;
 
@@ -24,7 +34,7 @@ pub type LocalSystemMap = IntSet<SystemClassID>;
 pub type StageEnabledMap = BitArr!(for STAGE_COUNT);
 
 /// Map type used by entities to store local systems' execution functions per stage
-pub type StageMap = VecMap<StageID, Vec<SystemFn>>;
+pub type StageMap = VecMap<StageID, Vec<(Vec<DataGroupIndexingType>, SystemFn)>>;
 
 /// Map type used by entities to store the reference to its children
 pub type ChildrenMap = VecSet<EntityID>;
@@ -55,6 +65,7 @@ impl Entity {
             children,
         } = spawn_desc;
 
+        // Init Datagroups
         let dg_registry = DataGroupRegistry::get_global_registry().read();
         let mut datagroups = DataGroupMap::new();
 
@@ -76,11 +87,23 @@ impl Entity {
             datagroups.insert(id, new_dg);
         }
 
+        // Sort them to be able to use binary search
+        datagroups.sort();
+
+        // Build temp map for their positions (for Local Systems lookup)
+        let mut dg_to_pos_map: IntMap<DataGroupID, DataGroupIndexingType> = IntMap::default();
+        for (pos, dg_id) in datagroups.keys().enumerate() {
+            dg_to_pos_map.insert(*dg_id, pos as DataGroupIndexingType);
+        }
+
+        // Build stage information and collect datagroup indices
         let mut stage_enabled_map = BitArray::ZERO;
         let mut stage_map = StageMap::new();
 
+        let mut sorted_local_systems: Vec<SystemClassID> = local_systems.iter().copied().collect();
+        sorted_local_systems.sort();
         let ls_registry = LocalSystemRegistry::get_global_registry().read();
-        for id in &local_systems {
+        for id in &sorted_local_systems {
             let entry = ls_registry.get_entry_by_id(*id);
 
             entry
@@ -97,15 +120,36 @@ impl Entity {
                                 stage_map.insert(stage_id, Vec::new());
                             }
 
+                            let mut dependency_ids: Vec<DataGroupIndexingType> = Vec::new();
+                            dependency_ids.reserve_exact(entry.dependencies.len());
+
+                            for dep in &entry.dependencies {
+                                match dep {
+                                    Dependency::DataGroup(dg_id) => {
+                                        dependency_ids.push(*dg_to_pos_map.get(dg_id).expect(
+                                            "Local System is missing datagroup dependency!",
+                                        ))
+                                    }
+                                    Dependency::OptionalDG(dg_id) => match dg_to_pos_map.get(dg_id)
+                                    {
+                                        Some(pos) => dependency_ids.push(*pos),
+                                        None => dependency_ids.push(INVALID_DATAGROUP_INDEX),
+                                    },
+                                }
+                            }
+
+                            debug_assert_eq!(
+                                dependency_ids.capacity(),
+                                entry.dependencies.len(),
+                                "Unexpected extra slack!"
+                            );
+
                             let stage = stage_map.get_mut(&stage_id).unwrap();
-                            stage.push(*fun);
+                            stage.push((dependency_ids, *fun));
                         }
                     }
                 });
         }
-
-        // TODO: Add datagroup index math here and to the struct
-        // TODO: Add local system sorting here
 
         Self {
             id,
@@ -202,5 +246,7 @@ impl Entity {
             .stage_map
             .get_mut(&stage_id)
             .expect("Unitialized Entity or Entity in undefined state!");
+
+        
     }
 }

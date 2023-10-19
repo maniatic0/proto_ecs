@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod local_system_test {
     use super::super::shared_datagroups::sdg::*;
+    use crate::entities::entity::DataGroupIndexingType;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
     use crate::local_systems::LocalSystemDesc;
     use crate::{app::App, core::casting::cast, get_id, local_systems::LocalSystemRegistry};
@@ -59,7 +60,7 @@ mod local_system_test {
         let mesh = dg_registry.create::<MeshDataGroup>();
         let anim = dg_registry.create::<AnimationDataGroup>();
         let mut dgs = vec![anim, mesh];
-        let indices: [usize; 2] = [0, 1];
+        let indices: [DataGroupIndexingType; 2] = [0, 1];
         let entry = ls_registry.get_entry::<Test>();
 
         assert_eq!(entry.id, get_id!(Test));

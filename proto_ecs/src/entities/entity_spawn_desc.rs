@@ -1,6 +1,6 @@
 use crate::core::ids;
 use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupRegistry};
-use crate::entities::entity::{ChildrenMap, EntityID, INVALID_ENTITY_ID};
+use crate::entities::entity::{ChildrenMap, EntityID, INVALID_ENTITY_ID, MAX_DATAGROUP_INDEX};
 use crate::get_id;
 use crate::local_systems::{Dependency, LocalSystemRegistry, SystemClassID};
 use nohash_hasher::{IntMap, IntSet};
@@ -179,6 +179,13 @@ impl EntitySpawnDescription {
 
     /// Checks if the datagroups of this entity make sense, else panic
     pub fn check_datagroups_panic(&self) {
+        assert!(
+            self.get_datagroups().len() <= MAX_DATAGROUP_INDEX as usize,
+            "More datagroups than what the indexing type can support: {} (limit {})",
+            self.get_datagroups().len(),
+            MAX_DATAGROUP_INDEX
+        );
+
         let registry = DataGroupRegistry::get_global_registry().read();
 
         self.get_datagroups().iter().for_each(|(id, init_param)| {
