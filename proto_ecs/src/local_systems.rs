@@ -10,9 +10,8 @@ pub use ecs_macros::register_local_system;
 /// pub fn MySystem(animation : &mut AnimationDatagroup, mesh : &mut MeshDatagroup)
 /// { ... }
 use lazy_static::lazy_static;
-use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
-use proto_ecs::core::ids;
+use proto_ecs::core::{ids, locking::RwLock};
 use proto_ecs::data_group::DataGroupID;
 use proto_ecs::get_id;
 use topological_sort::TopologicalSort;

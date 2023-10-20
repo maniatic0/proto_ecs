@@ -12,9 +12,8 @@
 
 pub use ecs_macros::{register_datagroup, register_datagroup_init};
 use lazy_static::lazy_static;
-use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
-use proto_ecs::core::ids;
+use proto_ecs::core::{ids, locking::RwLock};
 use proto_ecs::get_id;
 use std::fmt::Debug;
 

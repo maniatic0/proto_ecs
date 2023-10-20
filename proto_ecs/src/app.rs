@@ -1,10 +1,10 @@
 use lazy_static::lazy_static;
 
+use crate::core::locking::RwLock;
 /// This module implements the entire Application workflow.
 /// Put any glue code between parts of our application here
 use crate::data_group::DataGroupRegistry;
 use crate::local_systems::LocalSystemRegistry;
-use parking_lot::RwLock;
 
 pub struct App {
     is_initialized: bool,
