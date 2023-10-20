@@ -184,10 +184,10 @@ impl Entity {
     }
 
     #[inline]
-    pub fn get_datagroup_by_id(&self, id: DataGroupID) -> Option<&Box<dyn DataGroup>> {
+    pub fn get_datagroup_by_id(&self, id: DataGroupID) -> Option<&dyn DataGroup> {
         let pos = self.datagroups.binary_search_by_key(&id, |dg| dg.get_id());
         match pos {
-            Ok(pos) => Some(&self.datagroups[pos]),
+            Ok(pos) => Some(self.datagroups[pos].as_ref()),
             Err(_) => None,
         }
     }
