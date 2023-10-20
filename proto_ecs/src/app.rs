@@ -6,7 +6,6 @@ use crate::data_group::DataGroupRegistry;
 use crate::local_systems::LocalSystemRegistry;
 use parking_lot::RwLock;
 
-
 pub struct App {
     is_initialized: bool,
 }

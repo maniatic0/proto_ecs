@@ -35,7 +35,11 @@ pub trait LocalSystemMeta {
 
 pub type LocalSystemFactory = fn() -> Box<dyn LocalSystem>;
 
-pub type SystemFn = fn(entity : proto_ecs::entities::entity::EntityID, &[DataGroupIndexingType], &mut [Box<dyn DataGroup>]) -> ();
+pub type SystemFn = fn(
+    entity: proto_ecs::entities::entity::EntityID,
+    &[DataGroupIndexingType],
+    &mut [Box<dyn DataGroup>],
+) -> ();
 
 // BEGIN TODO: Move this to be shared with global systems as well (?)
 
@@ -139,19 +143,12 @@ impl LocalSystemRegistry {
     }
 
     /// Initialize this registry entry
-    pub fn init(
-        &mut self,
-        registry_fns: TempRegistryLambdas,
-    ) {
+    pub fn init(&mut self, registry_fns: TempRegistryLambdas) {
         registry_fns.into_iter().for_each(|lambda| lambda(self));
         self.set_toposort_ids();
 
         self.entries
-            .sort_unstable_by(
-                |this, other| 
-                this.id.cmp(&other.id
-            )
-        );
+            .sort_unstable_by(|this, other| this.id.cmp(&other.id));
 
         self.is_initialized = true;
     }
@@ -199,7 +196,7 @@ impl LocalSystemRegistry {
         while ts.len() > 0 {
             let mut non_dependents = ts.pop_all();
             if non_dependents.len() == 0 && ts.len() != 0 {
-                // If there's cyclic dependencies, 
+                // If there's cyclic dependencies,
                 // then the popped list is empty and ts.len > 0,
                 // See: https://docs.rs/topological-sort/latest/topological_sort/struct.TopologicalSort.html#method.pop_all
                 // TODO: better error handling

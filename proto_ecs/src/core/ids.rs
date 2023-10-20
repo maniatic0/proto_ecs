@@ -2,14 +2,12 @@ pub type ID = u32;
 pub use once_cell::sync::OnceCell;
 
 // Helper trait to find the id according to a corresponding class
-pub trait IDLocator
-{
+pub trait IDLocator {
     fn get_id() -> ID;
 }
 
 // Helper trait to find the id in a trait object
-pub trait HasID
-{
+pub trait HasID {
     fn get_id(&self) -> ID;
 }
 

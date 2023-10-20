@@ -1,10 +1,10 @@
 #[cfg(test)]
 pub mod sls {
-    use proto_ecs::local_systems::register_local_system;
-    use proto_ecs::entities::entity::EntityID;
     use crate::tests::shared_datagroups::sdg::{
         AnimationDataGroup, MeshDataGroup, TestNumberDataGroup,
     };
+    use proto_ecs::entities::entity::EntityID;
+    use proto_ecs::local_systems::register_local_system;
 
     // -- Local system creation
     pub struct Test;
@@ -17,12 +17,19 @@ pub mod sls {
     }
 
     impl TestLocalSystem for Test {
-        fn stage_0(entity_id : EntityID, animation_data_group: &mut AnimationDataGroup,mesh_data_group: &mut MeshDataGroup) {
+        fn stage_0(
+            entity_id: EntityID,
+            animation_data_group: &mut AnimationDataGroup,
+            mesh_data_group: &mut MeshDataGroup,
+        ) {
             animation_data_group.duration = 4.2;
         }
 
-        fn stage_1(entity_id : EntityID,animation_data_group: &mut AnimationDataGroup,mesh_data_group: &mut MeshDataGroup) {
-            
+        fn stage_1(
+            entity_id: EntityID,
+            animation_data_group: &mut AnimationDataGroup,
+            mesh_data_group: &mut MeshDataGroup,
+        ) {
         }
     }
 
@@ -36,7 +43,7 @@ pub mod sls {
 
     impl TestOptLocalSystem for TestOpt {
         fn stage_0(
-            entity_id : EntityID,
+            entity_id: EntityID,
             _animation_data_group: &mut AnimationDataGroup,
             _mesh_data_group: Option<&mut MeshDataGroup>,
         ) {
@@ -52,7 +59,7 @@ pub mod sls {
     }
 
     impl TestAdderLocalSystem for TestAdder {
-        fn stage_0(entity_id : EntityID, test_number_data_group: &mut TestNumberDataGroup) {
+        fn stage_0(entity_id: EntityID, test_number_data_group: &mut TestNumberDataGroup) {
             test_number_data_group.num = test_number_data_group.num + 1
         }
     }
@@ -67,7 +74,7 @@ pub mod sls {
     }
 
     impl TestMultiplierLocalSystem for TestMultiplier {
-        fn stage_0(entity_id : EntityID, test_number_data_group: &mut TestNumberDataGroup) {
+        fn stage_0(entity_id: EntityID, test_number_data_group: &mut TestNumberDataGroup) {
             test_number_data_group.num = test_number_data_group.num * 2
         }
     }

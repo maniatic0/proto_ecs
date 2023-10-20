@@ -4,7 +4,9 @@ pub mod datagroup_test {
     use crate::{
         app::App,
         core::casting::{cast, cast_mut},
-        create_datagroup, get_id, entities::entity_spawn_desc::EntitySpawnDescription,
+        create_datagroup,
+        entities::entity_spawn_desc::EntitySpawnDescription,
+        get_id,
     };
     use proto_ecs::data_group::*;
 
