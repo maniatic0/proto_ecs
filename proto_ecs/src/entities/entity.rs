@@ -38,8 +38,11 @@ pub type LocalSystemMap = IntSet<SystemClassID>;
 /// Map type used by entities to store local systems' enabled stages
 pub type StageEnabledMap = BitArr!(for STAGE_COUNT);
 
+/// From where to get the local system datagroup indices
+type LocalSystemIndexingVec = Vec<DataGroupIndexingType>;
+
 /// Map type used by entities to store local systems' execution functions per stage
-pub type StageMap = VecMap<StageID, Vec<(Vec<DataGroupIndexingType>, SystemFn)>>;
+pub type StageMap = VecMap<StageID, Vec<(DataGroupIndexingType, SystemFn)>>;
 
 /// Map type used by entities to store the reference to its children
 pub type ChildrenMap = VecSet<EntityID>;
@@ -51,6 +54,7 @@ pub struct Entity {
 
     datagroups: DataGroupVec,
 
+    local_systems_indices: LocalSystemIndexingVec,
     local_systems_map: LocalSystemMap,
     stage_enabled_map: StageEnabledMap,
     stage_map: StageMap,
@@ -104,6 +108,7 @@ impl Entity {
         // Build stage information and collect datagroup indices
         let mut stage_enabled_map = BitArray::ZERO;
         let mut stage_map = StageMap::new();
+        let mut local_systems_indices: LocalSystemIndexingVec = Vec::new();
 
         let mut sorted_local_systems: Vec<SystemClassID> = local_systems.iter().copied().collect();
         sorted_local_systems.sort();
@@ -125,42 +130,38 @@ impl Entity {
                                 stage_map.insert(stage_id, Vec::new());
                             }
 
-                            let mut dependency_ids: Vec<DataGroupIndexingType> = Vec::new();
-                            dependency_ids.reserve_exact(entry.dependencies.len());
+                            local_systems_indices.reserve_exact(entry.dependencies.len());
 
                             for dep in &entry.dependencies {
                                 match dep {
-                                    Dependency::DataGroup(dg_id) => {
-                                        dependency_ids.push(*dg_to_pos_map.get(dg_id).expect(
+                                    Dependency::DataGroup(dg_id) => local_systems_indices.push(
+                                        *dg_to_pos_map.get(dg_id).expect(
                                             "Local System is missing datagroup dependency!",
-                                        ))
-                                    }
+                                        ),
+                                    ),
                                     Dependency::OptionalDG(dg_id) => match dg_to_pos_map.get(dg_id)
                                     {
-                                        Some(pos) => dependency_ids.push(*pos),
-                                        None => dependency_ids.push(INVALID_DATAGROUP_INDEX),
+                                        Some(pos) => local_systems_indices.push(*pos),
+                                        None => local_systems_indices.push(INVALID_DATAGROUP_INDEX),
                                     },
                                 }
                             }
 
-                            debug_assert_eq!(
-                                dependency_ids.capacity(),
-                                entry.dependencies.len(),
-                                "Unexpected extra slack!"
-                            );
-
                             let stage = stage_map.get_mut(&stage_id).unwrap();
-                            stage.push((dependency_ids, *fun));
+                            stage.push((entry.dependencies.len() as DataGroupIndexingType, *fun));
                         }
                     }
                 });
         }
+
+        local_systems_indices.shrink_to_fit();
 
         Self {
             id,
             name,
             debug_info,
             datagroups,
+            local_systems_indices,
             local_systems_map: local_systems,
             stage_enabled_map,
             stage_map,
@@ -285,8 +286,16 @@ impl Entity {
             .get_mut(&stage_id)
             .expect("Unitialized Entity or Entity in undefined state!");
 
-        for (dependencies, local_sys_fun) in stage {
-            (local_sys_fun)(self.id, &dependencies, &mut self.datagroups)
+        let mut indices_start: usize = 0;
+
+        for (indices_num, local_sys_fun) in stage {
+            let indices_num = *indices_num as usize;
+            (local_sys_fun)(
+                self.id,
+                &self.local_systems_indices[indices_start..(indices_start + indices_num)],
+                &mut self.datagroups,
+            );
+            indices_start += indices_num;
         }
     }
 }
