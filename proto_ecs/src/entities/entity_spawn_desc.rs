@@ -1,19 +1,17 @@
 use crate::core::ids;
 use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupRegistry};
-use crate::entities::entity::{ChildrenMap, EntityID, INVALID_ENTITY_ID, MAX_DATAGROUP_INDEX};
+use crate::entities::entity::MAX_DATAGROUP_INDEX;
 use crate::get_id;
 use crate::local_systems::{Dependency, LocalSystemRegistry, SystemClassID};
 use nohash_hasher::{IntMap, IntSet};
 
 /// Description of an entity to be spawned
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EntitySpawnDescription {
     pub(super) name: String,
     pub(super) debug_info: String,
     pub(super) data_groups: IntMap<DataGroupID, DataGroupInitType>,
     pub(super) local_systems: IntSet<SystemClassID>,
-    pub(super) parent: EntityID,
-    pub(super) children: ChildrenMap,
 }
 
 impl EntitySpawnDescription {
@@ -141,42 +139,6 @@ impl EntitySpawnDescription {
         self.get_local_system_by_id(get_id!(S))
     }
 
-    #[inline(always)]
-    /// Get the parent of this entity
-    pub fn get_parent(&self) -> EntityID {
-        self.parent
-    }
-
-    #[inline(always)]
-    /// Set the parent of this entity
-    pub fn set_parent(&mut self, parent: EntityID) {
-        self.parent = parent
-    }
-
-    #[inline(always)]
-    /// Get the children of this entity
-    pub fn get_children(&self) -> &ChildrenMap {
-        &self.children
-    }
-
-    #[inline(always)]
-    /// Get the children of this entity
-    pub fn get_children_mut(&mut self) -> &mut ChildrenMap {
-        &mut self.children
-    }
-
-    #[inline(always)]
-    /// Add a child to this entity
-    pub fn add_child(&mut self, child: EntityID) {
-        self.children.insert(child);
-    }
-
-    #[inline(always)]
-    /// Remove a child to this entity
-    pub fn remove_child(&mut self, child: EntityID) {
-        self.children.remove(&child);
-    }
-
     /// Checks if the datagroups of this entity make sense, else panic
     pub fn check_datagroups_panic(&self) {
         assert!(
@@ -227,19 +189,6 @@ impl EntitySpawnDescription {
     pub fn check_panic(&self) {
         self.check_datagroups_panic();
         self.check_local_systems_panic();
-    }
-}
-
-impl Default for EntitySpawnDescription {
-    fn default() -> Self {
-        Self {
-            name: Default::default(),
-            debug_info: Default::default(),
-            data_groups: Default::default(),
-            local_systems: Default::default(),
-            parent: INVALID_ENTITY_ID,
-            children: Default::default(),
-        }
     }
 }
 

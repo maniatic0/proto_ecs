@@ -58,9 +58,6 @@ pub struct Entity {
     local_systems_map: LocalSystemMap,
     stage_enabled_map: StageEnabledMap,
     stage_map: StageMap,
-
-    parent: EntityID,
-    children: ChildrenMap,
 }
 
 impl Entity {
@@ -70,8 +67,6 @@ impl Entity {
             debug_info,
             data_groups,
             local_systems,
-            parent,
-            children,
         } = spawn_desc;
 
         // Init Datagroups
@@ -165,8 +160,6 @@ impl Entity {
             local_systems_map: local_systems,
             stage_enabled_map,
             stage_map,
-            parent,
-            children,
         }
     }
 
@@ -235,42 +228,6 @@ impl Entity {
     /// If a stage is enabled for this entity
     pub fn is_stage_enabled(&self, stage_id: StageID) -> bool {
         self.stage_enabled_map[stage_id as usize]
-    }
-
-    #[inline(always)]
-    pub fn get_parent(&self) -> EntityID {
-        self.parent
-    }
-
-    #[inline(always)]
-    /// Only to be used by the entity system
-    pub(super) fn set_parent(&mut self, parent: EntityID) {
-        self.parent = parent
-    }
-
-    #[inline(always)]
-    pub fn get_children(&self) -> &ChildrenMap {
-        &self.children
-    }
-
-    #[inline(always)]
-    /// Only to be used by the entity system
-    pub(super) fn get_children_mut(&mut self) -> &mut ChildrenMap {
-        &mut self.children
-    }
-
-    #[inline(always)]
-    /// Add a child to this entity
-    /// Only to be used by the entity system
-    pub(super) fn add_child(&mut self, child: EntityID) {
-        self.children.insert(child);
-    }
-
-    #[inline(always)]
-    /// Remove a child to this entity
-    /// Only to be used by the entity system
-    pub(super) fn remove_child(&mut self, child: EntityID) {
-        self.children.remove(&child);
     }
 
     /// Runs a stage. Note that it panics if the stage is not enabled
@@ -427,8 +384,6 @@ impl std::fmt::Debug for Entity {
             .field("local_systems", &local_system_map.values())
             .field("stage_enabled_map", &stage_enabled_map)
             .field("stages", &stage_map)
-            .field("parent", &self.parent)
-            .field("children", &self.children)
             .finish()
     }
 }
