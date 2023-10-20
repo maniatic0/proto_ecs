@@ -69,7 +69,5 @@ mod test {
             entity.get_datagroup::<TestNumberDataGroup>().unwrap().num,
             4
         );
-
-        println!("{entity:?}");
     }
 }
