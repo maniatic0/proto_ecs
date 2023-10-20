@@ -20,7 +20,7 @@ use std::fmt::Debug;
 pub type DataGroupID = u32;
 
 /// Generic trait for DataGroup Init Args
-pub trait GenericDataGroupInitArgTrait: CanCast + Debug {}
+pub trait GenericDataGroupInitArgTrait: CanCast + Debug + Send + Sync {}
 
 /// Generic Data Group Init Arg
 pub type GenericDataGroupInitArg = Box<dyn GenericDataGroupInitArgTrait>;
@@ -69,7 +69,7 @@ pub enum DataGroupInitType {
 ///
 /// register_datagroup!(MyDatagroup, factory)
 /// ```
-pub trait DataGroup: ids::HasID + CanCast + std::fmt::Debug {
+pub trait DataGroup: ids::HasID + CanCast + std::fmt::Debug + Send + Sync {
     fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 
