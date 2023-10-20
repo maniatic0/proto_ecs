@@ -70,7 +70,7 @@ pub enum DataGroupInitType {
 ///
 /// register_datagroup!(MyDatagroup, factory)
 /// ```
-pub trait DataGroup: ids::HasID + CanCast {
+pub trait DataGroup: ids::HasID + CanCast +  std::fmt::Debug {
     fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericDataGroupInitArgTrait>>);
 }
 

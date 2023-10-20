@@ -32,7 +32,7 @@ pub mod sdg {
 
     // -- Second example datagroup
 
-    #[derive(CanCast)]
+    #[derive(CanCast, Debug)]
     pub struct MeshDataGroup {}
 
     fn mesh_factory() -> Box<dyn DataGroup> {
@@ -47,7 +47,7 @@ pub mod sdg {
 
     register_datagroup!(MeshDataGroup, mesh_factory);
 
-    #[derive(CanCast, Default)]
+    #[derive(CanCast, Default, Debug)]
     pub struct TestNumberDataGroup {
         pub num: u32,
     }

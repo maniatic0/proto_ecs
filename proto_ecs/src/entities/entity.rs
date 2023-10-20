@@ -299,3 +299,136 @@ impl Entity {
         }
     }
 }
+
+impl std::fmt::Debug for Entity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dg_registry = DataGroupRegistry::get_global_registry().read();
+        let ls_registry = LocalSystemRegistry::get_global_registry().read();
+
+        #[derive(Debug)]
+        #[allow(dead_code)] // To avoid warning due to Debug not counting as using fields
+        struct LocalSystemRef {
+            pub id: SystemClassID,
+            pub name: &'static str,
+        }
+
+        #[derive(Debug)]
+        #[allow(dead_code)] // To avoid warning due to Debug not counting as using fields
+        struct LocalSystem {
+            pub id: SystemClassID,
+            pub name: &'static str,
+            pub args: Vec<String>,
+        }
+
+        let mut local_system_map: IntMap<SystemClassID, LocalSystem> = IntMap::default();
+        let mut local_system_ref_map: IntMap<SystemClassID, LocalSystemRef> = IntMap::default();
+        for sys_id in &self.local_systems_map {
+            let sys_entry = ls_registry.get_entry_by_id(*sys_id);
+
+            let mut dependencies: Vec<String> = Vec::new();
+
+            for dep in &sys_entry.dependencies {
+                match dep {
+                    Dependency::DataGroup(dg_id) => {
+                        let dg_entry = dg_registry.get_entry_by_id(*dg_id);
+
+                        let dg = self.get_datagroup_by_id(*dg_id);
+                        match dg {
+                            Some(_) => dependencies.push(dg_entry.name.to_owned()),
+                            None => dependencies.push(format!("Error: {}", dg_entry.name)),
+                        }
+                    }
+                    Dependency::OptionalDG(dg_id) => {
+                        let dg_entry = dg_registry.get_entry_by_id(*dg_id);
+
+                        let dg = self.get_datagroup_by_id(*dg_id);
+                        match dg {
+                            Some(_) => dependencies.push(dg_entry.name.to_owned()),
+                            None => dependencies.push("None".to_owned()),
+                        }
+                    }
+                }
+            }
+
+            local_system_map.insert(
+                *sys_id,
+                LocalSystem {
+                    id: *sys_id,
+                    name: sys_entry.name,
+                    args: dependencies,
+                },
+            );
+
+            local_system_ref_map.insert(
+                *sys_id,
+                LocalSystemRef {
+                    id: *sys_id,
+                    name: sys_entry.name,
+                },
+            );
+        }
+
+        #[derive(Debug)]
+        #[allow(dead_code)] // To avoid warning due to Debug not counting as using fields
+        struct Stage<'a> {
+            pub local_systems: Vec<&'a LocalSystemRef>,
+        }
+
+        let mut stage_map: IntMap<StageID, Stage> = IntMap::default();
+
+        let mut stage_enabled_map: Vec<StageID> = Vec::new();
+        stage_enabled_map.reserve_exact(self.stage_enabled_map.count_ones());
+
+        self.stage_enabled_map
+            .iter()
+            .enumerate()
+            .for_each(|(stage, enabled)| {
+                if *enabled {
+                    stage_enabled_map.push(stage as StageID);
+                    stage_map.insert(
+                        stage as StageID,
+                        Stage {
+                            local_systems: Vec::new(),
+                        },
+                    );
+                }
+            });
+
+        let mut sorted_local_systems: Vec<SystemClassID> =
+            self.local_systems_map.iter().copied().collect();
+        sorted_local_systems.sort();
+
+        for ls_id in &sorted_local_systems {
+            let entry = ls_registry.get_entry_by_id(*ls_id);
+
+            entry
+                .functions
+                .iter()
+                .enumerate()
+                .for_each(|(stage_id, fun)| {
+                    let stage_id = stage_id as StageID;
+                    match fun {
+                        None => (),
+                        Some(_) => {
+                            let stage = stage_map.get_mut(&stage_id).unwrap();
+                            stage
+                                .local_systems
+                                .push(local_system_ref_map.get(ls_id).unwrap())
+                        }
+                    }
+                });
+        }
+
+        f.debug_struct("Entity")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("debug_info", &self.debug_info)
+            .field("datagroups", &self.datagroups)
+            .field("local_systems", &local_system_map.values())
+            .field("stage_enabled_map", &stage_enabled_map)
+            .field("stages", &stage_map)
+            .field("parent", &self.parent)
+            .field("children", &self.children)
+            .finish()
+    }
+}
