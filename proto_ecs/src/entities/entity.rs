@@ -197,8 +197,7 @@ impl Entity {
     where
         DG: IDLocator + DataGroup + CanCast + Sized + 'static,
     {
-        self.get_datagroup_by_id(get_id!(DG))
-            .and_then(|dg| Some(cast(dg)))
+        self.get_datagroup_by_id(get_id!(DG)).map(|dg| cast(dg))
     }
 
     #[inline(always)]

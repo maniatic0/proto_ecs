@@ -193,9 +193,9 @@ impl LocalSystemRegistry {
             "The first dependency should be the source node"
         );
         let mut dependency_order = vec![];
-        while ts.len() > 0 {
+        while !ts.is_empty() {
             let mut non_dependents = ts.pop_all();
-            if non_dependents.len() == 0 && ts.len() != 0 {
+            if non_dependents.is_empty() && !ts.is_empty() {
                 // If there's cyclic dependencies,
                 // then the popped list is empty and ts.len > 0,
                 // See: https://docs.rs/topological-sort/latest/topological_sort/struct.TopologicalSort.html#method.pop_all
