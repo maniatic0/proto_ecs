@@ -6,11 +6,11 @@ use crate::{
     data_group::{DataGroup, DataGroupID, DataGroupInitType, DataGroupRegistry},
     entities::entity_spawn_desc::EntitySpawnDescription,
     get_id,
+    systems::common::Dependency,
     systems::local_systems::{LocalSystemDesc, LocalSystemRegistry},
-    systems::common::Dependency
 };
-use proto_ecs::systems::local_systems::{SystemClassID, SystemFn};
 use proto_ecs::systems::common::{StageID, STAGE_COUNT};
+use proto_ecs::systems::local_systems::{SystemClassID, SystemFn};
 
 use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
