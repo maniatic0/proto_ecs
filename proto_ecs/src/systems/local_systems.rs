@@ -12,7 +12,6 @@ pub use ecs_macros::register_local_system;
 use lazy_static::lazy_static;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::{ids, locking::RwLock};
-use proto_ecs::data_group::DataGroupID;
 use proto_ecs::get_id;
 use topological_sort::TopologicalSort;
 
