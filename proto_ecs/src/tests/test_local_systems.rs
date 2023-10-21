@@ -3,9 +3,12 @@ mod local_system_test {
     use super::super::shared_datagroups::sdg::*;
     use crate::entities::entity::DataGroupIndexingType;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
+    use crate::entities::entity_system::World;
     use crate::systems::local_systems::LocalSystemDesc;
     use crate::tests::shared_local_systems::sls::{Test, TestOpt};
-    use crate::{app::App, core::casting::cast, get_id, systems::local_systems::LocalSystemRegistry};
+    use crate::{
+        app::App, core::casting::cast, get_id, systems::local_systems::LocalSystemRegistry,
+    };
     use proto_ecs::data_group::*;
 
     #[test]
@@ -26,7 +29,7 @@ mod local_system_test {
 
         for f in entry.functions {
             match f {
-                Some(f) => (f)(0, &indices, &mut dgs),
+                Some(f) => (f)(&World::new(0), 0, &indices, &mut dgs),
                 _ => {}
             }
         }

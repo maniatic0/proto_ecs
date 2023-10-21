@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicU16, Ordering};
 
 use lazy_static::lazy_static;
-use nohash_hasher::IntSet;
 
 use atomic_float::AtomicF64;
 
@@ -12,6 +11,8 @@ use crate::systems::common::{StageID, STAGE_COUNT};
 
 use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
 
+use rayon::{ThreadPool, ThreadPoolBuilder};
+
 /// We just go up. If we ever run out of them we can think of blocks of IDs per thread and a better allocation system
 static ENTITY_COUNT: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(INVALID_ENTITY_ID + 1);
@@ -20,21 +21,24 @@ static ENTITY_COUNT: std::sync::atomic::AtomicU64 =
 pub fn allocate_entity_id() -> EntityID {
     // Note: if we ever need to do something more complex with IDs we can do it here
 
-    ENTITY_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ENTITY_COUNT.fetch_add(1, Ordering::AcqRel)
 }
 
 /// Deallocate an Entity ID
 pub fn deallocate_entity_id(id: EntityID) {
-    assert!(id < ENTITY_COUNT.load(std::sync::atomic::Ordering::Relaxed));
+    assert!(id < ENTITY_COUNT.load(Ordering::Acquire));
 
     // Note: if we ever need to do something more complex with IDs we can do it here
 }
 
 /// Entity Creation Queue type used by worlds
-pub type EntityCreationQueue = scc::Queue<(EntityID, EntitySpawnDescription)>;
+pub type EntityCreationQueue = scc::Queue<RwLock<Option<(EntityID, EntitySpawnDescription)>>>;
+
+/// Entity Deletion Queue type used by worlds
+pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
 /// Entity Map Type that holds all the entities in a World
-pub type EntityMap = scc::HashMap<EntityID, Box<RwLock<Entity>>>;
+pub type EntityMap = scc::HashMap<EntityID, Box<Entity>>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
@@ -42,17 +46,124 @@ pub type WorldID = u16;
 #[derive(Debug)]
 pub struct World {
     id: WorldID,
+    pool: ThreadPool,
     entities: EntityMap,
     creation_queue: EntityCreationQueue,
+    deletion_queue: EntityDeletionQueue,
 }
 
 impl World {
-    fn new(id: WorldID) -> Self {
+    pub(crate) fn new(id: WorldID) -> Self {
         Self {
             id,
+            pool: ThreadPoolBuilder::new()
+                .build()
+                .expect("Failed to create world pool!"),
             entities: Default::default(),
             creation_queue: Default::default(),
+            deletion_queue: Default::default(),
         }
+    }
+
+    pub fn get_id(&self) -> WorldID {
+        self.id
+    }
+
+    /// Create a new entity based on its spawn description. Note that the entity will spawn at the end of the current stage
+    pub fn create_entity(&self, spawn_desc: EntitySpawnDescription) -> EntityID {
+        let new_id = allocate_entity_id();
+        self.creation_queue
+            .push(RwLock::new(Some((new_id.clone(), spawn_desc))));
+        new_id
+    }
+
+    /// Create a new entity based on its spawn description
+    fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
+        self.entities
+            .insert(id, Box::new(Entity::init(id, spawn_desc)))
+            .expect("Failed to create entity!");
+    }
+
+    /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
+    pub fn destroy_entity(&self, id: EntityID) {
+        self.deletion_queue.push(id);
+    }
+
+    /// Destroy an entity
+    pub fn destroy_entity_internal(&self, id: EntityID) {
+        if self.entities.remove(&id).is_none() {
+            println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
+        }
+    }
+
+    /// Process all entity commands
+    fn process_entity_commands(&self) {
+        // Process all deletions
+        self.pool.scope(|scope| {
+            for _ in 0..self.pool.current_num_threads() {
+                scope.spawn(|_| {
+                    while !self.deletion_queue.is_empty() {
+                        let id = self.deletion_queue.pop();
+                        if !id.is_none() {
+                            continue;
+                        }
+
+                        let id = **id.unwrap();
+                        self.destroy_entity_internal(id);
+                    }
+                })
+            }
+        });
+
+        // Process all creations
+        self.pool.scope(|scope| {
+            for _ in 0..self.pool.current_num_threads() {
+                scope.spawn(|_| {
+                    while !self.creation_queue.is_empty() {
+                        let pop = self.creation_queue.pop();
+                        if pop.is_none() {
+                            continue;
+                        }
+
+                        let (id, spawn_desc) = (pop.unwrap()).write().take().unwrap(); // Trick to get content without having to use mem swap
+
+                        self.create_entity_internal(id, spawn_desc);
+                    }
+                })
+            }
+        });
+    }
+
+    /// Process a stage in this world
+    fn run_stage(&self, stage_id: StageID) {
+        // Process all the entity commands before the stage
+        self.process_entity_commands();
+
+        // Run Stage in all entities
+        self.pool.scope(|scope| {
+            self.entities.scan(|id, _| {
+                let id = id.clone();
+                scope.spawn(move |_| {
+                    let mut binding = self.entities.get(&id).unwrap();
+                    let entity = binding.get_mut();
+
+                    // Check if stage is enabled
+                    if !entity.is_stage_enabled(stage_id) {
+                        return;
+                    }
+
+                    entity.run_stage(&self, stage_id);
+                })
+            });
+        });
+
+        // Process all the entity commands created in the stage
+        self.process_entity_commands();
+    }
+
+    /// Merge target world into this world
+    fn merge_world(&mut self, mut target: Self) {
+        todo!("Implement world merge!")
     }
 }
 
@@ -67,6 +178,7 @@ pub type WorldMergeQueue = scc::Queue<(WorldID, WorldID)>;
 
 #[derive(Debug)]
 pub struct EntitySystem {
+    pool: ThreadPool,
     delta_time: AtomicF64,
     fixed_delta_time: AtomicF64,
     worlds: WorldMap,
@@ -111,7 +223,7 @@ impl EntitySystem {
 
     /// Destroy a world
     fn destroy_world_internal(&self, id: WorldID) {
-        if !self.worlds.remove(&id).is_some() {
+        if self.worlds.remove(&id).is_none() {
             println!("Failed to destroy World {id}, maybe it was already destroyed(?)");
         }
     }
@@ -130,7 +242,8 @@ impl EntitySystem {
             );
             return;
         }
-        let target_world = target_world.unwrap().get_mut();
+        let mut binding = target_world.unwrap();
+        let target_world = binding.get_mut();
 
         let source_world = self.worlds.remove(&source);
         if source_world.is_none() {
@@ -139,9 +252,9 @@ impl EntitySystem {
             );
             return;
         }
-        let mut source_world = source_world.unwrap().1;
+        let source_world = source_world.unwrap().1;
 
-        todo!("Merge source world into target world!");
+        target_world.merge_world(source_world);
     }
 
     /// Merge `source` world into the `target` world. This destroys the `source` world
@@ -166,6 +279,24 @@ impl EntitySystem {
 
     /// Process a stage for the entity system and all the worlds
     fn process_stage(&self, stage_id: StageID) {
+        // Process all commands created before the stage
+        self.process_world_command_queues();
+
+        // Process worlds in parallel
+        self.pool.scope(|scope| {
+            self.worlds.scan(|world_id, _| {
+                let world_id = world_id.to_owned();
+                scope.spawn(move |_| {
+                    self.worlds
+                        .get(&world_id)
+                        .unwrap()
+                        .get()
+                        .run_stage(stage_id);
+                })
+            });
+        });
+
+        // Process all commands created in the stage
         self.process_world_command_queues();
     }
 
@@ -179,6 +310,58 @@ impl EntitySystem {
             self.process_stage(stage_id as StageID);
         }
     }
+
+    /// Create a new entity in World `world_id` based on its spawn description. Note that the entity will spawn at the end of the current stage. If the world cannot be found, it returns the spawn desc as an err
+    pub fn create_entity(
+        &self,
+        world_id: WorldID,
+        spawn_desc: EntitySpawnDescription,
+    ) -> Result<EntityID, EntitySpawnDescription> {
+        match self.worlds.get(&world_id) {
+            Some(entry) => Ok(entry.get().create_entity(spawn_desc)),
+            None => {
+                println!("Failed to create entity due to: Couldn't find World {world_id}!");
+                Err(spawn_desc)
+            }
+        }
+    }
+
+    /// Destroy an entity in World `world_id`, if the world and the entity exist. Return true if the world could be found (not that the entity might not be there)
+    pub fn destroy_entity(&self, world_id: WorldID, entity_id: EntityID) -> bool {
+        match self.worlds.get(&world_id) {
+            Some(entry) => {
+                entry.get().destroy_entity(entity_id);
+                true
+            }
+            None => {
+                println!(
+                    "Failed to destroy entity {entity_id} due to: Couldn't find World {world_id}!"
+                );
+                false
+            }
+        }
+    }
+
+    /// Get the the list of current worlds. Note that this is only valid if no stage is being executed, or if called from a Local/Global System, else it might include deleted worlds
+    pub fn get_worlds_list(&self) -> Vec<WorldID> {
+        let mut worlds: Vec<WorldID> = Vec::new();
+        worlds.reserve(self.worlds.len());
+
+        self.worlds.scan(|world_id, _| {
+            worlds.push(*world_id);
+        });
+
+        worlds
+    }
+
+    /// Get the the list of current worlds. Note that this is only valid if no stage is being executed, or if called from a Local/Global System, else it might include deleted worlds
+    pub fn get_worlds_list_no_alloc(&self, worlds: &mut Vec<WorldID>) {
+        worlds.reserve(self.worlds.len());
+
+        self.worlds.scan(|world_id, _| {
+            worlds.push(*world_id);
+        });
+    }
 }
 
 /// The default world that is always created when the entity system starts
@@ -188,6 +371,9 @@ pub const DEFAULT_WORLD: WorldID = 0;
 impl EntitySystem {
     fn new() -> Self {
         let new_self = Self {
+            pool: ThreadPoolBuilder::new()
+                .build()
+                .expect("Failed to create the entity system thread pool!"),
             delta_time: Default::default(),
             fixed_delta_time: Default::default(),
             worlds: Default::default(),

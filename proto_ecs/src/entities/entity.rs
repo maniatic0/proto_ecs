@@ -16,6 +16,8 @@ use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
 use vector_map::{set::VecSet, VecMap};
 
+use super::entity_system::World;
+
 pub type EntityID = u64;
 
 /// The invalid entity ID
@@ -63,7 +65,7 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub fn init(id: EntityID, spawn_desc: EntitySpawnDescription) -> Self {
+    pub(super) fn init(id: EntityID, spawn_desc: EntitySpawnDescription) -> Self {
         let EntitySpawnDescription {
             name,
             debug_info,
@@ -233,7 +235,7 @@ impl Entity {
 
     /// Runs a stage. Note that it panics if the stage is not enabled
     /// Only to be called by the entity system
-    pub(super) fn run_stage(&mut self, stage_id: StageID) {
+    pub(super) fn run_stage(&mut self, world: &World, stage_id: StageID) {
         debug_assert!(
             self.is_stage_enabled(stage_id),
             "Check if the stage is enabled before running it!"
@@ -249,6 +251,7 @@ impl Entity {
         for (indices_num, local_sys_fun) in stage {
             let indices_num = *indices_num as usize;
             (local_sys_fun)(
+                &world,
                 self.id,
                 &self.local_systems_indices[indices_start..(indices_start + indices_num)],
                 &mut self.datagroups,

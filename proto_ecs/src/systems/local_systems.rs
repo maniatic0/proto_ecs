@@ -1,5 +1,6 @@
 use crate::data_group::DataGroup;
-use crate::entities::entity::DataGroupIndexingType;
+use crate::entities::entity::{DataGroupIndexingType, EntityID};
+use crate::entities::entity_system::World;
 pub use ecs_macros::register_local_system;
 /// Local systems are basically functions that operate on datagroups from
 /// an entity. To define a local system, the user should be able to
@@ -35,11 +36,7 @@ pub trait LocalSystemMeta {
 
 pub type LocalSystemFactory = fn() -> Box<dyn LocalSystem>;
 
-pub type SystemFn = fn(
-    entity: proto_ecs::entities::entity::EntityID,
-    &[DataGroupIndexingType],
-    &mut [Box<dyn DataGroup>],
-) -> ();
+pub type SystemFn = fn(&World, EntityID, &[DataGroupIndexingType], &mut [Box<dyn DataGroup>]) -> ();
 
 /// Stage Map type
 pub type LSStageMap = StageMap<SystemFn>;

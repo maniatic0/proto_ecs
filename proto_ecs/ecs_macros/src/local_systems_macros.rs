@@ -266,7 +266,7 @@ fn create_glue_function(
     });
 
     let new_function = quote! {
-        fn #new_function_id(entity : proto_ecs::entities::entity::EntityID, indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut [std::boxed::Box<dyn proto_ecs::data_group::DataGroup>])
+        fn #new_function_id(world : &proto_ecs::entities::entity_system::World, entity : proto_ecs::entities::entity::EntityID, indices : &[proto_ecs::entities::entity::DataGroupIndexingType], entity_datagroups : &mut [std::boxed::Box<dyn proto_ecs::data_group::DataGroup>])
         {
             debug_assert!({
                 let mut unique_set = std::collections::HashSet::new();
@@ -276,7 +276,7 @@ fn create_glue_function(
             unsafe {
                 let entity_datagroups_ptr = entity_datagroups.as_mut_ptr();
                 #(let #arg_ids = #arg_values;)*
-                #struct_id :: #function_id (entity, #( #arg_ids_copy, )*);
+                #struct_id :: #function_id (&world, entity, #( #arg_ids_copy, )*);
             }
         }
     };
@@ -313,7 +313,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
     let function_args = 
         {
             // Id of the entity holding this local system
-            let mut args = vec![quote!(entity_id : proto_ecs::entities::entity::EntityID)];
+            let mut args = vec![quote!(world : &proto_ecs::entities::entity_system::World, entity_id : proto_ecs::entities::entity::EntityID)];
 
             // Actual datagroup arguments
             args.extend(
