@@ -2,7 +2,8 @@ use crate::core::ids;
 use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupRegistry};
 use crate::entities::entity::MAX_DATAGROUP_INDEX;
 use crate::get_id;
-use crate::systems::local_systems::{Dependency, LocalSystemRegistry, SystemClassID};
+use crate::systems::local_systems::{LocalSystemRegistry, SystemClassID};
+use crate::systems::common::Dependency;
 use nohash_hasher::{IntMap, IntSet};
 
 /// Description of an entity to be spawned

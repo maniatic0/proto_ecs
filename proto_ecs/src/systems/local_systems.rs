@@ -16,6 +16,8 @@ use proto_ecs::data_group::DataGroupID;
 use proto_ecs::get_id;
 use topological_sort::TopologicalSort;
 
+use proto_ecs::systems::common::*;
+
 pub type SystemClassID = u32;
 
 pub const INVALID_SYSTEM_CLASS_ID: SystemClassID = SystemClassID::MAX;
@@ -40,39 +42,15 @@ pub type SystemFn = fn(
     &mut [Box<dyn DataGroup>],
 ) -> ();
 
-// BEGIN TODO: Move this to be shared with global systems as well (?)
-
-pub type StageID = u8;
-
-/// Number of stages supported by the engine
-pub const STAGE_COUNT: usize = StageID::MAX as usize + 1;
-
 /// Stage Map type
-pub type StageMap = [Option<SystemFn>; STAGE_COUNT];
+pub type LSStageMap = StageMap<SystemFn>;
 
 /// Empty stage map
-pub const EMPTY_STAGE_MAP: StageMap = [None; STAGE_COUNT];
-
-// END TODO: Move this to be shared with global systems as well (?)
+pub const EMPTY_STAGE_MAP: LSStageMap = [None; STAGE_COUNT];
 
 pub trait LocalSystemDesc {
     const NAME: &'static str;
     const NAME_CRC: u32;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Dependency {
-    DataGroup(DataGroupID),
-    OptionalDG(DataGroupID),
-}
-
-impl Dependency {
-    pub fn unwrap(self) -> DataGroupID {
-        match self {
-            Dependency::OptionalDG(d) => d,
-            Dependency::DataGroup(d) => d,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -81,7 +59,7 @@ pub struct LocalSystemRegistryEntry {
     pub name: &'static str,
     pub name_crc: u32,
     pub dependencies: Vec<Dependency>,
-    pub functions: StageMap,
+    pub functions: LSStageMap,
     pub before: Vec<SystemClassID>,
     pub after: Vec<SystemClassID>,
     pub set_id_fn: fn(SystemClassID), // Only used for init, don't use it manually

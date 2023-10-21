@@ -8,7 +8,7 @@ use atomic_float::AtomicF64;
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
 use crate::core::locking::RwLock;
-use crate::systems::local_systems::{StageID, STAGE_COUNT};
+use crate::systems::common::{StageID, STAGE_COUNT};
 
 use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
 

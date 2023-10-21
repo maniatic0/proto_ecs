@@ -97,14 +97,14 @@ impl ToTokens for OptionalDep {
         match self {
             OptionalDep::Dependency(id) => {
                 tokens.extend(quote! {
-                    proto_ecs::local_systems::Dependency::DataGroup(
+                    proto_ecs::systems::common::Dependency::DataGroup(
                         <#id as proto_ecs::core::ids::IDLocator>::get_id()
                     )
                 });
             }
             OptionalDep::OptionalDep(id) => {
                 tokens.extend(quote! {
-                    proto_ecs::local_systems::Dependency::OptionalDG(
+                    proto_ecs::systems::common::Dependency::OptionalDG(
                         <#id as proto_ecs::core::ids::IDLocator>::get_id()
                     )
                 });
@@ -381,7 +381,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
             check_implements_traits::<#struct_id>();
         };
 
-        fn #id_set_up_fn_id (new_id : proto_ecs::local_systems::SystemClassID)
+        fn #id_set_up_fn_id (new_id : proto_ecs::systems::local_systems::SystemClassID)
         {
             #id_magic_ident.set(new_id).expect("Can't set id twice");
         }
@@ -405,7 +405,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
             }
         }
 
-        impl proto_ecs::local_systems::LocalSystemDesc for #struct_id 
+        impl proto_ecs::systems::local_systems::LocalSystemDesc for #struct_id 
         {
             #[doc = "Name of this local system"]
             const NAME : &'static str = #struct_id_str;
@@ -419,11 +419,11 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
             #[ctor::ctor]
             fn __register_local_system__()
             {
-                proto_ecs::local_systems::LocalSystemRegistry::register_lambda(
+                proto_ecs::systems::local_systems::LocalSystemRegistry::register_lambda(
                     Box::new(
                         |registry| {
                             let mut dependencies = Vec::new();
-                            let mut func_map  = proto_ecs::local_systems::EMPTY_STAGE_MAP;
+                            let mut func_map  = proto_ecs::systems::local_systems::EMPTY_STAGE_MAP;
                             #( dependencies.push(#deps);)*
                             #( func_map[#stage_indices] = Some(#glue_function_ids);)*
 
@@ -436,17 +436,17 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                             );
 
                             registry.register(
-                                proto_ecs::local_systems::LocalSystemRegistryEntry{
-                                    id : proto_ecs::local_systems::INVALID_SYSTEM_CLASS_ID,
+                                proto_ecs::systems::local_systems::LocalSystemRegistryEntry{
+                                    id : proto_ecs::systems::local_systems::INVALID_SYSTEM_CLASS_ID,
                                     name : #struct_id_str,
                                     name_crc : #name_crc,
                                     dependencies : dependencies,
                                     functions : func_map,
                                     before : vec![
-                                        #(<#before as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
+                                        #(<#before as proto_ecs::systems::local_systems::LocalSystemDesc>::NAME_CRC),*
                                     ],
                                     after : vec![
-                                        #(<#after as proto_ecs::local_systems::LocalSystemDesc>::NAME_CRC),*
+                                        #(<#after as proto_ecs::systems::local_systems::LocalSystemDesc>::NAME_CRC),*
                                     ],
                                     set_id_fn : #id_set_up_fn_id
                                 }
