@@ -4,7 +4,7 @@ pub mod sls {
         AnimationDataGroup, MeshDataGroup, TestNumberDataGroup,
     };
     use proto_ecs::entities::entity::EntityID;
-    use proto_ecs::local_systems::register_local_system;
+    use proto_ecs::systems::local_systems::register_local_system;
 
     // -- Local system creation
     pub struct Test;

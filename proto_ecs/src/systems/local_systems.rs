@@ -84,7 +84,7 @@ pub struct LocalSystemRegistryEntry {
     pub functions: StageMap,
     pub before: Vec<SystemClassID>,
     pub after: Vec<SystemClassID>,
-    pub set_id_fn: fn(SystemClassID),
+    pub set_id_fn: fn(SystemClassID), // Only used for init, don't use it manually
 }
 
 #[derive(Debug, Default)]
@@ -198,7 +198,7 @@ impl LocalSystemRegistry {
                 // If there's cyclic dependencies,
                 // then the popped list is empty and ts.len > 0,
                 // See: https://docs.rs/topological-sort/latest/topological_sort/struct.TopologicalSort.html#method.pop_all
-                // TODO: better error handling
+                // TODO: better error handling, report cyclic dependencies
                 panic!("Cyclic dependencies between local systems!");
             }
 

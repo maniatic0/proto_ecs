@@ -4,7 +4,7 @@ use crate::core::locking::RwLock;
 /// This module implements the entire Application workflow.
 /// Put any glue code between parts of our application here
 use crate::data_group::DataGroupRegistry;
-use crate::local_systems::LocalSystemRegistry;
+use crate::systems::local_systems::LocalSystemRegistry;
 
 pub struct App {
     is_initialized: bool,

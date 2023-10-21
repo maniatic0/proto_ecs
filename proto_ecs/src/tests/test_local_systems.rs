@@ -3,9 +3,9 @@ mod local_system_test {
     use super::super::shared_datagroups::sdg::*;
     use crate::entities::entity::DataGroupIndexingType;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
-    use crate::local_systems::LocalSystemDesc;
+    use crate::systems::local_systems::LocalSystemDesc;
     use crate::tests::shared_local_systems::sls::{Test, TestOpt};
-    use crate::{app::App, core::casting::cast, get_id, local_systems::LocalSystemRegistry};
+    use crate::{app::App, core::casting::cast, get_id, systems::local_systems::LocalSystemRegistry};
     use proto_ecs::data_group::*;
 
     #[test]
