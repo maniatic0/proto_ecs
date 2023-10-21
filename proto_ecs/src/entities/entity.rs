@@ -108,8 +108,8 @@ impl Entity {
         let mut sorted_local_systems: Vec<SystemClassID> = local_systems.iter().copied().collect();
         sorted_local_systems.sort();
         let ls_registry = LocalSystemRegistry::get_global_registry().read();
-        for id in &sorted_local_systems {
-            let entry = ls_registry.get_entry_by_id(*id);
+        for &id in &sorted_local_systems {
+            let entry = ls_registry.get_entry_by_id(id);
 
             entry
                 .functions
