@@ -54,9 +54,11 @@ pub struct World {
 
 impl World {
     pub(crate) fn new(id: WorldID) -> Self {
+        let world_id = id.clone();
         Self {
             id,
             pool: ThreadPoolBuilder::new()
+                .thread_name(move |i| format!("World {world_id} Thread {i}"))
                 .build()
                 .expect("Failed to create world pool!"),
             entities: Default::default(),
@@ -372,6 +374,7 @@ impl EntitySystem {
     fn new() -> Self {
         let new_self = Self {
             pool: ThreadPoolBuilder::new()
+                .thread_name(|i| format!("Entity System Thread {i}"))
                 .build()
                 .expect("Failed to create the entity system thread pool!"),
             delta_time: Default::default(),
