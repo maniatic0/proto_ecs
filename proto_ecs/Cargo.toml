@@ -9,6 +9,7 @@ edition = "2021"
 atomic_float = "0.1.0"
 bitvec = "1.0.1"
 crc32fast = { version = "*" }
+criterion = { version = "0.5.1", features = ["html_reports"] }
 ctor = "0.2.5"
 ecs_macros = { version = "0.1.0", path = "ecs_macros" }
 lazy_static = "1.4.0"
@@ -19,3 +20,7 @@ rayon = "1.8.0"
 scc = "2.0.2"
 topological-sort = "0.2.2"
 vector-map = "1.0.1"
+
+[[bench]]
+name = "entity_sytem_benchmark"
+harness = false
