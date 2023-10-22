@@ -99,9 +99,9 @@ impl World {
     /// Process all entity commands
     fn process_entity_commands(&self) {
         // Process all deletions
-        self.pool.scope(|scope| {
-            for _ in 0..self.pool.current_num_threads() {
-                scope.spawn(|_| {
+        if !self.deletion_queue.is_empty() {
+            self.pool.scope(|scope| {
+                scope.spawn_broadcast(|_, _| {
                     while !self.deletion_queue.is_empty() {
                         let id = self.deletion_queue.pop();
                         if !id.is_none() {
@@ -111,14 +111,14 @@ impl World {
                         let id = **id.unwrap();
                         self.destroy_entity_internal(id);
                     }
-                })
-            }
-        });
+                });
+            });
+        }
 
         // Process all creations
-        self.pool.scope(|scope| {
-            for _ in 0..self.pool.current_num_threads() {
-                scope.spawn(|_| {
+        if !self.creation_queue.is_empty() {
+            self.pool.scope(|scope| {
+                scope.spawn_broadcast(|_, _| {
                     while !self.creation_queue.is_empty() {
                         let pop = self.creation_queue.pop();
                         if pop.is_none() {
@@ -129,9 +129,9 @@ impl World {
 
                         self.create_entity_internal(id, spawn_desc);
                     }
-                })
-            }
-        });
+                });
+            });
+        }
     }
 
     /// Process a stage in this world
