@@ -120,18 +120,15 @@ impl World {
 
         // Process all creations
         if !self.creation_queue.is_empty() {
-            self.pool.scope(|scope| {
-                scope.spawn_broadcast(|_, _| {
-                    while !self.creation_queue.is_empty() {
-                        let pop = self.creation_queue.pop();
-                        if pop.is_none() {
-                            continue;
-                        }
+            let mut work : Vec<(EntityID, EntitySpawnDescription)> = Vec::new();
+            while !self.creation_queue.is_empty() {
+                let pop = self.creation_queue.pop().unwrap();
+                work.push(pop.write().take().unwrap());
+            }
 
-                        let (id, spawn_desc) = (pop.unwrap()).write().take().unwrap(); // Trick to get content without having to use mem swap
-
-                        self.create_entity_internal(id, spawn_desc);
-                    }
+            self.pool.install(|| {
+                work.into_par_iter().for_each(|(id, spawn_desc)| {
+                    self.create_entity_internal(id, spawn_desc);
                 });
             });
         }

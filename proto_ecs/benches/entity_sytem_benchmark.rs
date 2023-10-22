@@ -140,7 +140,7 @@ fn entity_system_step_10k_benchmark(c: &mut Criterion) {
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().sample_size(10);
+    config = Criterion::default().sample_size(50);
     targets = entity_system_creation_benchmark, entity_system_step_100_benchmark, entity_system_step_10k_benchmark
 );
 criterion_main!(benches);
