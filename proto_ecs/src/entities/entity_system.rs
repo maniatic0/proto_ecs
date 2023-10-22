@@ -103,24 +103,22 @@ impl World {
     fn process_entity_commands(&self) {
         // Process all deletions
         if !self.deletion_queue.is_empty() {
-            self.pool.scope(|scope| {
-                scope.spawn_broadcast(|_, _| {
-                    while !self.deletion_queue.is_empty() {
-                        let id = self.deletion_queue.pop();
-                        if !id.is_none() {
-                            continue;
-                        }
+            let mut work: Vec<EntityID> = Vec::new();
+            while !self.deletion_queue.is_empty() {
+                let pop = self.deletion_queue.pop().unwrap();
+                work.push(**pop);
+            }
 
-                        let id = **id.unwrap();
-                        self.destroy_entity_internal(id);
-                    }
+            self.pool.install(|| {
+                work.into_par_iter().for_each(|id| {
+                    self.destroy_entity_internal(id);
                 });
             });
         }
 
         // Process all creations
         if !self.creation_queue.is_empty() {
-            let mut work : Vec<(EntityID, EntitySpawnDescription)> = Vec::new();
+            let mut work: Vec<(EntityID, EntitySpawnDescription)> = Vec::new();
             while !self.creation_queue.is_empty() {
                 let pop = self.creation_queue.pop().unwrap();
                 work.push(pop.write().take().unwrap());
