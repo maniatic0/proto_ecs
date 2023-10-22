@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
+use nohash_hasher::IntSet;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
@@ -11,7 +12,7 @@ use crate::systems::common::{StageID, STAGE_COUNT};
 
 use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
 
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 
 /// We just go up. If we ever run out of them we can think of blocks of IDs per thread and a better allocation system
 static ENTITY_COUNT: std::sync::atomic::AtomicU64 =
@@ -142,10 +143,15 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        self.pool.scope(|scope| {
+        if !self.entities.is_empty() {
+            let mut entities: Vec<EntityID> = Vec::default();
+            entities.reserve_exact(self.entities.len());
             self.entities.scan(|id, _| {
-                let id = id.clone();
-                scope.spawn(move |_| {
+                entities.push(*id);
+            });
+
+            self.pool.install(|| {
+                entities.par_iter().for_each(|id| {
                     let mut binding = self.entities.get(&id).unwrap();
                     let entity = binding.get_mut();
 
@@ -155,9 +161,9 @@ impl World {
                     }
 
                     entity.run_stage(&self, stage_id);
-                })
-            });
-        });
+                });
+            })
+        }
 
         // Process all the entity commands created in the stage
         self.process_entity_commands();
@@ -285,18 +291,23 @@ impl EntitySystem {
         self.process_world_command_queues();
 
         // Process worlds in parallel
-        self.pool.scope(|scope| {
+        if !self.worlds.is_empty() {
+            let mut worlds: Vec<WorldID> = Vec::new();
+            worlds.reserve_exact(self.worlds.len());
             self.worlds.scan(|world_id, _| {
-                let world_id = world_id.to_owned();
-                scope.spawn(move |_| {
+                worlds.push(*world_id);
+            });
+
+            self.pool.install(|| {
+                worlds.par_iter().for_each(|world_id| {
                     self.worlds
                         .get(&world_id)
                         .unwrap()
                         .get()
                         .run_stage(stage_id);
-                })
+                });
             });
-        });
+        }
 
         // Process all commands created in the stage
         self.process_world_command_queues();
