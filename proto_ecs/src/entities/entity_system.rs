@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
-use nohash_hasher::IntSet;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
@@ -46,7 +45,6 @@ pub type WorldID = u16;
 
 pub struct World {
     id: WorldID,
-    pool: ThreadPool,
     entities: EntityMap,
     entities_work: SyncUnsafeCell<Vec<EntityID>>,
     creation_queue: EntityCreationQueue,
@@ -57,7 +55,6 @@ impl std::fmt::Debug for World {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("World")
             .field("id", &self.id)
-            .field("pool", &self.pool)
             .field("entities", &self.entities)
             .field("creation_queue", &self.creation_queue)
             .field("deletion_queue", &self.deletion_queue)
@@ -67,13 +64,8 @@ impl std::fmt::Debug for World {
 
 impl World {
     pub(crate) fn new(id: WorldID) -> Self {
-        let world_id = id.clone();
         Self {
             id,
-            pool: ThreadPoolBuilder::new()
-                .thread_name(move |i| format!("World {world_id} Thread {i}"))
-                .build()
-                .expect("Failed to create world pool!"),
             entities: Default::default(),
             entities_work: Default::default(),
             creation_queue: Default::default(),
@@ -122,10 +114,8 @@ impl World {
                 work.push(**pop);
             }
 
-            self.pool.install(|| {
-                work.into_par_iter().for_each(|id| {
-                    self.destroy_entity_internal(id);
-                });
+            work.into_par_iter().for_each(|id| {
+                self.destroy_entity_internal(id);
             });
         }
 
@@ -137,10 +127,8 @@ impl World {
                 work.push(pop.write().take().unwrap());
             }
 
-            self.pool.install(|| {
-                work.into_par_iter().for_each(|(id, spawn_desc)| {
-                    self.create_entity_internal(id, spawn_desc);
-                });
+            work.into_par_iter().for_each(|(id, spawn_desc)| {
+                self.create_entity_internal(id, spawn_desc);
             });
         }
     }
@@ -159,19 +147,17 @@ impl World {
                 entities_work.push(*id);
             });
 
-            self.pool.install(|| {
-                entities_work.par_iter().for_each(|id| {
-                    let mut binding = self.entities.get(&id).unwrap();
-                    let entity = binding.get_mut();
+            entities_work.par_iter().for_each(|id| {
+                let mut binding = self.entities.get(&id).unwrap();
+                let entity = binding.get_mut();
 
-                    // Check if stage is enabled
-                    if !entity.is_stage_enabled(stage_id) {
-                        return;
-                    }
+                // Check if stage is enabled
+                if !entity.is_stage_enabled(stage_id) {
+                    return;
+                }
 
-                    entity.run_stage(&self, stage_id);
-                });
-            })
+                entity.run_stage(&self, stage_id);
+            });
         }
 
         // Process all the entity commands created in the stage
