@@ -193,15 +193,29 @@ pub type WorldDestroyQueue = scc::Queue<WorldID>;
 /// Entity System queue type for merge world commands
 pub type WorldMergeQueue = scc::Queue<(WorldID, WorldID)>;
 
-#[derive(Debug)]
 pub struct EntitySystem {
     pool: ThreadPool,
     delta_time: AtomicF64,
     fixed_delta_time: AtomicF64,
     worlds: WorldMap,
+    worlds_work: SyncUnsafeCell<Vec<WorldID>>,
     world_id_counter: AtomicU16,
     destroy_world_queue: WorldDestroyQueue,
     merge_worlds_queue: WorldMergeQueue,
+}
+
+impl std::fmt::Debug for EntitySystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EntitySystem")
+            .field("pool", &self.pool)
+            .field("delta_time", &self.delta_time)
+            .field("fixed_delta_time", &self.fixed_delta_time)
+            .field("worlds", &self.worlds)
+            .field("world_id_counter", &self.world_id_counter)
+            .field("destroy_world_queue", &self.destroy_world_queue)
+            .field("merge_worlds_queue", &self.merge_worlds_queue)
+            .finish()
+    }
 }
 
 impl EntitySystem {
@@ -301,14 +315,15 @@ impl EntitySystem {
 
         // Process worlds in parallel
         if !self.worlds.is_empty() {
-            let mut worlds: Vec<WorldID> = Vec::new();
-            worlds.reserve_exact(self.worlds.len());
+            let worlds_work = unsafe { &mut *self.worlds_work.get() };
+            worlds_work.clear(); // Clear old run
+            worlds_work.reserve_exact(self.worlds.len());
             self.worlds.scan(|world_id, _| {
-                worlds.push(*world_id);
+                worlds_work.push(*world_id);
             });
 
             self.pool.install(|| {
-                worlds.par_iter().for_each(|world_id| {
+                worlds_work.par_iter().for_each(|world_id| {
                     self.worlds
                         .get(&world_id)
                         .unwrap()
@@ -400,6 +415,7 @@ impl EntitySystem {
             delta_time: Default::default(),
             fixed_delta_time: Default::default(),
             worlds: Default::default(),
+            worlds_work: Default::default(),
             world_id_counter: Default::default(),
             destroy_world_queue: Default::default(),
             merge_worlds_queue: Default::default(),
