@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use proto_ecs::{
     app::App,
     entities::{
@@ -91,7 +91,9 @@ fn entity_system_step_100_benchmark(c: &mut Criterion) {
     es.reset(); // In case other tests happened
     es.step(0.0); // Process reset
 
-    for _ in 0..100 {
+    const ENTITIES_NUM: usize = 10_000;
+
+    for _ in 0..ENTITIES_NUM {
         let mut spawn_desc = EntitySpawnDescription::default();
         let init_params = Box::new(TestNumberDataGroupArg { num: 1 });
 
@@ -106,7 +108,9 @@ fn entity_system_step_100_benchmark(c: &mut Criterion) {
             .expect("Failed to create entity!");
     }
 
-    c.bench_function("Entity System: Step 100", |b| {
+    let mut group = c.benchmark_group("entity-system-throughput-100");
+    group.throughput(Throughput::Elements(ENTITIES_NUM as u64));
+    group.bench_function("Entity System: Step 100", |b| {
         b.iter(|| {
             es.step(0.0);
         });
@@ -122,7 +126,9 @@ fn entity_system_step_10k_benchmark(c: &mut Criterion) {
     es.reset(); // In case other tests happened
     es.step(0.0); // Process reset
 
-    for _ in 0..10_000 {
+    const ENTITIES_NUM: usize = 10_000;
+
+    for _ in 0..ENTITIES_NUM {
         let mut spawn_desc = EntitySpawnDescription::default();
         let init_params = Box::new(TestNumberDataGroupArg { num: 1 });
 
@@ -137,7 +143,9 @@ fn entity_system_step_10k_benchmark(c: &mut Criterion) {
             .expect("Failed to create entity!");
     }
 
-    c.bench_function("Entity System: Step 10k", |b| {
+    let mut group = c.benchmark_group("entity-system-throughput-10k");
+    group.throughput(Throughput::Elements(ENTITIES_NUM as u64));
+    group.bench_function("Entity System: Step 10k", |b| {
         b.iter(|| {
             es.step(0.0);
         });
