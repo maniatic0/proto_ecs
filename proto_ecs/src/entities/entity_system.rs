@@ -152,16 +152,15 @@ impl World {
 
         // Run Stage in all entities
         if !self.entities.is_empty() {
-            let entities_ptr = self.entities_work.get();
-            let entities = unsafe { &mut *entities_ptr };
-            entities.clear();
-            entities.reserve_exact(self.entities.len());
+            let entities_work = unsafe { &mut *self.entities_work.get() };
+            entities_work.clear(); // Clear old stuff
+            entities_work.reserve_exact(self.entities.len());
             self.entities.scan(|id, _| {
-                entities.push(*id);
+                entities_work.push(*id);
             });
 
             self.pool.install(|| {
-                entities.par_iter().for_each(|id| {
+                entities_work.par_iter().for_each(|id| {
                     let mut binding = self.entities.get(&id).unwrap();
                     let entity = binding.get_mut();
 
