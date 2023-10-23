@@ -25,3 +25,6 @@ vector-map = "1.0.1"
 [[bench]]
 name = "entity_sytem_benchmark"
 harness = false
+
+[profile.bench]
+debug = 2
