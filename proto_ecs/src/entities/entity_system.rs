@@ -7,7 +7,7 @@ use nohash_hasher::IntSet;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
-use crate::core::locking::RwLock;
+use crate::core::locking::{RwLock, SyncUnsafeCell};
 use crate::systems::common::{StageID, STAGE_COUNT};
 
 use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
@@ -44,13 +44,25 @@ pub type EntityMap = scc::HashMap<EntityID, Box<Entity>>;
 /// World Identifier in the Entity System
 pub type WorldID = u16;
 
-#[derive(Debug)]
 pub struct World {
     id: WorldID,
     pool: ThreadPool,
     entities: EntityMap,
+    entities_work: SyncUnsafeCell<Vec<EntityID>>,
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
+}
+
+impl std::fmt::Debug for World {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("World")
+            .field("id", &self.id)
+            .field("pool", &self.pool)
+            .field("entities", &self.entities)
+            .field("creation_queue", &self.creation_queue)
+            .field("deletion_queue", &self.deletion_queue)
+            .finish()
+    }
 }
 
 impl World {
@@ -63,6 +75,7 @@ impl World {
                 .build()
                 .expect("Failed to create world pool!"),
             entities: Default::default(),
+            entities_work: Default::default(),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
         }
@@ -139,7 +152,9 @@ impl World {
 
         // Run Stage in all entities
         if !self.entities.is_empty() {
-            let mut entities: Vec<EntityID> = Vec::default();
+            let entities_ptr = self.entities_work.get();
+            let entities = unsafe { &mut *entities_ptr };
+            entities.clear();
             entities.reserve_exact(self.entities.len());
             self.entities.scan(|id, _| {
                 entities.push(*id);
