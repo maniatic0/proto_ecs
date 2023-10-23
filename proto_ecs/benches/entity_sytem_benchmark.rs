@@ -91,7 +91,7 @@ fn entity_system_step_100_benchmark(c: &mut Criterion) {
     es.reset(); // In case other tests happened
     es.step(0.0); // Process reset
 
-    const ENTITIES_NUM: usize = 10_000;
+    const ENTITIES_NUM: usize = 100;
 
     for _ in 0..ENTITIES_NUM {
         let mut spawn_desc = EntitySpawnDescription::default();
