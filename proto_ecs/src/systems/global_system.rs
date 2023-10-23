@@ -1,9 +1,9 @@
-use proto_ecs::systems::common::*;
-use proto_ecs::core::ids;
-use topological_sort::TopologicalSort;
-use parking_lot::RwLock;
 use lazy_static::lazy_static;
+use parking_lot::RwLock;
+use proto_ecs::core::ids;
 use proto_ecs::get_id;
+use proto_ecs::systems::common::*;
+use topological_sort::TopologicalSort;
 
 type GlobalSystemID = u32; // TODO Change to a smaller type
 type GSStageMap = StageMap<fn()>; // TODO Not sure what the signature of global system functions is
