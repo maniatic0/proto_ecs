@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use lazy_static::lazy_static;
 
@@ -47,6 +47,7 @@ pub struct World {
     id: WorldID,
     entities: EntityMap,
     entities_work: SyncUnsafeCell<Vec<EntityID>>,
+    needs_entities_work_rebuild: AtomicBool,
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
 }
@@ -56,6 +57,10 @@ impl std::fmt::Debug for World {
         f.debug_struct("World")
             .field("id", &self.id)
             .field("entities", &self.entities)
+            .field(
+                "needs_entities_work_rebuild",
+                &self.needs_entities_work_rebuild,
+            )
             .field("creation_queue", &self.creation_queue)
             .field("deletion_queue", &self.deletion_queue)
             .finish()
@@ -68,6 +73,7 @@ impl World {
             id,
             entities: Default::default(),
             entities_work: Default::default(),
+            needs_entities_work_rebuild: Default::default(),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
         }
@@ -90,6 +96,8 @@ impl World {
         self.entities
             .insert(id, Box::new(Entity::init(id, spawn_desc)))
             .expect("Failed to create entity!");
+        self.needs_entities_work_rebuild
+            .store(true, Ordering::Release);
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -101,7 +109,10 @@ impl World {
     pub fn destroy_entity_internal(&self, id: EntityID) {
         if self.entities.remove(&id).is_none() {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
+            return;
         }
+        self.needs_entities_work_rebuild
+            .store(true, Ordering::Release);
     }
 
     /// Process all entity commands
@@ -140,10 +151,14 @@ impl World {
 
         // Run Stage in all entities
         let entities_work = unsafe { &mut *self.entities_work.get() };
-        entities_work.clear(); // Clear old stuff
-        self.entities.scan(|id, _| {
-            entities_work.push(*id);
-        });
+        if self.needs_entities_work_rebuild.load(Ordering::Acquire) {
+            entities_work.clear(); // Clear old stuff
+            self.entities.scan(|id, _| {
+                entities_work.push(*id);
+            });
+            self.needs_entities_work_rebuild
+                .store(false, Ordering::Release);
+        }
 
         entities_work.par_iter().for_each(|id| {
             let mut binding = self.entities.get(&id).unwrap();
@@ -182,6 +197,7 @@ pub struct EntitySystem {
     fixed_delta_time: AtomicF64,
     worlds: WorldMap,
     worlds_work: SyncUnsafeCell<Vec<WorldID>>,
+    needs_worlds_work_rebuild: AtomicBool,
     world_id_counter: AtomicU16,
     destroy_world_queue: WorldDestroyQueue,
     merge_worlds_queue: WorldMergeQueue,
@@ -194,6 +210,7 @@ impl std::fmt::Debug for EntitySystem {
             .field("delta_time", &self.delta_time)
             .field("fixed_delta_time", &self.fixed_delta_time)
             .field("worlds", &self.worlds)
+            .field("needs_worlds_work_rebuild", &self.needs_worlds_work_rebuild)
             .field("world_id_counter", &self.world_id_counter)
             .field("destroy_world_queue", &self.destroy_world_queue)
             .field("merge_worlds_queue", &self.merge_worlds_queue)
@@ -224,6 +241,8 @@ impl EntitySystem {
         self.worlds
             .insert(new_id, World::new(new_id))
             .expect("Failed to create new world!");
+        self.needs_worlds_work_rebuild
+            .store(true, Ordering::Release);
     }
 
     /// Create a new world and return its world ID
@@ -239,7 +258,10 @@ impl EntitySystem {
     fn destroy_world_internal(&self, id: WorldID) {
         if self.worlds.remove(&id).is_none() {
             println!("Failed to destroy World {id}, maybe it was already destroyed(?)");
+            return;
         }
+        self.needs_worlds_work_rebuild
+            .store(true, Ordering::Release);
     }
 
     /// Destroy a world and all of its content
@@ -269,6 +291,8 @@ impl EntitySystem {
         let source_world = source_world.unwrap().1;
 
         target_world.merge_world(source_world);
+        self.needs_worlds_work_rebuild
+            .store(true, Ordering::Release);
     }
 
     /// Merge `source` world into the `target` world. This destroys the `source` world
@@ -297,24 +321,26 @@ impl EntitySystem {
         self.process_world_command_queues();
 
         // Process worlds in parallel
-        if !self.worlds.is_empty() {
-            let worlds_work = unsafe { &mut *self.worlds_work.get() };
+        let worlds_work = unsafe { &mut *self.worlds_work.get() };
+        if self.needs_worlds_work_rebuild.load(Ordering::Acquire) {
             worlds_work.clear(); // Clear old run
             worlds_work.reserve_exact(self.worlds.len());
             self.worlds.scan(|world_id, _| {
                 worlds_work.push(*world_id);
             });
-
-            self.pool.install(|| {
-                worlds_work.par_iter().for_each(|world_id| {
-                    self.worlds
-                        .get(&world_id)
-                        .unwrap()
-                        .get()
-                        .run_stage(stage_id);
-                });
-            });
+            self.needs_worlds_work_rebuild
+                .store(false, Ordering::Release);
         }
+
+        self.pool.install(|| {
+            worlds_work.par_iter().for_each(|world_id| {
+                self.worlds
+                    .get(&world_id)
+                    .unwrap()
+                    .get()
+                    .run_stage(stage_id);
+            });
+        });
 
         // Process all commands created in the stage
         self.process_world_command_queues();
@@ -399,6 +425,7 @@ impl EntitySystem {
             fixed_delta_time: Default::default(),
             worlds: Default::default(),
             worlds_work: Default::default(),
+            needs_worlds_work_rebuild: Default::default(),
             world_id_counter: Default::default(),
             destroy_world_queue: Default::default(),
             merge_worlds_queue: Default::default(),
