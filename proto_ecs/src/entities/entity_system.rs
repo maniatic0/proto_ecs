@@ -139,26 +139,23 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        if !self.entities.is_empty() {
-            let entities_work = unsafe { &mut *self.entities_work.get() };
-            entities_work.clear(); // Clear old stuff
-            entities_work.reserve_exact(self.entities.len());
-            self.entities.scan(|id, _| {
-                entities_work.push(*id);
-            });
+        let entities_work = unsafe { &mut *self.entities_work.get() };
+        entities_work.clear(); // Clear old stuff
+        self.entities.scan(|id, _| {
+            entities_work.push(*id);
+        });
 
-            entities_work.par_iter().for_each(|id| {
-                let mut binding = self.entities.get(&id).unwrap();
-                let entity = binding.get_mut();
+        entities_work.par_iter().for_each(|id| {
+            let mut binding = self.entities.get(&id).unwrap();
+            let entity = binding.get_mut();
 
-                // Check if stage is enabled
-                if !entity.is_stage_enabled(stage_id) {
-                    return;
-                }
+            // Check if stage is enabled
+            if !entity.is_stage_enabled(stage_id) {
+                return;
+            }
 
-                entity.run_stage(&self, stage_id);
-            });
-        }
+            entity.run_stage(&self, stage_id);
+        });
 
         // Process all the entity commands created in the stage
         self.process_entity_commands();
