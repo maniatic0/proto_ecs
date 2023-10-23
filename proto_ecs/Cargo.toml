@@ -11,6 +11,7 @@ bitvec = "1.0.1"
 crc32fast = { version = "*" }
 criterion = { version = "0.5.1", features = ["html_reports"] }
 ctor = "0.2.5"
+dashmap = { version = "5.5.3", features = ["rayon"] }
 ecs_macros = { version = "0.1.0", path = "ecs_macros" }
 lazy_static = "1.4.0"
 nohash-hasher = "0.2.0"

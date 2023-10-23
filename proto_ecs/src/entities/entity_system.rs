@@ -6,7 +6,7 @@ use atomic_float::AtomicF64;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
-use crate::core::locking::{RwLock, SyncUnsafeCell};
+use crate::core::locking::RwLock;
 use crate::systems::common::{StageID, STAGE_COUNT};
 
 use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
@@ -38,33 +38,17 @@ pub type EntityCreationQueue = scc::Queue<RwLock<Option<(EntityID, EntitySpawnDe
 pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
 /// Entity Map Type that holds all the entities in a World
-pub type EntityMap = scc::HashMap<EntityID, Box<Entity>>;
+pub type EntityMap = dashmap::DashMap<EntityID, RwLock<Box<Entity>>>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
 
+#[derive(Debug)]
 pub struct World {
     id: WorldID,
     entities: EntityMap,
-    entities_work: SyncUnsafeCell<Vec<EntityID>>,
-    needs_entities_work_rebuild: AtomicBool,
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
-}
-
-impl std::fmt::Debug for World {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("World")
-            .field("id", &self.id)
-            .field("entities", &self.entities)
-            .field(
-                "needs_entities_work_rebuild",
-                &self.needs_entities_work_rebuild,
-            )
-            .field("creation_queue", &self.creation_queue)
-            .field("deletion_queue", &self.deletion_queue)
-            .finish()
-    }
 }
 
 impl World {
@@ -72,8 +56,6 @@ impl World {
         Self {
             id,
             entities: Default::default(),
-            entities_work: Default::default(),
-            needs_entities_work_rebuild: Default::default(),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
         }
@@ -93,11 +75,14 @@ impl World {
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
-        self.entities
-            .insert(id, Box::new(Entity::init(id, spawn_desc)))
-            .expect("Failed to create entity!");
-        self.needs_entities_work_rebuild
-            .store(true, Ordering::Release);
+        let old = self
+            .entities
+            .insert(id, RwLock::new(Box::new(Entity::init(id, spawn_desc))));
+        assert!(
+            old.is_none(),
+            "Duplicated Entity ID, old entity {:?}",
+            old.unwrap()
+        );
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -111,8 +96,6 @@ impl World {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
             return;
         }
-        self.needs_entities_work_rebuild
-            .store(true, Ordering::Release);
     }
 
     /// Process all entity commands
@@ -150,19 +133,9 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        let entities_work = unsafe { &mut *self.entities_work.get() };
-        if self.needs_entities_work_rebuild.load(Ordering::Acquire) {
-            entities_work.clear(); // Clear old stuff
-            self.entities.scan(|id, _| {
-                entities_work.push(*id);
-            });
-            self.needs_entities_work_rebuild
-                .store(false, Ordering::Release);
-        }
-
-        entities_work.par_iter().for_each(|id| {
-            let mut binding = self.entities.get(&id).unwrap();
-            let entity = binding.get_mut();
+        self.entities.par_iter().for_each(|map_ref| {
+            let mut binding = map_ref.write();
+            let entity = binding.as_mut();
 
             // Check if stage is enabled
             if !entity.is_stage_enabled(stage_id) {
@@ -183,7 +156,7 @@ impl World {
 }
 
 /// Entity System map type of Worlds
-pub type WorldMap = scc::HashMap<WorldID, World>;
+pub type WorldMap = dashmap::DashMap<WorldID, World>;
 
 /// Entity System queue type for destroy world commands
 pub type WorldDestroyQueue = scc::Queue<WorldID>;
@@ -191,33 +164,16 @@ pub type WorldDestroyQueue = scc::Queue<WorldID>;
 /// Entity System queue type for merge world commands
 pub type WorldMergeQueue = scc::Queue<(WorldID, WorldID)>;
 
+#[derive(Debug)]
 pub struct EntitySystem {
     pool: ThreadPool,
     delta_time: AtomicF64,
     fixed_delta_time: AtomicF64,
     requested_reset: AtomicBool,
     worlds: WorldMap,
-    worlds_work: SyncUnsafeCell<Vec<WorldID>>,
-    needs_worlds_work_rebuild: AtomicBool,
     world_id_counter: AtomicU16,
     destroy_world_queue: WorldDestroyQueue,
     merge_worlds_queue: WorldMergeQueue,
-}
-
-impl std::fmt::Debug for EntitySystem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EntitySystem")
-            .field("pool", &self.pool)
-            .field("delta_time", &self.delta_time)
-            .field("fixed_delta_time", &self.fixed_delta_time)
-            .field("requested_reset", &self.requested_reset)
-            .field("worlds", &self.worlds)
-            .field("needs_worlds_work_rebuild", &self.needs_worlds_work_rebuild)
-            .field("world_id_counter", &self.world_id_counter)
-            .field("destroy_world_queue", &self.destroy_world_queue)
-            .field("merge_worlds_queue", &self.merge_worlds_queue)
-            .finish()
-    }
 }
 
 impl EntitySystem {
@@ -240,11 +196,8 @@ impl EntitySystem {
 
     /// Create a new world
     fn create_world_internal(&self, new_id: WorldID) {
-        self.worlds
-            .insert(new_id, World::new(new_id))
-            .expect("Failed to create new world!");
-        self.needs_worlds_work_rebuild
-            .store(true, Ordering::Release);
+        let old = self.worlds.insert(new_id, World::new(new_id));
+        assert!(old.is_none(), "World ID collision! Old : {:?}", old);
     }
 
     /// Create a new world and return its world ID
@@ -262,8 +215,6 @@ impl EntitySystem {
             println!("Failed to destroy World {id}, maybe it was already destroyed(?)");
             return;
         }
-        self.needs_worlds_work_rebuild
-            .store(true, Ordering::Release);
     }
 
     /// Destroy a world and all of its content
@@ -273,15 +224,14 @@ impl EntitySystem {
 
     /// Merge `source` world into the `target` world. This destroys the `source` world
     fn merge_worlds_internal(&self, source: WorldID, target: WorldID) {
-        let target_world = self.worlds.get(&target);
+        let target_world = self.worlds.get_mut(&target);
         if target_world.is_none() {
             println!(
                 "Failed to merge World {source} into World {target} due to missing target world!"
             );
             return;
         }
-        let mut binding = target_world.unwrap();
-        let target_world = binding.get_mut();
+        let mut target_world = target_world.unwrap();
 
         let source_world = self.worlds.remove(&source);
         if source_world.is_none() {
@@ -293,8 +243,6 @@ impl EntitySystem {
         let source_world = source_world.unwrap().1;
 
         target_world.merge_world(source_world);
-        self.needs_worlds_work_rebuild
-            .store(true, Ordering::Release);
     }
 
     /// Merge `source` world into the `target` world. This destroys the `source` world
@@ -328,24 +276,9 @@ impl EntitySystem {
         self.process_world_command_queues();
 
         // Process worlds in parallel
-        let worlds_work = unsafe { &mut *self.worlds_work.get() };
-        if self.needs_worlds_work_rebuild.load(Ordering::Acquire) {
-            worlds_work.clear(); // Clear old run
-            worlds_work.reserve_exact(self.worlds.len());
-            self.worlds.scan(|world_id, _| {
-                worlds_work.push(*world_id);
-            });
-            self.needs_worlds_work_rebuild
-                .store(false, Ordering::Release);
-        }
-
         self.pool.install(|| {
-            worlds_work.par_iter().for_each(|world_id| {
-                self.worlds
-                    .get(&world_id)
-                    .unwrap()
-                    .get()
-                    .run_stage(stage_id);
+            self.worlds.par_iter().for_each(|world| {
+                world.run_stage(stage_id);
             });
         });
 
@@ -371,7 +304,7 @@ impl EntitySystem {
         spawn_desc: EntitySpawnDescription,
     ) -> Result<EntityID, EntitySpawnDescription> {
         match self.worlds.get(&world_id) {
-            Some(entry) => Ok(entry.get().create_entity(spawn_desc)),
+            Some(entry) => Ok(entry.create_entity(spawn_desc)),
             None => {
                 println!("Failed to create entity due to: Couldn't find World {world_id}!");
                 Err(spawn_desc)
@@ -383,7 +316,7 @@ impl EntitySystem {
     pub fn destroy_entity(&self, world_id: WorldID, entity_id: EntityID) -> bool {
         match self.worlds.get(&world_id) {
             Some(entry) => {
-                entry.get().destroy_entity(entity_id);
+                entry.destroy_entity(entity_id);
                 true
             }
             None => {
@@ -400,8 +333,8 @@ impl EntitySystem {
         let mut worlds: Vec<WorldID> = Vec::new();
         worlds.reserve(self.worlds.len());
 
-        self.worlds.scan(|world_id, _| {
-            worlds.push(*world_id);
+        self.worlds.iter().for_each(|map_ref| {
+            worlds.push(*map_ref.key());
         });
 
         worlds
@@ -411,8 +344,8 @@ impl EntitySystem {
     pub fn get_worlds_list_no_alloc(&self, worlds: &mut Vec<WorldID>) {
         worlds.reserve(self.worlds.len());
 
-        self.worlds.scan(|world_id, _| {
-            worlds.push(*world_id);
+        self.worlds.iter().for_each(|map_ref| {
+            worlds.push(*map_ref.key());
         });
     }
 
@@ -427,22 +360,8 @@ impl EntitySystem {
             self.merge_worlds_queue.pop();
         }
 
-        // Get current worlds to destroy them
-        let worlds_work = unsafe { &mut *self.worlds_work.get() };
-        if self.needs_worlds_work_rebuild.load(Ordering::Acquire) {
-            worlds_work.clear(); // Clear old run
-            worlds_work.reserve_exact(self.worlds.len());
-            self.worlds.scan(|world_id, _| {
-                worlds_work.push(*world_id);
-            });
-            self.needs_worlds_work_rebuild
-                .store(false, Ordering::Release);
-        }
-
         // Destroy all worlds
-        worlds_work.iter().for_each(|world_id| {
-            self.destroy_world_internal(*world_id);
-        });
+        self.worlds.clear();
 
         // Create default world
         self.create_world_internal(DEFAULT_WORLD); // World 0 is always created
@@ -476,8 +395,6 @@ impl EntitySystem {
             fixed_delta_time: Default::default(),
             requested_reset: Default::default(),
             worlds: Default::default(),
-            worlds_work: Default::default(),
-            needs_worlds_work_rebuild: Default::default(),
             world_id_counter: Default::default(),
             destroy_world_queue: Default::default(),
             merge_worlds_queue: Default::default(),

@@ -85,6 +85,7 @@ mod test {
 
         let es = EntitySystem::get();
         es.reset(); // In case other tests happened
+        es.step(0.0); // Process reset
 
         for _ in 0..100 {
             let mut spawn_desc = EntitySpawnDescription::default();
