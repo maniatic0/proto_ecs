@@ -195,6 +195,7 @@ pub struct EntitySystem {
     pool: ThreadPool,
     delta_time: AtomicF64,
     fixed_delta_time: AtomicF64,
+    requested_reset: AtomicBool,
     worlds: WorldMap,
     worlds_work: SyncUnsafeCell<Vec<WorldID>>,
     needs_worlds_work_rebuild: AtomicBool,
@@ -209,6 +210,7 @@ impl std::fmt::Debug for EntitySystem {
             .field("pool", &self.pool)
             .field("delta_time", &self.delta_time)
             .field("fixed_delta_time", &self.fixed_delta_time)
+            .field("requested_reset", &self.requested_reset)
             .field("worlds", &self.worlds)
             .field("needs_worlds_work_rebuild", &self.needs_worlds_work_rebuild)
             .field("world_id_counter", &self.world_id_counter)
@@ -302,6 +304,11 @@ impl EntitySystem {
 
     /// Process destroy and merge world commands
     fn process_world_command_queues(&self) {
+        // Reset if requested
+        if self.requested_reset.load(Ordering::Acquire) {
+            self.reset_internal();
+        }
+
         // First process all destroy commands
         while !self.destroy_world_queue.is_empty() {
             let world_id = **self.destroy_world_queue.pop().unwrap();
@@ -408,6 +415,50 @@ impl EntitySystem {
             worlds.push(*world_id);
         });
     }
+
+    // Resets the entity system. That is, destroys all the worlds and creates the default one. DO NOT call this from an world/system update
+    fn reset_internal(&self) {
+        // Empty commands
+        while !self.destroy_world_queue.is_empty() {
+            self.destroy_world_queue.pop();
+        }
+
+        while !self.merge_worlds_queue.is_empty() {
+            self.merge_worlds_queue.pop();
+        }
+
+        // Get current worlds to destroy them
+        let worlds_work = unsafe { &mut *self.worlds_work.get() };
+        if self.needs_worlds_work_rebuild.load(Ordering::Acquire) {
+            worlds_work.clear(); // Clear old run
+            worlds_work.reserve_exact(self.worlds.len());
+            self.worlds.scan(|world_id, _| {
+                worlds_work.push(*world_id);
+            });
+            self.needs_worlds_work_rebuild
+                .store(false, Ordering::Release);
+        }
+
+        // Destroy all worlds
+        worlds_work.iter().for_each(|world_id| {
+            self.destroy_world_internal(*world_id);
+        });
+
+        // Create default world
+        self.create_world_internal(DEFAULT_WORLD); // World 0 is always created
+
+        self.requested_reset.store(false, Ordering::Release);
+    }
+
+    // Resets the entity system. That is, destroys all the worlds and creates the default one.
+    pub fn reset(&self) {
+        let _ = self.requested_reset.compare_exchange_weak(
+            false,
+            true,
+            Ordering::Acquire,
+            Ordering::Relaxed,
+        );
+    }
 }
 
 /// The default world that is always created when the entity system starts
@@ -423,6 +474,7 @@ impl EntitySystem {
                 .expect("Failed to create the entity system thread pool!"),
             delta_time: Default::default(),
             fixed_delta_time: Default::default(),
+            requested_reset: Default::default(),
             worlds: Default::default(),
             worlds_work: Default::default(),
             needs_worlds_work_rebuild: Default::default(),
@@ -431,7 +483,7 @@ impl EntitySystem {
             merge_worlds_queue: Default::default(),
         };
 
-        new_self.create_world_internal(DEFAULT_WORLD); // World 0 is always created
+        new_self.reset_internal();
 
         new_self
     }

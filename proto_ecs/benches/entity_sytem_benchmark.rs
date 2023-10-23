@@ -61,6 +61,8 @@ fn entity_system_creation_benchmark(c: &mut Criterion) {
     }
 
     let es = EntitySystem::get();
+    es.reset(); // In case other tests happened
+    es.step(0.0); // Process reset
 
     c.bench_function("Entity System: Entity Creation", |b| {
         b.iter(|| {
@@ -86,6 +88,8 @@ fn entity_system_step_100_benchmark(c: &mut Criterion) {
     }
 
     let es = EntitySystem::get();
+    es.reset(); // In case other tests happened
+    es.step(0.0); // Process reset
 
     for _ in 0..100 {
         let mut spawn_desc = EntitySpawnDescription::default();
@@ -115,6 +119,8 @@ fn entity_system_step_10k_benchmark(c: &mut Criterion) {
     }
 
     let es = EntitySystem::get();
+    es.reset(); // In case other tests happened
+    es.step(0.0); // Process reset
 
     for _ in 0..10_000 {
         let mut spawn_desc = EntitySpawnDescription::default();
