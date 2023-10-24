@@ -4,37 +4,72 @@ use proto_ecs::core::ids;
 use proto_ecs::get_id;
 use proto_ecs::systems::common::*;
 use topological_sort::TopologicalSort;
+use std::collections::HashMap;
+use proto_ecs::entities::entity;
+use proto_ecs::core::casting::CanCast;
 
-type GlobalSystemID = u32; // TODO Change to a smaller type
-type GSStageMap = StageMap<fn()>; // TODO Not sure what the signature of global system functions is
+// TODO Change to a smaller type
+pub type GlobalSystemID = u32; 
+// TODO Change for the right type of map
+pub type EntityMap = HashMap<entity::EntityID, Box<entity::Entity>>; 
+pub type GSStageFn = fn(EntityMap);
+
+/// Maps from stage to Global System function
+pub type GSStageMap = StageMap<GSStageFn>; 
+
+pub type GSFactoryFn = fn() -> Box<dyn GlobalSystem>;
 
 pub trait GlobalSystemDesc {
     const NAME: &'static str;
     const NAME_CRC: u32;
 }
 
+#[derive(Debug, PartialEq)]
+
+// TODO try to reuse the same init desc as in datagroups, might require refactor
+pub enum GlobalSystemInitDesc {
+    /// Datagroup without init
+    NoInit,
+    /// Datagroup with init but no args
+    NoArg,
+    /// Datagroup with init and args
+    Arg,
+    /// Datagroup with init and optional args
+    OptionalArg,
+}
+
+/// Similarly to Datagroups, implements the initialization function
+pub trait GlobalSystem : ids::HasID + CanCast + std::fmt::Debug + Send + Sync
+{
+    fn __run_stage__(&mut self, stage_id : u8, entity_map : &mut EntityMap);
+
+    fn __init__(&mut self); // TODO add init args type
+}
+
 #[derive(Debug)]
-pub struct LocalSystemRegistryEntry {
+pub struct GlobalSystemRegistryEntry {
     pub id: GlobalSystemID,
     pub name: &'static str,
     pub name_crc: u32,
     pub dependencies: Vec<Dependency>,
-    pub functions: GSStageMap,
+    pub functions: &'static GSStageMap,
     pub before: Vec<GlobalSystemID>,
     pub after: Vec<GlobalSystemID>,
+    pub factory: GSFactoryFn,
+    pub init_desc : GlobalSystemInitDesc,
     pub set_id_fn: fn(GlobalSystemID), // Only used for init, don't use it manually
 }
 
 #[derive(Debug, Default)]
-pub struct LocalSystemRegistry {
-    entries: Vec<LocalSystemRegistryEntry>,
+pub struct GlobalSystemRegistry {
+    entries: Vec<GlobalSystemRegistryEntry>,
     is_initialized: bool,
 }
 
-impl LocalSystemRegistry {
+impl GlobalSystemRegistry {
     #[inline]
     pub fn new() -> Self {
-        LocalSystemRegistry::default()
+        GlobalSystemRegistry::default()
     }
 
     #[inline]
@@ -43,7 +78,7 @@ impl LocalSystemRegistry {
     }
 
     pub fn register_lambda(lambda: TempRegistryLambda) {
-        LocalSystemRegistry::get_temp_global_registry()
+        GlobalSystemRegistry::get_temp_global_registry()
             .write()
             .push(lambda)
     }
@@ -53,7 +88,7 @@ impl LocalSystemRegistry {
         &GLOBAL_SYSTEM
     }
 
-    pub fn register(&mut self, entry: LocalSystemRegistryEntry) {
+    pub fn register(&mut self, entry: GlobalSystemRegistryEntry) {
         self.entries.push(entry);
     }
 
@@ -64,14 +99,14 @@ impl LocalSystemRegistry {
 
     /// Initialize the global registry
     pub fn initialize() {
-        let mut registry = LocalSystemRegistry::get_global_registry().write();
+        let mut registry = GlobalSystemRegistry::get_global_registry().write();
         assert!(
             !registry.is_initialized,
             "Local System registry was already initialized!"
         );
 
         let mut locals_register_fns = TempRegistryLambdas::new();
-        let mut globals_register_fns = LocalSystemRegistry::get_temp_global_registry().write();
+        let mut globals_register_fns = GlobalSystemRegistry::get_temp_global_registry().write();
 
         // Clear globals
         std::mem::swap(&mut locals_register_fns, &mut globals_register_fns);
@@ -91,7 +126,7 @@ impl LocalSystemRegistry {
     }
 
     #[inline]
-    pub fn get_entry_by_id(&self, id: GlobalSystemID) -> &LocalSystemRegistryEntry {
+    pub fn get_entry_by_id(&self, id: GlobalSystemID) -> &GlobalSystemRegistryEntry {
         debug_assert!((id as usize) < self.entries.len(), "Invalid ID");
         &self.entries[id as usize]
     }
@@ -158,7 +193,7 @@ impl LocalSystemRegistry {
     }
 
     /// Get the entry for a specific LocalSystem
-    pub fn get_entry<S>(&self) -> &LocalSystemRegistryEntry
+    pub fn get_entry<S>(&self) -> &GlobalSystemRegistryEntry
     where
         S: ids::IDLocator + GlobalSystemDesc,
     {
@@ -172,7 +207,7 @@ impl LocalSystemRegistry {
         // We won't allow changing dependencies in runtime
         debug_assert!(
             !self.is_initialized,
-            "You can only set dependencies before initializing local systems"
+            "You can't set dependencies after initializing local systems"
         );
         let entry = &mut self.entries[get_id!(S) as usize];
         entry.before = before;
@@ -180,7 +215,7 @@ impl LocalSystemRegistry {
     }
 }
 
-pub type TempRegistryLambda = Box<dyn FnOnce(&mut LocalSystemRegistry) + Sync + Send + 'static>;
+pub type TempRegistryLambda = Box<dyn FnOnce(&mut GlobalSystemRegistry) + Sync + Send + 'static>;
 type TempRegistryLambdas = Vec<TempRegistryLambda>;
 
 lazy_static! {
@@ -192,6 +227,6 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref GLOBAL_SYSTEM: RwLock<LocalSystemRegistry> =
-        RwLock::from(LocalSystemRegistry::new());
+    static ref GLOBAL_SYSTEM: RwLock<GlobalSystemRegistry> =
+        RwLock::from(GlobalSystemRegistry::new());
 }

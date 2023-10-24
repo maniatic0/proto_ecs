@@ -244,7 +244,7 @@ impl Entity {
         let stage = self
             .stage_map
             .get_mut(&stage_id)
-            .expect("Unitialized Entity or Entity in undefined state!");
+            .expect("Uninitialized Entity or Entity in undefined state!");
 
         let mut indices_start: usize = 0;
 
