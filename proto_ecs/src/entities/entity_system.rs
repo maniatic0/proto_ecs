@@ -134,8 +134,8 @@ impl World {
 
         // Run Stage in all entities
         self.entities.par_iter().for_each(|map_ref| {
-            let mut binding = map_ref.write();
-            let entity = binding.as_mut();
+            // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
+            let entity = unsafe { &mut *map_ref.data_ptr() };
 
             // Check if stage is enabled
             if !entity.is_stage_enabled(stage_id) {
