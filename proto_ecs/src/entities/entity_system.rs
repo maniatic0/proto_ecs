@@ -1,5 +1,8 @@
+use std::fmt::Debug;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
+use bitvec::vec;
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
@@ -40,6 +43,38 @@ pub type EntityDeletionQueue = scc::Queue<EntityID>;
 /// Entity Map Type that holds all the entities in a World
 pub type EntityMap = dashmap::DashMap<EntityID, RwLock<Box<Entity>>>;
 
+/// World Reference to an Entity
+/// Warning: Only valid while the world is still alive. Never copy or change the ptr manually
+pub struct EntityWorldRef {
+    pub(super) ptr: *mut Entity,
+}
+
+impl Deref for EntityWorldRef {
+    type Target = Entity;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl DerefMut for EntityWorldRef {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl Debug for EntityWorldRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+unsafe impl Sync for EntityWorldRef {}
+unsafe impl Send for EntityWorldRef {}
+
+/// Vector with all the entities inside a world (for faster iteration)
+pub type EntitiesAll = RwLock<Vec<RwLock<EntityWorldRef>>>;
+
 /// World Identifier in the Entity System
 pub type WorldID = u16;
 
@@ -47,6 +82,7 @@ pub type WorldID = u16;
 pub struct World {
     id: WorldID,
     entities: EntityMap,
+    entities_all: EntitiesAll,
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
 }
@@ -56,6 +92,7 @@ impl World {
         Self {
             id,
             entities: Default::default(),
+            entities_all: Default::default(),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
         }
@@ -75,14 +112,19 @@ impl World {
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
-        let old = self
-            .entities
-            .insert(id, RwLock::new(Box::new(Entity::init(id, spawn_desc))));
+        let entity = RwLock::new(Box::new(Entity::init(id, spawn_desc)));
+        let entity_box = unsafe { &mut *entity.data_ptr() };
+        let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
+        let old = self.entities.insert(id, entity);
         assert!(
             old.is_none(),
             "Duplicated Entity ID, old entity {:?}",
             old.unwrap()
         );
+
+        // Insert entity for iteration
+        let mut entities_all = self.entities_all.write();
+        entities_all.push(RwLock::new(EntityWorldRef { ptr: entity_ptr }));
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -92,9 +134,24 @@ impl World {
 
     /// Destroy an entity
     pub fn destroy_entity_internal(&self, id: EntityID) {
-        if self.entities.remove(&id).is_none() {
+        let prev = self.entities.remove(&id);
+        if prev.is_none() {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
             return;
+        }
+        let (_id, entity) = prev.unwrap();
+
+        let entity_box = unsafe { &mut *entity.data_ptr() };
+        let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
+
+        let mut entities_all = self.entities_all.write();
+
+        for (index, vec_ref) in entities_all.iter().enumerate() {
+            let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
+            if std::ptr::eq(entity_ptr, vec_ptr) {
+                entities_all.swap_remove(index);
+                break;
+            }
         }
     }
 
@@ -133,16 +190,14 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        self.entities.par_iter().for_each(|map_ref| {
+        self.entities_all.read().par_iter().for_each(|map_ref| {
             // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
             let entity = unsafe { &mut *map_ref.data_ptr() };
 
             // Check if stage is enabled
-            if !entity.is_stage_enabled(stage_id) {
-                return;
+            if entity.is_stage_enabled(stage_id) {
+                entity.run_stage(&self, stage_id);
             }
-
-            entity.run_stage(&self, stage_id);
         });
 
         // Process all the entity commands created in the stage
