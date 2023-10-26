@@ -1,6 +1,6 @@
 /// Utility functions
 
-pub fn to_camel_case(s: &str) -> String {
+pub fn to_snake_case(s: &str) -> String {
     if s.len() == 0 {
         return "".to_string();
     }

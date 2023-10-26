@@ -2,54 +2,23 @@ use crate::core_macros::ids;
 use crc32fast;
 use proc_macro;
 use quote::quote;
-use syn::{self, parenthesized, parse::Parse, parse_macro_input, token};
+use syn::{self, parse::Parse, parse_macro_input, token};
+use crate::common::*;
 
 // -- < Datagroups > -----------------------------------
 
-/// Whether a DataGroup has an init function
-/// If it has one, it can specify if it doesn't take an argument,
-/// if the argument is required, or if the argument is optional
-enum DataGroupInit {
-    /// No Init
-    NoInit,
-    /// Init with no Args
-    NoArg,
-    /// Init with Args
-    Arg(syn::Ident),
-    /// Init with optional Args
-    OptionalArg(syn::Ident),
-}
-
 struct DataGroupInitParseDesc {
     pub datagroup_name: syn::Ident,
-    pub init_type: DataGroupInit,
+    pub init_type: InitArgStyle,
 }
 
 impl Parse for DataGroupInitParseDesc {
     fn parse(input: syn::parse::ParseStream) -> Result<Self, syn::Error> {
         let datagroup_name: syn::Ident = input.parse()?;
         let _: token::Comma = input.parse()?; // comma token
-        let init_type: syn::Ident = input.parse()?;
+        let init_type: InitArgStyle = input.parse()?;
 
-        match init_type.to_string().as_str() {
-        "NoInit" => Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::NoInit}),
-        "NoArg" => Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::NoArg}),
-        "Arg" => {
-            let content;
-            let _ : token::Paren = parenthesized!(content in input); // parenthesis
-            let arg_type : syn::Ident = content.parse()?;
-            Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::Arg(arg_type)})
-        },
-        "OptionalArg" => {
-            let content;
-            let _ : token::Paren = parenthesized!(content in input); // parenthesis
-            let arg_type : syn::Ident = content.parse()?;
-            Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type : DataGroupInit::OptionalArg(arg_type)})
-        },
-        unknown => Err(
-            syn::Error::new(init_type.span(), format!("Unexpected Init type '{unknown}'. The only valids are: NoInit, NoArg, Arg(ArgType), OptionalArg(ArgType)"))
-        )
-       }
+        return Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type});
     }
 }
 
@@ -66,20 +35,20 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
 
     let init_fn_trait = match &info.init_type {
-        DataGroupInit::NoInit => quote! {},
-        DataGroupInit::NoArg => quote! {fn init(&mut self);},
-        DataGroupInit::Arg(arg) => {
+        InitArgStyle::NoInit => quote! {},
+        InitArgStyle::NoArg => quote! {fn init(&mut self);},
+        InitArgStyle::Arg(arg) => {
             quote!(fn init(&mut self, init_data : std::boxed::Box<#arg>);)
         }
-        DataGroupInit::OptionalArg(arg) => {
+        InitArgStyle::OptionalArg(arg) => {
             quote!(fn init(&mut self, init_data : std::option::Option<std::boxed::Box<#arg>>);)
         }
     };
 
     let init_fn_arg_trait_check = match &info.init_type {
-        DataGroupInit::NoInit => quote! {},
-        DataGroupInit::NoArg => quote! {},
-        DataGroupInit::Arg(arg) => {
+        InitArgStyle::NoInit => quote! {},
+        InitArgStyle::NoArg => quote! {},
+        InitArgStyle::Arg(arg) => {
             let arg_clone = arg.clone();
             quote!(
                 const _: fn() = || {
@@ -90,7 +59,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
                 };
             )
         }
-        DataGroupInit::OptionalArg(arg) => {
+        InitArgStyle::OptionalArg(arg) => {
             let arg_clone = arg.clone();
             quote!(
                 const _: fn() = || {
@@ -104,20 +73,20 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
     };
 
     let init_fn_internal = match &info.init_type {
-        DataGroupInit::NoInit => quote! {
+        InitArgStyle::NoInit => quote! {
             fn __init__(&mut self, _init_data: std::option::Option<proto_ecs::data_group::GenericDataGroupInitArg>)
             {
                 panic!("Datagroup with no init!");
             }
         },
-        DataGroupInit::NoArg => quote! {
+        InitArgStyle::NoArg => quote! {
             fn __init__(&mut self, _init_data: std::option::Option<proto_ecs::data_group::GenericDataGroupInitArg>)
             {
                 assert!(_init_data.is_none(), "Unexpected init data!");
                 self.init();
             }
         },
-        DataGroupInit::Arg(_) => quote! {
+        InitArgStyle::Arg(_) => quote! {
             fn __init__(&mut self, _init_data: std::option::Option<proto_ecs::data_group::GenericDataGroupInitArg>)
             {
                 let _init_data = _init_data.expect("Missing init data!");
@@ -125,7 +94,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
                 self.init(_init_data);
             }
         },
-        DataGroupInit::OptionalArg(_) => quote! {
+        InitArgStyle::OptionalArg(_) => quote! {
             fn __init__(&mut self, _init_data: std::option::Option<proto_ecs::data_group::GenericDataGroupInitArg>)
             {
                 let _init_data = _init_data.and_then(|v| Some(proto_ecs::core::casting::into_any(v)));
@@ -135,37 +104,37 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
     };
 
     let init_arg_type_desc = match &info.init_type {
-        DataGroupInit::NoInit => {
+        InitArgStyle::NoInit => {
             quote! {type ArgType = ();}
         }
-        DataGroupInit::NoArg => {
+        InitArgStyle::NoArg => {
             quote! {type ArgType = ();}
         }
-        DataGroupInit::Arg(arg) => {
+        InitArgStyle::Arg(arg) => {
             quote! {type ArgType = #arg;}
         }
-        DataGroupInit::OptionalArg(arg) => {
+        InitArgStyle::OptionalArg(arg) => {
             quote! {type ArgType = #arg;}
         }
     };
 
     let init_const_desc = match &info.init_type {
-        DataGroupInit::NoInit => {
+        InitArgStyle::NoInit => {
             quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoInit;}
         }
-        DataGroupInit::NoArg => {
+        InitArgStyle::NoArg => {
             quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoArg;}
         }
-        DataGroupInit::Arg(_) => {
+        InitArgStyle::Arg(_) => {
             quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::Arg;}
         }
-        DataGroupInit::OptionalArg(_) => {
+        InitArgStyle::OptionalArg(_) => {
             quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::OptionalArg;}
         }
     };
 
     let prepare_fn = match &info.init_type {
-        DataGroupInit::NoInit => {
+        InitArgStyle::NoInit => {
             let msg = format!(
                 "Add data group {} to an entity being prepared to spawn",
                 datagroup
@@ -178,7 +147,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
                 }
             )
         }
-        DataGroupInit::NoArg => {
+        InitArgStyle::NoArg => {
             let msg = format!(
                 "Add data group {} to an entity being prepared to spawn. It will init",
                 datagroup
@@ -191,7 +160,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
                 }
             )
         }
-        DataGroupInit::Arg(arg) => {
+        InitArgStyle::Arg(arg) => {
             let msg = format!(
                 "Add data group {} to an entity being prepared to spawn. It will init with arg {}",
                 datagroup, arg
@@ -204,7 +173,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
                 }
             )
         }
-        DataGroupInit::OptionalArg(arg) => {
+        InitArgStyle::OptionalArg(arg) => {
             let msg = format!("Add data group {} to an entity being prepared to spawn. It will init with optional arg {}", datagroup, arg);
 
             quote!(

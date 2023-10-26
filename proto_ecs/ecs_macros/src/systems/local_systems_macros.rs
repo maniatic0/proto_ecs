@@ -1,31 +1,10 @@
 use syn::{
-    self, parenthesized, token, parse_macro_input,
+    self, token, parse_macro_input,
 };
-use quote::{quote, ToTokens};
-use crate::utils::{self, to_camel_case};
+use quote::quote;
+use crate::utils::{self, to_snake_case};
 use crate::core_macros::ids;
-
-
-enum OptionalDep {
-    Dependency(syn::Ident),
-    OptionalDep(syn::Ident),
-}
-
-impl OptionalDep {
-    fn unwrap(&self) -> &syn::Ident {
-        match self {
-            OptionalDep::Dependency(d) => d,
-            OptionalDep::OptionalDep(d) => d,
-        }
-    }
-}
-
-// This structs serve as "new_type", so we can avoid implementing a trait outside
-// our crate for a struct outside our crate
-struct Dependencies(Vec<OptionalDep>);
-struct Stages(Vec<syn::LitInt>);
-
-struct DependencyList(Vec<syn::Ident>);
+use crate::systems::common::*;
 
 struct LocalSystemArgs {
     struct_id: syn::Ident,
@@ -33,84 +12,6 @@ struct LocalSystemArgs {
     stages: Stages,
     before: DependencyList,
     after: DependencyList
-}
-
-impl syn::parse::Parse for OptionalDep {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let first_token = input.parse::<syn::Ident>()?;
-        let first_token_str = first_token.to_string();
-
-        match first_token_str.as_str() {
-            "Optional" => {
-                // parse content: Optional(SomeIdent)
-                let content;
-                let _ = parenthesized!(content in input); // Parenthesis
-                let inner_ident = content.parse::<syn::Ident>()?;
-                return Ok(OptionalDep::OptionalDep(inner_ident));
-            }
-
-            _ => {
-                // A bare id: SomeIdent
-                return Ok(OptionalDep::Dependency(first_token));
-            }
-        }
-    }
-}
-
-impl syn::parse::Parse for Dependencies {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let content;
-        let _ = parenthesized!(content in input); // Parenthesis
-
-        // Parse a comma separated list of OptionalIdent
-        let deps =
-            syn::punctuated::Punctuated::<OptionalDep, syn::Token![,]>::parse_terminated(&content)?;
-
-        Ok(Dependencies(deps.into_iter().collect()))
-    }
-}
-
-impl syn::parse::Parse for Stages {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let content;
-        let _ = parenthesized!(content in input);
-        let stages =
-            syn::punctuated::Punctuated::<syn::LitInt, syn::Token![,]>::parse_terminated(&content)?;
-
-        Ok(Stages(stages.into_iter().collect()))
-    }
-}
-
-impl syn::parse::Parse for DependencyList {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let content;
-        let _ = parenthesized!(content in input);
-        let dependency_list =
-            syn::punctuated::Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated(&content)?;
-
-        Ok(DependencyList(dependency_list.into_iter().collect()))
-    }
-}
-
-impl ToTokens for OptionalDep {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        match self {
-            OptionalDep::Dependency(id) => {
-                tokens.extend(quote! {
-                    proto_ecs::systems::common::Dependency::DataGroup(
-                        <#id as proto_ecs::core::ids::IDLocator>::get_id()
-                    )
-                });
-            }
-            OptionalDep::OptionalDep(id) => {
-                tokens.extend(quote! {
-                    proto_ecs::systems::common::Dependency::OptionalDG(
-                        <#id as proto_ecs::core::ids::IDLocator>::get_id()
-                    )
-                });
-            }
-        };
-    }
 }
 
 impl syn::parse::Parse for LocalSystemArgs {
@@ -221,7 +122,7 @@ fn create_glue_function(
     let new_function_id = syn::Ident::new(
         format!(
             "_{}_{}_", 
-                to_camel_case(
+                to_snake_case(
                     struct_id.to_string().as_str()
                 ), 
                 function_id.to_string()
@@ -321,7 +222,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                 .iter()
                 .map(|dep| {
                     let to_arg_name = |d: &syn::Ident| {
-                        let ident_str = utils::to_camel_case(d.to_string().as_str());
+                        let ident_str = utils::to_snake_case(d.to_string().as_str());
                         return syn::Ident::new(ident_str.as_str(), d.span());
                     };
 
@@ -370,7 +271,7 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
     let before = args.before.0;
     let after = args.after.0;
     let id_set_up_fn_id = syn::Ident::new(
-        format!("__{}_id_register__", to_camel_case(struct_id_str.as_str())).as_str(), 
+        format!("__{}_id_register__", to_snake_case(struct_id_str.as_str())).as_str(), 
         struct_id.span());
 
     result.extend(quote!{

@@ -5,6 +5,8 @@ use syn::{self, parse_macro_input, DeriveInput};
 mod core_macros;
 mod tests;
 mod utils;
+mod systems;
+mod common;
 
 // -- < Datagroups > -----------------------------------
 mod datagroup_macros;
@@ -22,8 +24,6 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
 }
 
 // -- < Local systems > --------------------------------------
-
-mod local_systems_macros;
 
 /// Register a struct as a local system.
 ///
@@ -48,7 +48,15 @@ mod local_systems_macros;
 /// ```
 #[proc_macro]
 pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    local_systems_macros::register_local_system(input)
+    systems::local_systems_macros::register_local_system(input)
+}
+
+// -- < Global Systems Macros > ------------------------------
+
+#[proc_macro]
+pub fn register_global_system(args : proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    systems::global_systems_macros::register_global_system(args)
 }
 
 // -- < Misc macros > ----------------------------------------
