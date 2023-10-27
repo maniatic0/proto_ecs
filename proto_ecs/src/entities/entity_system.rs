@@ -90,6 +90,11 @@ pub struct World {
 }
 
 impl World {
+
+    /// Number of chunks to use for stepping a stage
+    /// Maybe this should be variable based on load
+    const CHUNKS_NUM : usize = 20;
+
     pub(crate) fn new(id: WorldID) -> Self {
         Self {
             id,
@@ -230,15 +235,20 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        self.entities_all.read().par_iter().for_each(|map_ref| {
-            // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
-            let entity = unsafe { &mut *map_ref.data_ptr() };
+        self.entities_all
+            .read()
+            .par_chunks(World::CHUNKS_NUM)
+            .for_each(|map_refs| {
+                for map_ref in map_refs {
+                    // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
+                    let entity = unsafe { &mut *map_ref.data_ptr() };
 
-            // Check if stage is enabled
-            if entity.is_stage_enabled(stage_id) {
-                entity.run_stage(self, stage_id);
-            }
-        });
+                    // Check if stage is enabled
+                    if entity.is_stage_enabled(stage_id) {
+                        entity.run_stage(self, stage_id);
+                    }
+                }
+            });
 
         // Process all the entity commands created in the stage
         self.process_entity_commands();
