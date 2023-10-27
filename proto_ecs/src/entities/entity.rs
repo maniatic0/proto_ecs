@@ -251,7 +251,7 @@ impl Entity {
         for (indices_num, local_sys_fun) in stage {
             let indices_num = *indices_num as usize;
             (local_sys_fun)(
-                &world,
+                world,
                 self.id,
                 &self.local_systems_indices[indices_start..(indices_start + indices_num)],
                 &mut self.datagroups,

@@ -124,7 +124,7 @@ impl World {
     pub fn create_entity(&self, spawn_desc: EntitySpawnDescription) -> EntityID {
         let new_id = allocate_entity_id();
         self.creation_queue
-            .push(RwLock::new(Some((new_id.clone(), spawn_desc))));
+            .push(RwLock::new(Some((new_id, spawn_desc))));
         new_id
     }
 
@@ -236,7 +236,7 @@ impl World {
 
             // Check if stage is enabled
             if entity.is_stage_enabled(stage_id) {
-                entity.run_stage(&self, stage_id);
+                entity.run_stage(self, stage_id);
             }
         });
 
@@ -314,7 +314,6 @@ impl EntitySystem {
     fn destroy_world_internal(&self, id: WorldID) {
         if self.worlds.remove(&id).is_none() {
             println!("Failed to destroy World {id}, maybe it was already destroyed(?)");
-            return;
         }
     }
 
