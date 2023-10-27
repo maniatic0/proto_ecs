@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
-use bitvec::vec;
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
@@ -72,7 +71,7 @@ impl Debug for EntityWorldRef {
 unsafe impl Sync for EntityWorldRef {}
 unsafe impl Send for EntityWorldRef {}
 
-/// Vector with all the entities inside a world (for faster iteration)
+/// Vector with all the entities inside a world (for faster iteration). Do not use at the same time as the entity map
 pub type EntitiesAll = RwLock<Vec<RwLock<EntityWorldRef>>>;
 
 /// World Identifier in the Entity System
@@ -81,6 +80,9 @@ pub type WorldID = u16;
 #[derive(Debug)]
 pub struct World {
     id: WorldID,
+    delta_time: DeltaTimeAtomicType,
+    fixed_delta_time: DeltaTimeAtomicType,
+    delta_time_scaling: DeltaTimeAtomicType,
     entities: EntityMap,
     entities_all: EntitiesAll,
     creation_queue: EntityCreationQueue,
@@ -91,6 +93,9 @@ impl World {
     pub(crate) fn new(id: WorldID) -> Self {
         Self {
             id,
+            delta_time: Default::default(),
+            fixed_delta_time: Default::default(),
+            delta_time_scaling: AtomicF64::from(1.0),
             entities: Default::default(),
             entities_all: Default::default(),
             creation_queue: Default::default(),
@@ -98,8 +103,21 @@ impl World {
         }
     }
 
+    #[inline(always)]
     pub fn get_id(&self) -> WorldID {
         self.id
+    }
+
+    /// Current scaled delta time
+    #[inline(always)]
+    pub fn get_delta_time(&self) -> DeltaTimeType {
+        self.delta_time.load(Ordering::Acquire)
+    }
+
+    /// Current scaled fixed delta time
+    #[inline(always)]
+    pub fn get_fixed_delta_time(&self) -> DeltaTimeType {
+        self.fixed_delta_time.load(Ordering::Acquire)
     }
 
     /// Create a new entity based on its spawn description. Note that the entity will spawn at the end of the current stage
@@ -155,6 +173,26 @@ impl World {
         }
     }
 
+    // Update the delta times in this world
+    pub(super) fn update_delta_time_internal(
+        &self,
+        delta_time: DeltaTimeType,
+        fixed_delta_time: DeltaTimeType,
+    ) {
+        let scale = self.delta_time_scaling.load(Ordering::Acquire);
+
+        self.delta_time.store(delta_time * scale, Ordering::Release);
+        self.fixed_delta_time
+            .store(fixed_delta_time * scale, Ordering::Release);
+    }
+
+    /// Updates the scaling factor used for delta times in this world
+    /// It is only applied the next frame
+    pub fn update_delta_time_scaling(&self, scaling_factor: DeltaTimeType) {
+        self.delta_time_scaling
+            .store(scaling_factor, Ordering::Release);
+    }
+
     /// Process all entity commands
     fn process_entity_commands(&self) {
         // Process all deletions
@@ -205,7 +243,7 @@ impl World {
     }
 
     /// Merge target world into this world
-    fn merge_world(&mut self, mut target: Self) {
+    fn merge_world(&mut self, mut _target: Self) {
         todo!("Implement world merge!")
     }
 }
@@ -219,11 +257,17 @@ pub type WorldDestroyQueue = scc::Queue<WorldID>;
 /// Entity System queue type for merge world commands
 pub type WorldMergeQueue = scc::Queue<(WorldID, WorldID)>;
 
+/// Entity System atomic type used for deltas
+pub type DeltaTimeAtomicType = AtomicF64;
+
+/// Entity System type used for deltas
+pub type DeltaTimeType = f64;
+
 #[derive(Debug)]
 pub struct EntitySystem {
     pool: ThreadPool,
-    delta_time: AtomicF64,
-    fixed_delta_time: AtomicF64,
+    delta_time: DeltaTimeAtomicType,
+    fixed_delta_time: DeltaTimeAtomicType,
     requested_reset: AtomicBool,
     worlds: WorldMap,
     world_id_counter: AtomicU16,
@@ -239,13 +283,13 @@ impl EntitySystem {
 
     /// Current unscaled delta time
     #[inline(always)]
-    pub fn get_delta_time(&self) -> f64 {
+    pub fn get_delta_time(&self) -> DeltaTimeType {
         self.delta_time.load(Ordering::Acquire)
     }
 
     /// Current unscaled fixed delta time
     #[inline(always)]
-    pub fn get_fixed_delta_time(&self) -> f64 {
+    pub fn get_fixed_delta_time(&self) -> DeltaTimeType {
         self.fixed_delta_time.load(Ordering::Acquire)
     }
 
@@ -342,9 +386,19 @@ impl EntitySystem {
     }
 
     /// Step the entity system
-    pub fn step(&self, new_delta_time: f64) {
+    pub fn step(&self, new_delta_time: DeltaTimeType, fixed_delta_time: DeltaTimeType) {
         // Set the current unscaled delta time
         self.delta_time.store(new_delta_time, Ordering::Release);
+        self.fixed_delta_time
+            .store(fixed_delta_time, Ordering::Release);
+
+        // Update delta times in parallel
+        self.pool.install(|| {
+            self.worlds.par_iter().for_each(|world| {
+                world
+                    .update_delta_time_internal(self.get_delta_time(), self.get_fixed_delta_time());
+            });
+        });
 
         // Go through all the stages
         for stage_id in 0..STAGE_COUNT {
