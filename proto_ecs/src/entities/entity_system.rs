@@ -171,6 +171,8 @@ impl World {
                 break;
             }
         }
+
+        deallocate_entity_id(id);
     }
 
     // Update the delta times in this world
