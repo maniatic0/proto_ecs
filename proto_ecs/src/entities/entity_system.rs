@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use lazy_static::lazy_static;
@@ -40,49 +42,112 @@ pub type EntityDeletionQueue = scc::Queue<EntityID>;
 /// Entity Map Type that holds all the entities in a World
 pub type EntityMap = dashmap::DashMap<EntityID, RwLock<Box<Entity>>>;
 
+/// World Reference to an Entity
+/// Warning: Only valid while the world is still alive. Never copy or change the ptr manually
+pub struct EntityWorldRef {
+    pub(super) ptr: *mut Entity,
+}
+
+impl Deref for EntityWorldRef {
+    type Target = Entity;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl DerefMut for EntityWorldRef {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl Debug for EntityWorldRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+unsafe impl Sync for EntityWorldRef {}
+unsafe impl Send for EntityWorldRef {}
+
+/// Vector with all the entities inside a world (for faster iteration). Do not use at the same time as the entity map
+pub type EntitiesAll = RwLock<Vec<RwLock<EntityWorldRef>>>;
+
 /// World Identifier in the Entity System
 pub type WorldID = u16;
 
 #[derive(Debug)]
 pub struct World {
     id: WorldID,
+    delta_time: DeltaTimeAtomicType,
+    fixed_delta_time: DeltaTimeAtomicType,
+    delta_time_scaling: DeltaTimeAtomicType,
     entities: EntityMap,
+    entities_all: EntitiesAll,
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
 }
 
 impl World {
+
+    /// Number of chunks to use for stepping a stage
+    /// Maybe this should be variable based on load
+    const CHUNKS_NUM : usize = 20;
+
     pub(crate) fn new(id: WorldID) -> Self {
         Self {
             id,
+            delta_time: Default::default(),
+            fixed_delta_time: Default::default(),
+            delta_time_scaling: AtomicF64::from(1.0),
             entities: Default::default(),
+            entities_all: Default::default(),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
         }
     }
 
+    #[inline(always)]
     pub fn get_id(&self) -> WorldID {
         self.id
+    }
+
+    /// Current scaled delta time
+    #[inline(always)]
+    pub fn get_delta_time(&self) -> DeltaTimeType {
+        self.delta_time.load(Ordering::Acquire)
+    }
+
+    /// Current scaled fixed delta time
+    #[inline(always)]
+    pub fn get_fixed_delta_time(&self) -> DeltaTimeType {
+        self.fixed_delta_time.load(Ordering::Acquire)
     }
 
     /// Create a new entity based on its spawn description. Note that the entity will spawn at the end of the current stage
     pub fn create_entity(&self, spawn_desc: EntitySpawnDescription) -> EntityID {
         let new_id = allocate_entity_id();
         self.creation_queue
-            .push(RwLock::new(Some((new_id.clone(), spawn_desc))));
+            .push(RwLock::new(Some((new_id, spawn_desc))));
         new_id
     }
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
-        let old = self
-            .entities
-            .insert(id, RwLock::new(Box::new(Entity::init(id, spawn_desc))));
+        let entity = RwLock::new(Box::new(Entity::init(id, spawn_desc)));
+        let entity_box = unsafe { &mut *entity.data_ptr() };
+        let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
+        let old = self.entities.insert(id, entity);
         assert!(
             old.is_none(),
             "Duplicated Entity ID, old entity {:?}",
             old.unwrap()
         );
+
+        // Insert entity for iteration
+        let mut entities_all = self.entities_all.write();
+        entities_all.push(RwLock::new(EntityWorldRef { ptr: entity_ptr }));
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -92,10 +157,47 @@ impl World {
 
     /// Destroy an entity
     pub fn destroy_entity_internal(&self, id: EntityID) {
-        if self.entities.remove(&id).is_none() {
+        let prev = self.entities.remove(&id);
+        if prev.is_none() {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
             return;
         }
+        let (_id, entity) = prev.unwrap();
+
+        let entity_box = unsafe { &mut *entity.data_ptr() };
+        let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
+
+        let mut entities_all = self.entities_all.write();
+
+        for (index, vec_ref) in entities_all.iter().enumerate() {
+            let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
+            if std::ptr::eq(entity_ptr, vec_ptr) {
+                entities_all.swap_remove(index);
+                break;
+            }
+        }
+
+        deallocate_entity_id(id);
+    }
+
+    // Update the delta times in this world
+    pub(super) fn update_delta_time_internal(
+        &self,
+        delta_time: DeltaTimeType,
+        fixed_delta_time: DeltaTimeType,
+    ) {
+        let scale = self.delta_time_scaling.load(Ordering::Acquire);
+
+        self.delta_time.store(delta_time * scale, Ordering::Release);
+        self.fixed_delta_time
+            .store(fixed_delta_time * scale, Ordering::Release);
+    }
+
+    /// Updates the scaling factor used for delta times in this world
+    /// It is only applied the next frame
+    pub fn update_delta_time_scaling(&self, scaling_factor: DeltaTimeType) {
+        self.delta_time_scaling
+            .store(scaling_factor, Ordering::Release);
     }
 
     /// Process all entity commands
@@ -133,24 +235,27 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        self.entities.par_iter().for_each(|map_ref| {
-            let mut binding = map_ref.write();
-            let entity = binding.as_mut();
+        self.entities_all
+            .read()
+            .par_chunks(World::CHUNKS_NUM)
+            .for_each(|map_refs| {
+                for map_ref in map_refs {
+                    // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
+                    let entity = unsafe { &mut *map_ref.data_ptr() };
 
-            // Check if stage is enabled
-            if !entity.is_stage_enabled(stage_id) {
-                return;
-            }
-
-            entity.run_stage(&self, stage_id);
-        });
+                    // Check if stage is enabled
+                    if entity.is_stage_enabled(stage_id) {
+                        entity.run_stage(self, stage_id);
+                    }
+                }
+            });
 
         // Process all the entity commands created in the stage
         self.process_entity_commands();
     }
 
     /// Merge target world into this world
-    fn merge_world(&mut self, mut target: Self) {
+    fn merge_world(&mut self, mut _target: Self) {
         todo!("Implement world merge!")
     }
 }
@@ -164,11 +269,17 @@ pub type WorldDestroyQueue = scc::Queue<WorldID>;
 /// Entity System queue type for merge world commands
 pub type WorldMergeQueue = scc::Queue<(WorldID, WorldID)>;
 
+/// Entity System atomic type used for deltas
+pub type DeltaTimeAtomicType = AtomicF64;
+
+/// Entity System type used for deltas
+pub type DeltaTimeType = f64;
+
 #[derive(Debug)]
 pub struct EntitySystem {
     pool: ThreadPool,
-    delta_time: AtomicF64,
-    fixed_delta_time: AtomicF64,
+    delta_time: DeltaTimeAtomicType,
+    fixed_delta_time: DeltaTimeAtomicType,
     requested_reset: AtomicBool,
     worlds: WorldMap,
     world_id_counter: AtomicU16,
@@ -184,13 +295,13 @@ impl EntitySystem {
 
     /// Current unscaled delta time
     #[inline(always)]
-    pub fn get_delta_time(&self) -> f64 {
+    pub fn get_delta_time(&self) -> DeltaTimeType {
         self.delta_time.load(Ordering::Acquire)
     }
 
     /// Current unscaled fixed delta time
     #[inline(always)]
-    pub fn get_fixed_delta_time(&self) -> f64 {
+    pub fn get_fixed_delta_time(&self) -> DeltaTimeType {
         self.fixed_delta_time.load(Ordering::Acquire)
     }
 
@@ -213,7 +324,6 @@ impl EntitySystem {
     fn destroy_world_internal(&self, id: WorldID) {
         if self.worlds.remove(&id).is_none() {
             println!("Failed to destroy World {id}, maybe it was already destroyed(?)");
-            return;
         }
     }
 
@@ -287,9 +397,19 @@ impl EntitySystem {
     }
 
     /// Step the entity system
-    pub fn step(&self, new_delta_time: f64) {
+    pub fn step(&self, new_delta_time: DeltaTimeType, fixed_delta_time: DeltaTimeType) {
         // Set the current unscaled delta time
         self.delta_time.store(new_delta_time, Ordering::Release);
+        self.fixed_delta_time
+            .store(fixed_delta_time, Ordering::Release);
+
+        // Update delta times in parallel
+        self.pool.install(|| {
+            self.worlds.par_iter().for_each(|world| {
+                world
+                    .update_delta_time_internal(self.get_delta_time(), self.get_fixed_delta_time());
+            });
+        });
 
         // Go through all the stages
         for stage_id in 0..STAGE_COUNT {

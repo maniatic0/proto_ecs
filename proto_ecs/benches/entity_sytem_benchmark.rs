@@ -62,7 +62,7 @@ fn entity_system_creation_benchmark(c: &mut Criterion) {
 
     let es = EntitySystem::get();
     es.reset(); // In case other tests happened
-    es.step(0.0); // Process reset
+    es.step(0.0, 0.0); // Process reset
 
     c.bench_function("Entity System: Entity Creation", |b| {
         b.iter(|| {
@@ -89,7 +89,7 @@ fn entity_system_step_100_benchmark(c: &mut Criterion) {
 
     let es = EntitySystem::get();
     es.reset(); // In case other tests happened
-    es.step(0.0); // Process reset
+    es.step(0.0, 0.0); // Process reset
 
     const ENTITIES_NUM: usize = 100;
 
@@ -112,7 +112,7 @@ fn entity_system_step_100_benchmark(c: &mut Criterion) {
     group.throughput(Throughput::Elements(ENTITIES_NUM as u64));
     group.bench_function("Entity System: Step 100", |b| {
         b.iter(|| {
-            es.step(0.0);
+            es.step(0.0, 0.0);
         });
     });
 }
@@ -124,7 +124,7 @@ fn entity_system_step_10k_benchmark(c: &mut Criterion) {
 
     let es = EntitySystem::get();
     es.reset(); // In case other tests happened
-    es.step(0.0); // Process reset
+    es.step(0.0, 0.0); // Process reset
 
     const ENTITIES_NUM: usize = 10_000;
 
@@ -147,7 +147,7 @@ fn entity_system_step_10k_benchmark(c: &mut Criterion) {
     group.throughput(Throughput::Elements(ENTITIES_NUM as u64));
     group.bench_function("Entity System: Step 10k", |b| {
         b.iter(|| {
-            es.step(0.0);
+            es.step(0.0, 0.0);
         });
     });
 }
