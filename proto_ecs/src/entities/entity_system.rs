@@ -272,8 +272,15 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        self.entities_stages[stage_id as usize]
-            .read()
+        let entities_stage = self.entities_stages[stage_id as usize].read();
+
+        if !entities_stage.is_empty() {
+            // Nothing to do, no more commands can be created
+            // TODO: Check this for Global Systems. They might need to execute?
+            return;
+        }
+
+        entities_stage
             .par_chunks(World::CHUNKS_NUM)
             .for_each(|map_refs| {
                 for map_ref in map_refs {
