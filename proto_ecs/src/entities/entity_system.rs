@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use lazy_static::lazy_static;
@@ -45,20 +46,28 @@ pub type EntityMap = dashmap::DashMap<EntityID, RwLock<Box<Entity>>>;
 /// World Reference to an Entity
 /// Warning: Only valid while the world is still alive. Never copy or change the ptr manually
 pub struct EntityWorldRef {
-    pub(super) ptr: *mut Entity,
+    pub(super) ptr: NonNull<Entity>,
+}
+
+impl EntityWorldRef {
+    pub(super) fn new(entity_ptr: *mut Entity) -> Self {
+        Self {
+            ptr: unsafe { NonNull::new_unchecked(entity_ptr) },
+        }
+    }
 }
 
 impl Deref for EntityWorldRef {
     type Target = Entity;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
 impl DerefMut for EntityWorldRef {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.ptr }
+        unsafe { self.ptr.as_mut() }
     }
 }
 
@@ -71,8 +80,8 @@ impl Debug for EntityWorldRef {
 unsafe impl Sync for EntityWorldRef {}
 unsafe impl Send for EntityWorldRef {}
 
-/// Vector with all the entities inside a world (for faster iteration). Do not use at the same time as the entity map
-pub type EntitiesAll = RwLock<Vec<RwLock<EntityWorldRef>>>;
+/// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). Do not use at the same time as the entity map
+pub type EntitiesVec = RwLock<Vec<RwLock<EntityWorldRef>>>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
@@ -84,16 +93,15 @@ pub struct World {
     fixed_delta_time: DeltaTimeAtomicType,
     delta_time_scaling: DeltaTimeAtomicType,
     entities: EntityMap,
-    entities_all: EntitiesAll,
+    entities_all: EntitiesVec,
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
 }
 
 impl World {
-
     /// Number of chunks to use for stepping a stage
     /// Maybe this should be variable based on load
-    const CHUNKS_NUM : usize = 20;
+    const CHUNKS_NUM: usize = 20;
 
     pub(crate) fn new(id: WorldID) -> Self {
         Self {
@@ -147,7 +155,7 @@ impl World {
 
         // Insert entity for iteration
         let mut entities_all = self.entities_all.write();
-        entities_all.push(RwLock::new(EntityWorldRef { ptr: entity_ptr }));
+        entities_all.push(RwLock::new(EntityWorldRef::new(entity_ptr)));
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -171,7 +179,7 @@ impl World {
 
         for (index, vec_ref) in entities_all.iter().enumerate() {
             let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
-            if std::ptr::eq(entity_ptr, vec_ptr) {
+            if std::ptr::eq(entity_ptr, vec_ptr.as_ptr()) {
                 entities_all.swap_remove(index);
                 break;
             }
