@@ -94,6 +94,7 @@ pub struct World {
     delta_time_scaling: DeltaTimeAtomicType,
     entities: EntityMap,
     entities_all: EntitiesVec,
+    entities_stages: [EntitiesVec; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
 }
@@ -111,6 +112,7 @@ impl World {
             delta_time_scaling: AtomicF64::from(1.0),
             entities: Default::default(),
             entities_all: Default::default(),
+            entities_stages: core::array::from_fn(|_| Default::default()),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
         }
@@ -154,8 +156,19 @@ impl World {
         );
 
         // Insert entity for iteration
-        let mut entities_all = self.entities_all.write();
-        entities_all.push(RwLock::new(EntityWorldRef::new(entity_ptr)));
+        {
+            let mut entities_all = self.entities_all.write();
+            entities_all.push(RwLock::new(EntityWorldRef::new(entity_ptr)));
+        }
+
+        for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+            let stage_id = stage_id as StageID;
+            if entity_box.is_stage_enabled(stage_id) {
+                stage_vec
+                    .write()
+                    .push(RwLock::new(EntityWorldRef::new(entity_ptr)));
+            }
+        }
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -175,13 +188,29 @@ impl World {
         let entity_box = unsafe { &mut *entity.data_ptr() };
         let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
 
-        let mut entities_all = self.entities_all.write();
+        // Destroy entity from iteration lists
+        {
+            let mut entities_all = self.entities_all.write();
+            for (index, vec_ref) in entities_all.iter().enumerate() {
+                let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
+                if std::ptr::eq(entity_ptr, vec_ptr.as_ptr()) {
+                    entities_all.swap_remove(index);
+                    break;
+                }
+            }
+        }
 
-        for (index, vec_ref) in entities_all.iter().enumerate() {
-            let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
-            if std::ptr::eq(entity_ptr, vec_ptr.as_ptr()) {
-                entities_all.swap_remove(index);
-                break;
+        for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+            let stage_id = stage_id as StageID;
+            if entity_box.is_stage_enabled(stage_id) {
+                let mut stage_vec = stage_vec.write();
+                for (index, vec_ref) in stage_vec.iter().enumerate() {
+                    let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
+                    if std::ptr::eq(entity_ptr, vec_ptr.as_ptr()) {
+                        stage_vec.swap_remove(index);
+                        break;
+                    }
+                }
             }
         }
 
@@ -243,7 +272,7 @@ impl World {
         self.process_entity_commands();
 
         // Run Stage in all entities
-        self.entities_all
+        self.entities_stages[stage_id as usize]
             .read()
             .par_chunks(World::CHUNKS_NUM)
             .for_each(|map_refs| {
