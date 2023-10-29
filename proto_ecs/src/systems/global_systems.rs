@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use proto_ecs::entities::entity;
 use proto_ecs::core::casting::CanCast;
 
+pub use ecs_macros::register_global_system;
+
 // TODO Change to a smaller type
 pub type GlobalSystemID = u32; 
 // TODO Change for the right type of map
@@ -41,8 +43,6 @@ pub enum GlobalSystemInitDesc {
 /// Similarly to Datagroups, implements the initialization function
 pub trait GlobalSystem : ids::HasID + CanCast + std::fmt::Debug + Send + Sync
 {
-    fn __run_stage__(&mut self, stage_id : u8, entity_map : &mut EntityMap);
-
     fn __init__(&mut self); // TODO add init args type
 }
 

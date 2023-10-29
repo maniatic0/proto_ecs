@@ -104,3 +104,11 @@ impl ToTokens for OptionalDep {
         };
     }
 }
+
+impl Stages
+{
+    pub fn to_ints(&self) -> syn::Result<Vec<u8>>
+    {
+        self.0.iter().map(|id| {id.base10_parse()}).collect()
+    }
+}

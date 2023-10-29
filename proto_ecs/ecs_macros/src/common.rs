@@ -1,3 +1,5 @@
+use proc_macro;
+use quote::quote;
 use syn;
 
 /// The style of argument for an init function.
@@ -40,4 +42,31 @@ impl syn::parse::Parse for InitArgStyle
             )
         }
     }
+}
+
+impl InitArgStyle
+{
+    pub fn to_signature(&self) -> proc_macro2::TokenStream
+    {
+        match self {
+            InitArgStyle::NoInit => quote! {},
+            InitArgStyle::NoArg => quote! {fn init(&mut self);},
+            InitArgStyle::Arg(arg) => {
+                quote!(fn init(&mut self, init_data : std::boxed::Box<#arg>);)
+            }
+            InitArgStyle::OptionalArg(arg) => {
+                quote!(fn init(&mut self, init_data : std::option::Option<std::boxed::Box<#arg>>);)
+            }
+        }
+    }
+}
+
+pub fn _ensure_struct_implements_trait(struct_id : syn::Ident, trait_id : syn::Ident, result : &mut proc_macro::TokenStream)
+{
+    result.extend::<proc_macro::TokenStream>(quote!{
+        const _ : fn() = || {
+            fn check_item_implements_trait<T: ?Sized + #trait_id>(){};
+            check_item_implements_trait::<#struct_id>();
+        };
+    }.into());
 }

@@ -1,41 +1,98 @@
+use crate::common::*;
+use crate::core_macros::ids::implement_id_traits;
+use crate::systems::common::*;
 use proc_macro;
 use quote::quote;
-use crate::systems::common::*;
-use crate::common::*;
-
 
 /// Arguments required to declare a GlobalSystem.
-/// 
-/// * `struct_id` : Name of a struct being declared as global system 
+///
+/// * `struct_id` : Name of a struct being declared as global system
 /// * `dependencies` : A list of datagroups that are assumed to be dependencies of this system
 /// * `stages` : A list of numbers identifying the stages that this global system should run on
 /// * `before` : A list of other global systems that should run after this system (this global system runs BEFORE ...)
 /// * `after` : A list of other global systems that should run before this system (this global system runs AFTER ...)
 /// * `factory` : a function that takes no input and returns a Box<dyn GlobalSystem> returning an instance of this GlobalSystem
-/// * `init_style` : a function that takes no input and returns a Box<dyn GlobalSystem> returning an instance of this GlobalSystem
-struct GlobalSystemArgs
-{
+/// * `init_style` : The style of the input argument for the initialization functions. Optional? Required? None?
+struct GlobalSystemArgs {
     struct_id: syn::Ident,
     dependencies: Dependencies,
     stages: Stages,
     before: DependencyList,
     after: DependencyList,
     factory: syn::Ident,
-    init_style: InitArgStyle
+    init_style: InitArgStyle,
 }
 
-pub fn register_global_system(args : proc_macro::TokenStream) -> proc_macro::TokenStream
-{
-    let args = syn::parse_macro_input!(args as GlobalSystemArgs);
-    let result = quote!{
-        
-    };
+pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let GlobalSystemArgs {
+        struct_id,
+        dependencies,
+        stages,
+        before,
+        after,
+        factory,
+        init_style,
+    } = syn::parse_macro_input!(args as GlobalSystemArgs);
+
+    let trait_name = format!("{}GlobalSystem", struct_id.to_string());
+    let global_system_trait = syn::Ident::new(&trait_name, struct_id.span());
+    let trait_function_ids =
+    {
+        let active_stages = match stages.to_ints()
+        {
+            Ok(is) => is,
+            Err(e) => {
+                return e.into_compile_error().into();
+            }
+        };
+
+        active_stages
+            .into_iter()
+            .map(
+                |i| 
+                syn::Ident::new(
+                    format!("stage_{i}").as_str(), 
+                    struct_id.span()
+                )
+            )
+    }; 
+
+    let trait_function_signatures = trait_function_ids.map(|id| {
+        quote!(fn #id(&mut self, entity_map : proto_ecs::systems::global_systems::EntityMap);)
+    });
+
+    let init_fn_signature = init_style.to_signature();
+    let mut result = quote!();
+
+    // TODO Implement code that will use this variable to set the valid id
+    let id_variable = implement_id_traits(&struct_id, &mut result);
+
+    result.extend(quote! {
+        // We create a trait implementing all the mandatory functions for this global system
+        pub trait #global_system_trait
+        {
+            #(#trait_function_signatures)*
+
+            #init_fn_signature
+        }
+
+        // Now we auto implement the global system trait 
+        impl proto_ecs::systems::global_systems::GlobalSystem for #struct_id
+        {
+            fn __init__(&mut self)
+            {
+                // TODO implement this function
+            }
+        }
+
+
+    });
+
 
     return result.into();
 }
 
-impl syn::parse::Parse for GlobalSystemArgs
-{
+impl syn::parse::Parse for GlobalSystemArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let struct_id = input.parse::<syn::Ident>()?;
         let _ = input.parse::<syn::token::Comma>()?;
@@ -91,7 +148,7 @@ impl syn::parse::Parse for GlobalSystemArgs
                     }
 
                     before = Some(input.parse::<DependencyList>()?);
-                },
+                }
                 "after" => {
                     if after.is_some() {
                         return Err(syn::Error::new(
@@ -101,7 +158,7 @@ impl syn::parse::Parse for GlobalSystemArgs
                     }
 
                     after = Some(input.parse::<DependencyList>()?);
-                },
+                }
                 "init_arg" => {
                     if init_style.is_some() {
                         return Err(syn::Error::new(
@@ -111,7 +168,7 @@ impl syn::parse::Parse for GlobalSystemArgs
                     }
 
                     init_style = Some(input.parse::<InitArgStyle>()?);
-                },
+                }
                 "factory" => {
                     if factory.is_some() {
                         return Err(syn::Error::new(
@@ -120,7 +177,7 @@ impl syn::parse::Parse for GlobalSystemArgs
                         ));
                     }
                     factory = Some(input.parse::<syn::Ident>()?);
-                },
+                }
                 _ => {
                     return Err(syn::Error::new(
                         keyword_arg.span(),
@@ -143,8 +200,7 @@ impl syn::parse::Parse for GlobalSystemArgs
             ));
         }
 
-        if factory.is_none()
-        {
+        if factory.is_none() {
             return Err(syn::Error::new(
                 input.span(),
                 "Factory keyword argument is not optional, please provide a factory function.",
@@ -158,7 +214,7 @@ impl syn::parse::Parse for GlobalSystemArgs
             before: before.unwrap_or(DependencyList(vec![])),
             after: after.unwrap_or(DependencyList(vec![])),
             init_style: init_style.unwrap_or(InitArgStyle::NoInit),
-            factory: factory.unwrap()
+            factory: factory.unwrap(),
         })
     }
 }

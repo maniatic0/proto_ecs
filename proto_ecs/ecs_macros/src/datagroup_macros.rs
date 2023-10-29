@@ -34,16 +34,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
     let datagroup = &info.datagroup_name;
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
 
-    let init_fn_trait = match &info.init_type {
-        InitArgStyle::NoInit => quote! {},
-        InitArgStyle::NoArg => quote! {fn init(&mut self);},
-        InitArgStyle::Arg(arg) => {
-            quote!(fn init(&mut self, init_data : std::boxed::Box<#arg>);)
-        }
-        InitArgStyle::OptionalArg(arg) => {
-            quote!(fn init(&mut self, init_data : std::option::Option<std::boxed::Box<#arg>>);)
-        }
-    };
+    let init_fn_trait = info.init_type.to_signature();
 
     let init_fn_arg_trait_check = match &info.init_type {
         InitArgStyle::NoInit => quote! {},
