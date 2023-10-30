@@ -7,14 +7,19 @@ use topological_sort::TopologicalSort;
 use std::collections::HashMap;
 use proto_ecs::entities::entity;
 use proto_ecs::core::casting::CanCast;
+use proto_ecs::core::common::InitDesc;
 
 pub use ecs_macros::register_global_system;
 
+
 // TODO Change to a smaller type
 pub type GlobalSystemID = u32; 
+
+pub const INVALID_GLOBAL_SYSTEM_CLASS_ID: GlobalSystemID = GlobalSystemID::MAX;
+
 // TODO Change for the right type of map
 pub type EntityMap = HashMap<entity::EntityID, Box<entity::Entity>>; 
-pub type GSStageFn = fn(EntityMap);
+pub type GSStageFn = fn(Box<dyn GlobalSystem>, EntityMap);
 
 /// Maps from stage to Global System function
 pub type GSStageMap = StageMap<GSStageFn>; 
@@ -26,24 +31,25 @@ pub trait GlobalSystemDesc {
     const NAME_CRC: u32;
 }
 
-#[derive(Debug, PartialEq)]
+/// Empty stage map
+pub const EMPTY_STAGE_MAP: GSStageMap = [None; STAGE_COUNT];
 
-// TODO try to reuse the same init desc as in datagroups, might require refactor
-pub enum GlobalSystemInitDesc {
-    /// Datagroup without init
-    NoInit,
-    /// Datagroup with init but no args
-    NoArg,
-    /// Datagroup with init and args
-    Arg,
-    /// Datagroup with init and optional args
-    OptionalArg,
+/// Generic Data Group Init Arg
+pub type GenericGlobalSystemInitArg = Box<dyn GenericGlobalSystemInitArgTrait>;
+pub trait GenericGlobalSystemInitArgTrait: CanCast + std::fmt::Debug + Send + Sync {}
+
+pub trait GlobalSystemInitDescTrait {
+    /// Arg type, if any
+    type ArgType;
+
+    /// Init Description of this GlobalSystem
+    const INIT_DESC: InitDesc;
 }
 
 /// Similarly to Datagroups, implements the initialization function
 pub trait GlobalSystem : ids::HasID + CanCast + std::fmt::Debug + Send + Sync
 {
-    fn __init__(&mut self); // TODO add init args type
+    fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericGlobalSystemInitArgTrait>>);
 }
 
 #[derive(Debug)]
@@ -52,11 +58,11 @@ pub struct GlobalSystemRegistryEntry {
     pub name: &'static str,
     pub name_crc: u32,
     pub dependencies: Vec<Dependency>,
-    pub functions: &'static GSStageMap,
+    pub functions: GSStageMap,
     pub before: Vec<GlobalSystemID>,
     pub after: Vec<GlobalSystemID>,
     pub factory: GSFactoryFn,
-    pub init_desc : GlobalSystemInitDesc,
+    pub init_desc : InitDesc,
     pub set_id_fn: fn(GlobalSystemID), // Only used for init, don't use it manually
 }
 

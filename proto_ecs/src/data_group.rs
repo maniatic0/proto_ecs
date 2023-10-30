@@ -15,7 +15,10 @@ use lazy_static::lazy_static;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::{ids, locking::RwLock};
 use proto_ecs::get_id;
+use proto_ecs::core::common;
 use std::fmt::Debug;
+
+use crate::core::common::InitDesc;
 
 pub type DataGroupID = u32;
 
@@ -80,22 +83,7 @@ pub trait DataGroupInitDescTrait {
     type ArgType;
 
     /// Init Description of this DataGroup
-    const INIT_DESC: DataGroupInitDesc;
-}
-
-#[derive(Debug, PartialEq)]
-/// Whether a DataGroup has an init function
-/// If it has one, it can specify if it doesn't take an argument,
-/// if the argument is required, or if the argument is optional
-pub enum DataGroupInitDesc {
-    /// Datagroup without init
-    NoInit,
-    /// Datagroup with init but no args
-    NoArg,
-    /// Datagroup with init and args
-    Arg,
-    /// Datagroup with init and optional args
-    OptionalArg,
+    const INIT_DESC: InitDesc;
 }
 
 /// Factory function to create default Data Groups
@@ -119,7 +107,7 @@ pub struct DataGroupRegistryEntry {
     pub name: &'static str,
     pub name_crc: u32,
     pub factory_func: DataGroupFactory,
-    pub init_desc: DataGroupInitDesc,
+    pub init_desc: InitDesc,
     pub id: DataGroupID,
 }
 

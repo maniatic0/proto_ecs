@@ -198,9 +198,10 @@ pub mod helpers {
     use crate::{
         core::ids,
         data_group::{
-            DataGroup, DataGroupInitDesc, DataGroupInitDescTrait, DataGroupInitType,
+            DataGroup, DataGroupInitDescTrait, DataGroupInitType,
             DataGroupRegistryEntry,
         },
+        core::common::InitDesc,
         get_id,
     };
 
@@ -214,10 +215,10 @@ pub mod helpers {
         D: ids::IDLocator + DataGroup + DataGroupInitDescTrait,
     {
         let default_init = match <D as DataGroupInitDescTrait>::INIT_DESC {
-            DataGroupInitDesc::NoInit => DataGroupInitType::NoInit,
-            DataGroupInitDesc::NoArg => DataGroupInitType::NoArg,
-            DataGroupInitDesc::Arg => DataGroupInitType::Uninitialized(msg),
-            DataGroupInitDesc::OptionalArg => DataGroupInitType::OptionalArg(None),
+            InitDesc::NoInit => DataGroupInitType::NoInit,
+            InitDesc::NoArg => DataGroupInitType::NoArg,
+            InitDesc::Arg => DataGroupInitType::Uninitialized(msg),
+            InitDesc::OptionalArg => DataGroupInitType::OptionalArg(None),
         };
 
         spawn_desc
@@ -236,22 +237,22 @@ pub mod helpers {
         }
 
         match entry.init_desc {
-            DataGroupInitDesc::NoInit => assert!(
+            InitDesc::NoInit => assert!(
                 matches!(init_param, DataGroupInitType::NoInit),
                 "Datagroup '{}' expects a NoInit param, but found: {init_param:?}",
                 entry.name
             ),
-            DataGroupInitDesc::NoArg => assert!(
+            InitDesc::NoArg => assert!(
                 matches!(init_param, DataGroupInitType::NoArg),
                 "Datagroup '{}' expects a NoArg param, but found: {init_param:?}",
                 entry.name
             ),
-            DataGroupInitDesc::Arg => assert!(
+            InitDesc::Arg => assert!(
                 matches!(init_param, DataGroupInitType::Arg(_)),
                 "Datagroup '{}' expects a Arg param, but found: {init_param:?}",
                 entry.name
             ),
-            DataGroupInitDesc::OptionalArg => assert!(
+            InitDesc::OptionalArg => assert!(
                 matches!(init_param, DataGroupInitType::OptionalArg(_)),
                 "Datagroup '{}' expects a OptionalArg param, but found: {init_param:?}",
                 entry.name

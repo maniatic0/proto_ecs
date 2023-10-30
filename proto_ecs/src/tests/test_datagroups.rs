@@ -9,6 +9,7 @@ pub mod datagroup_test {
         get_id,
     };
     use proto_ecs::data_group::*;
+    use crate::core::common::InitDesc;
 
     use super::super::shared_datagroups::sdg::*;
 
@@ -89,17 +90,17 @@ pub mod datagroup_test {
             App::initialize();
         }
 
-        assert_eq!(AnimationDataGroup::INIT_DESC, DataGroupInitDesc::Arg);
+        assert_eq!(AnimationDataGroup::INIT_DESC, InitDesc::Arg);
         assert_eq!(
             <AnimationDataGroup as DataGroupInitDescTrait>::ArgType::INIT_DESC,
-            DataGroupInitDesc::Arg
+            InitDesc::Arg
         );
         assert_eq!(
             proto_ecs::data_group::DataGroupRegistry::get_global_registry()
                 .read()
                 .get_entry::<AnimationDataGroup>()
                 .init_desc,
-            DataGroupInitDesc::Arg
+            InitDesc::Arg
         );
 
         let mut anim_datagroup = create_datagroup!(AnimationDataGroup);

@@ -94,35 +94,9 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         },
     };
 
-    let init_arg_type_desc = match &info.init_type {
-        InitArgStyle::NoInit => {
-            quote! {type ArgType = ();}
-        }
-        InitArgStyle::NoArg => {
-            quote! {type ArgType = ();}
-        }
-        InitArgStyle::Arg(arg) => {
-            quote! {type ArgType = #arg;}
-        }
-        InitArgStyle::OptionalArg(arg) => {
-            quote! {type ArgType = #arg;}
-        }
-    };
+    let init_arg_type_desc = info.init_type.to_type_param();
 
-    let init_const_desc = match &info.init_type {
-        InitArgStyle::NoInit => {
-            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoInit;}
-        }
-        InitArgStyle::NoArg => {
-            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::NoArg;}
-        }
-        InitArgStyle::Arg(_) => {
-            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::Arg;}
-        }
-        InitArgStyle::OptionalArg(_) => {
-            quote! {const INIT_DESC : proto_ecs::data_group::DataGroupInitDesc = proto_ecs::data_group::DataGroupInitDesc::OptionalArg;}
-        }
-    };
+    let init_const_desc = info.init_type.to_init_const_desc();
 
     let prepare_fn = match &info.init_type {
         InitArgStyle::NoInit => {

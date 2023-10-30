@@ -59,6 +59,42 @@ impl InitArgStyle
             }
         }
     }
+
+    pub fn to_type_param(&self) -> proc_macro2::TokenStream
+    {
+        match &self {
+            InitArgStyle::NoInit => {
+                quote! {type ArgType = ();}
+            }
+            InitArgStyle::NoArg => {
+                quote! {type ArgType = ();}
+            }
+            InitArgStyle::Arg(arg) => {
+                quote! {type ArgType = #arg;}
+            }
+            InitArgStyle::OptionalArg(arg) => {
+                quote! {type ArgType = #arg;}
+            }
+        }
+    }
+
+    pub fn to_init_const_desc(&self) -> proc_macro2::TokenStream
+    {
+        match &self {
+            InitArgStyle::NoInit => {
+                quote! {const INIT_DESC : proto_ecs::core::common::InitDesc = proto_ecs::core::common::InitDesc::NoInit;}
+            }
+            InitArgStyle::NoArg => {
+                quote! {const INIT_DESC : proto_ecs::core::common::InitDesc = proto_ecs::core::common::InitDesc::NoArg;}
+            }
+            InitArgStyle::Arg(_) => {
+                quote! {const INIT_DESC : proto_ecs::core::common::InitDesc = proto_ecs::core::common::InitDesc::Arg;}
+            }
+            InitArgStyle::OptionalArg(_) => {
+                quote! {const INIT_DESC : proto_ecs::core::common::InitDesc = proto_ecs::core::common::InitDesc::OptionalArg;}
+            }
+        }
+    }
 }
 
 pub fn _ensure_struct_implements_trait(struct_id : syn::Ident, trait_id : syn::Ident, result : &mut proc_macro::TokenStream)
