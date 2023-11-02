@@ -40,25 +40,39 @@ pub type EntityCreationQueue = scc::Queue<RwLock<Option<(EntityID, EntitySpawnDe
 /// Entity Deletion Queue type used by worlds
 pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
-/// Entity Map Type that holds all the entities in a World
-pub type EntityMap = dashmap::DashMap<EntityID, RwLock<Box<Entity>>>;
+/// Entity locking mechanism inside World
+pub type EntityLock = RwLock<Entity>;
 
+/// Entity storage inside World
+pub type EntityStorage = Box<EntityLock>;
+
+/// Entity Map Type that holds all the entities in a World
+pub type EntityMap = dashmap::DashMap<EntityID, EntityStorage>;
+
+#[derive(PartialEq)]
 /// World Reference to an Entity
 /// Warning: Only valid while the world is still alive. Never copy or change the ptr manually
 pub struct EntityWorldRef {
-    pub(super) ptr: NonNull<Entity>,
+    pub(super) ptr: NonNull<EntityLock>,
 }
 
 impl EntityWorldRef {
-    pub(super) fn new(entity_ptr: *mut Entity) -> Self {
+    pub(super) fn new(entity_ptr: *mut EntityLock) -> Self {
         Self {
             ptr: unsafe { NonNull::new_unchecked(entity_ptr) },
         }
     }
+
+    /// Gets the internal ptr from the entity storage
+    pub(super) fn entity_storage_to_entity_lock_ptr(
+        entity_box: &mut EntityStorage,
+    ) -> *mut EntityLock {
+        std::ptr::addr_of_mut!(**entity_box)
+    }
 }
 
 impl Deref for EntityWorldRef {
-    type Target = Entity;
+    type Target = EntityLock;
 
     fn deref(&self) -> &Self::Target {
         unsafe { self.ptr.as_ref() }
@@ -68,6 +82,30 @@ impl Deref for EntityWorldRef {
 impl DerefMut for EntityWorldRef {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.ptr.as_mut() }
+    }
+}
+
+impl PartialEq<*const EntityLock> for EntityWorldRef {
+    fn eq(&self, other: &*const EntityLock) -> bool {
+        std::ptr::eq(self.ptr.as_ptr(), *other)
+    }
+}
+
+impl PartialEq<*mut EntityLock> for EntityWorldRef {
+    fn eq(&self, other: &*mut EntityLock) -> bool {
+        std::ptr::eq(self.ptr.as_ptr(), *other)
+    }
+}
+
+impl PartialEq<*const EntityLock> for &EntityWorldRef {
+    fn eq(&self, other: &*const EntityLock) -> bool {
+        std::ptr::eq(self.ptr.as_ptr(), *other)
+    }
+}
+
+impl PartialEq<*mut EntityLock> for &EntityWorldRef {
+    fn eq(&self, other: &*mut EntityLock) -> bool {
+        std::ptr::eq(self.ptr.as_ptr(), *other)
     }
 }
 
@@ -81,7 +119,7 @@ unsafe impl Sync for EntityWorldRef {}
 unsafe impl Send for EntityWorldRef {}
 
 /// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). Do not use at the same time as the entity map
-pub type EntitiesVec = RwLock<Vec<RwLock<EntityWorldRef>>>;
+pub type EntitiesVec = RwLock<Vec<EntityWorldRef>>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
@@ -145,10 +183,10 @@ impl World {
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
-        let entity = RwLock::new(Box::new(Entity::init(id, spawn_desc)));
-        let entity_box = unsafe { &mut *entity.data_ptr() };
-        let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
-        let old = self.entities.insert(id, entity);
+        let mut entity_box = Box::new(RwLock::new(Entity::init(id, spawn_desc)));
+        let entity_lock_ptr: *mut EntityLock =
+            EntityWorldRef::entity_storage_to_entity_lock_ptr(&mut entity_box);
+        let old = self.entities.insert(id, entity_box);
         assert!(
             old.is_none(),
             "Duplicated Entity ID, old entity {:?}",
@@ -158,15 +196,15 @@ impl World {
         // Insert entity for iteration
         {
             let mut entities_all = self.entities_all.write();
-            entities_all.push(RwLock::new(EntityWorldRef::new(entity_ptr)));
+            entities_all.push(EntityWorldRef::new(entity_lock_ptr));
         }
+
+        let entity_ref = unsafe { &*(*entity_lock_ptr).data_ptr() };
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
-            if entity_box.is_stage_enabled(stage_id) {
-                stage_vec
-                    .write()
-                    .push(RwLock::new(EntityWorldRef::new(entity_ptr)));
+            if entity_ref.is_stage_enabled(stage_id) {
+                stage_vec.write().push(EntityWorldRef::new(entity_lock_ptr));
             }
         }
     }
@@ -183,17 +221,17 @@ impl World {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
             return;
         }
-        let (_id, entity) = prev.unwrap();
+        let (_id, mut entity_box) = prev.unwrap();
 
-        let entity_box = unsafe { &mut *entity.data_ptr() };
-        let entity_ptr = std::ptr::addr_of_mut!(**entity_box);
+        let entity_lock_ptr: *mut EntityLock =
+            EntityWorldRef::entity_storage_to_entity_lock_ptr(&mut entity_box);
+        let entity_ref = unsafe { &*(*entity_lock_ptr).data_ptr() };
 
         // Destroy entity from iteration lists
         {
             let mut entities_all = self.entities_all.write();
             for (index, vec_ref) in entities_all.iter().enumerate() {
-                let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
-                if std::ptr::eq(entity_ptr, vec_ptr.as_ptr()) {
+                if vec_ref == entity_lock_ptr {
                     entities_all.swap_remove(index);
                     break;
                 }
@@ -202,11 +240,10 @@ impl World {
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
-            if entity_box.is_stage_enabled(stage_id) {
+            if entity_ref.is_stage_enabled(stage_id) {
                 let mut stage_vec = stage_vec.write();
                 for (index, vec_ref) in stage_vec.iter().enumerate() {
-                    let vec_ptr = unsafe { &*vec_ref.data_ptr() }.ptr;
-                    if std::ptr::eq(entity_ptr, vec_ptr.as_ptr()) {
+                    if vec_ref == entity_lock_ptr {
                         stage_vec.swap_remove(index);
                         break;
                     }
