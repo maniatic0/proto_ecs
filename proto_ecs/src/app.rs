@@ -1,10 +1,11 @@
-use lazy_static::lazy_static;
-
-use crate::core::locking::RwLock;
 /// This module implements the entire Application workflow.
 /// Put any glue code between parts of our application here
+
+use lazy_static::lazy_static;
+use crate::core::locking::RwLock;
 use crate::data_group::DataGroupRegistry;
 use crate::systems::local_systems::LocalSystemRegistry;
+use crate::systems::global_systems::GlobalSystemRegistry;
 
 pub struct App {
     is_initialized: bool,
@@ -27,6 +28,7 @@ impl App {
         assert!(!global_app.is_initialized, "App got double initialized!");
 
         println!("Initializing app!");
+
         // Put any initialization logic here, mind the expected initialization order.
         debug_assert!(
             !DataGroupRegistry::get_global_registry()
@@ -45,6 +47,9 @@ impl App {
             "LocalSystemRegistry should not initialize before app"
         );
         LocalSystemRegistry::initialize();
+
+        // Global systems can initialize at any point 
+        GlobalSystemRegistry::initialize();
 
         global_app.init();
     }

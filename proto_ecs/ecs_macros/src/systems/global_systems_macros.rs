@@ -173,6 +173,14 @@ pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::Toke
             #init_fn_internal
         }
 
+        impl proto_ecs::systems::global_systems::GlobalSystemDesc for #struct_id 
+        {
+            #[doc = "Name of this global system"]
+            const NAME : &'static str = #struct_id_str;
+            #[doc = "Name's crc"]
+            const NAME_CRC : u32 = #name_crc;
+        }
+
         impl proto_ecs::systems::global_systems::GlobalSystemInitDescTrait for #struct_id
         {
             #[doc = "Arg type, if any"]

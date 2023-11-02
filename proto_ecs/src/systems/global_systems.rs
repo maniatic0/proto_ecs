@@ -108,7 +108,7 @@ impl GlobalSystemRegistry {
         let mut registry = GlobalSystemRegistry::get_global_registry().write();
         assert!(
             !registry.is_initialized,
-            "Local System registry was already initialized!"
+            "Global System registry was already initialized!"
         );
 
         let mut locals_register_fns = TempRegistryLambdas::new();
@@ -218,6 +218,20 @@ impl GlobalSystemRegistry {
         let entry = &mut self.entries[get_id!(S) as usize];
         entry.before = before;
         entry.after = after;
+    }
+
+    #[inline]
+    pub fn create_by_id(&self, id: GlobalSystemID) -> Box<dyn GlobalSystem> {
+        let entry = self.get_entry_by_id(id);
+        (entry.factory)()
+    }
+
+    #[inline(always)]
+    pub fn create<D>(&self) -> Box<dyn GlobalSystem>
+    where
+        D: ids::IDLocator + GlobalSystem,
+    {
+        self.create_by_id(get_id!(D))
     }
 }
 

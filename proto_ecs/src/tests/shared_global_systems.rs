@@ -1,9 +1,11 @@
 
 #[cfg(test)]
-mod sgs
+pub mod sgs
 {
     use ecs_macros::CanCast;
     use crate::systems::global_systems::*;
+    use crate::tests::shared_datagroups::*;
+    use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
 
     // -- < First global system > ------------------------------
     #[derive(Debug, CanCast)]
@@ -22,7 +24,10 @@ mod sgs
         Test,
         factory = factory,
         stages = (42),
-        init_arg = OptionalArg(Test)
+        init_arg = OptionalArg(Test), 
+        dependencies = (AnimationDataGroup, MeshDataGroup),
+        before = (TestAfter),
+        after = (TestBefore)
     }
 
     impl TestGlobalSystem for Test
@@ -53,12 +58,12 @@ mod sgs
         TestBefore,
         factory = factory_before,
         stages = (42),
-        init_arg = OptionalArg(TestBefore)
+        init_arg = Arg(TestBefore)
     }
 
     impl TestBeforeGlobalSystem for TestBefore
     {
-        fn init(&mut self, _init_data:std::option::Option<std::boxed::Box<TestBefore>>) {
+        fn init(&mut self, init_data:std::boxed::Box<TestBefore>) {
             
         }
 
@@ -84,12 +89,12 @@ mod sgs
         TestAfter,
         factory = factory_after,
         stages = (42),
-        init_arg = OptionalArg(TestAfter)
+        init_arg = NoArg
     }
 
     impl TestAfterGlobalSystem for TestAfter
     {
-        fn init(&mut self, _init_data:std::option::Option<std::boxed::Box<TestAfter>>) {
+        fn init(&mut self) {
             
         }
 
