@@ -5,17 +5,14 @@ use crate::systems::common::*;
 use proc_macro;
 use quote::quote;
 
-/// Arguments required to declare a GlobalSystem. * `struct_id` : Name of a
-// struct being declared as global system * `dependencies` : A list of
-// datagroups that are assumed to be dependencies of this system * `stages` : A
-// list of numbers identifying the stages that this global system should run on
-// * `before` : A list of other global systems that should run after this system
-// (this global system runs BEFORE ...) * `after` : A list of other global
-// systems that should run before this system (this global system runs AFTER
-// ...) * `factory` : a function that takes no input and returns a Box<dyn
-// GlobalSystem> returning an instance of this GlobalSystem * `init_style` : The
-// style of the input argument for the initialization functions. Optional?
-// Required? None?
+/// Arguments required to declare a GlobalSystem. 
+/// * `struct_id` : Name of a struct being declared as global system
+/// * `dependencies` : A list of datagroups that are assumed to be dependencies of this system
+/// * `stages` : A list of numbers identifying the stages that this global system should run on
+/// * `before` : A list of other global systems that should run after this system (this global system runs BEFORE ...)
+/// * `after` : A list of other global systems that should run before this system (this global system runs AFTER...)
+/// * `factory` : a function that takes no input and returns a Box<dyn GlobalSystem> returning an instance of this GlobalSystem
+/// * `init_style` : The style of the input argument for the initialization functions. Optional? Required? None?
 struct GlobalSystemArgs {
     struct_id: syn::Ident,
     dependencies: Dependencies,
@@ -239,6 +236,19 @@ pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::Toke
 
     });
 
+    // Add trait for init arguments if there's a struct for arguments
+    match init_style 
+    {
+        InitArgStyle::Arg(id) | InitArgStyle::OptionalArg(id) => {
+            result.extend(
+                quote!{
+                    impl proto_ecs::systems::global_systems::GenericGlobalSystemInitArgTrait for #id
+                    { }
+                }
+            );
+        }
+        _ => {}
+    }
 
     return result.into();
 }
@@ -387,10 +397,10 @@ fn create_glue_function(
 
     let new_function = quote! {
         fn #new_function_id(
-            global_system : std::boxed::Box<dyn proto_ecs::systems::global_systems::GlobalSystem>, 
+            global_system : &mut std::boxed::Box<dyn proto_ecs::systems::global_systems::GlobalSystem>, 
             entity_map : proto_ecs::systems::global_systems::EntityMap)
         {
-            let global_system = global_system.as_any_mut().downcast_mut::<#struct_id>().unwrap();
+            let mut global_system = global_system.as_any_mut().downcast_mut::<#struct_id>().unwrap();
             global_system. #function_id (entity_map);
         }
     };
