@@ -68,7 +68,7 @@ pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::Toke
     let struct_id_str = struct_id.to_string();
     let name_crc = crc32fast::hash(struct_id_str.as_bytes());
     let trait_function_signatures = trait_function_ids.clone().map(|id| {
-        quote!(fn #id(&mut self, entity_map : proto_ecs::systems::global_systems::EntityMap);)
+        quote!(fn #id(&mut self, entity_map : &proto_ecs::systems::global_systems::EntityMap);)
     });
 
     let init_fn_signature = init_style.to_signature();
@@ -406,7 +406,7 @@ fn create_glue_function(
     let new_function = quote! {
         fn #new_function_id(
             global_system : &mut std::boxed::Box<dyn proto_ecs::systems::global_systems::GlobalSystem>, 
-            entity_map : proto_ecs::systems::global_systems::EntityMap)
+            entity_map : &proto_ecs::systems::global_systems::EntityMap)
         {
             let mut global_system = global_system.as_any_mut().downcast_mut::<#struct_id>().unwrap();
             global_system. #function_id (entity_map);

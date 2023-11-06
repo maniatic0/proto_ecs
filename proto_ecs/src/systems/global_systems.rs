@@ -19,7 +19,7 @@ pub const INVALID_GLOBAL_SYSTEM_CLASS_ID: GlobalSystemID = GlobalSystemID::MAX;
 
 // TODO Change for the right type of map
 pub type EntityMap = HashMap<entity::EntityID, Box<entity::Entity>>; 
-pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, EntityMap);
+pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, &EntityMap);
 
 /// Maps from stage to Global System function
 pub type GSStageMap = StageMap<GSStageFn>; 

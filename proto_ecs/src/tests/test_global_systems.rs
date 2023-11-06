@@ -2,8 +2,9 @@
 mod global_system_test{
     use crate::get_id;
     use crate::tests::shared_global_systems::sgs::{Test, TestAfter, TestBefore};
-    use crate::systems::global_systems::GlobalSystemRegistry;
+    use crate::systems::global_systems::{GlobalSystemRegistry, EntityMap};
     use crate::app::App;
+    use crate::core::casting::cast_mut;
 
     #[test]
     fn test_global_system_registration()
@@ -45,8 +46,49 @@ mod global_system_test{
                                                                 ::get_global_registry()
                                                                 .read();
 
-        // TODO finish this test later
+        {
+            // Test that state remains the same when initializing without args
+            let mut test_gs = gs_registry.create::<Test>();
+            test_gs.__init__(None);
+            let test_gs : &mut Test = cast_mut(&mut test_gs);
+            assert_eq!(test_gs._a, 69);
+            assert_eq!(test_gs._b, "Hello world".to_string());  
+        }
+
+        {
+            let mut test_gs = gs_registry.create::<Test>();
+            test_gs.__init__(Some(Box::new(Test{_a: 42, _b: "foo".to_string()})));
+            let test_gs : &mut Test = cast_mut(&mut test_gs);
+            assert_eq!(test_gs._a, 42);
+            assert_eq!(test_gs._b, "foo".to_string());
+        }
+    }
+
+    #[test]
+    fn test_global_system_run()
+    {
+        if !App::is_initialized()
+        {
+            App::initialize();
+        }
+
+        let gs_registry = GlobalSystemRegistry
+                                                                ::get_global_registry()
+                                                                .read();
+
         let mut test_gs = gs_registry.create::<Test>();
-        
+        let test_gs_entry = gs_registry.get_entry::<Test>();
+        let entity_map = EntityMap::new();
+
+        for f in test_gs_entry.functions
+        {
+            match f {
+                Some(f) => (f)(&mut test_gs, &entity_map),
+                _ => {}
+            }
+        }
+
+        let test_gs: &mut Test = cast_mut(&mut test_gs);
+        assert_eq!(test_gs._a, 69 * 2);
     }
 }

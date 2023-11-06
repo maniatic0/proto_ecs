@@ -4,15 +4,14 @@ pub mod sgs
 {
     use ecs_macros::CanCast;
     use crate::systems::global_systems::*;
-    use crate::tests::shared_datagroups::*;
     use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
 
     // -- < First global system > ------------------------------
     #[derive(Debug, CanCast)]
     pub struct Test
     {
-        _a : u32,
-        _b : String
+        pub _a : u32,
+        pub _b : String
     }
 
     fn factory() -> Box<dyn GlobalSystem>
@@ -32,12 +31,18 @@ pub mod sgs
 
     impl TestGlobalSystem for Test
     {
-        fn init(&mut self, _init_data:std::option::Option<std::boxed::Box<Test>>) {
-            
+        fn init(&mut self, _init_data: Option<Box<Test>>) {
+            if _init_data.is_none()
+            {
+                return;
+            }
+            let _init_data = _init_data.unwrap();
+            self._a = _init_data._a;
+            self._b = _init_data._b;
         }
 
-        fn stage_42(&mut self, _entity_map : crate::systems::global_systems::EntityMap) {
-            
+        fn stage_42(&mut self, _entity_map : &crate::systems::global_systems::EntityMap) {
+            self._a *= 2;
         }
     }
 
@@ -51,7 +56,7 @@ pub mod sgs
 
     fn factory_before() -> Box<dyn GlobalSystem>
     {
-        Box::new(Test{_a : 68, _b : "Before world".to_string()})
+        Box::new(Test{_a : 69, _b : "Before world".to_string()})
     }
 
     register_global_system!{
@@ -63,12 +68,12 @@ pub mod sgs
 
     impl TestBeforeGlobalSystem for TestBefore
     {
-        fn init(&mut self, init_data:std::boxed::Box<TestBefore>) {
+        fn init(&mut self, _init_data:std::boxed::Box<TestBefore>) {
             
         }
 
-        fn stage_42(&mut self, _entity_map : crate::systems::global_systems::EntityMap) {
-            
+        fn stage_42(&mut self, _entity_map : &crate::systems::global_systems::EntityMap) {
+
         }
     }
 
@@ -98,7 +103,7 @@ pub mod sgs
             
         }
 
-        fn stage_42(&mut self, _entity_map : crate::systems::global_systems::EntityMap) {
+        fn stage_42(&mut self, _entity_map : &crate::systems::global_systems::EntityMap) {
             
         }
     }
