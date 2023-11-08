@@ -173,6 +173,20 @@ pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::Toke
             #init_fn_internal
         }
 
+        impl #struct_id
+        {
+            #[doc = "Simple preparation of this global system. Dependencies that require init args are left uninitialized. Dependencies with optional args are left empty"]
+            pub fn simple_prepare(spawn_desc : &mut proto_ecs::entities::entity_spawn_desc::EntitySpawnDescription) -> bool
+            {
+                // Global systems are initialized in world creation, entities 
+                // just have to register which global systems they expect. 
+                // Some entities might not be able to spawn due to missing datagroup 
+                // dependencies, that conflict is checked in the corresponding 
+                // check_panic function
+                spawn_desc.add_global_system::<#struct_id>()
+            }
+        }
+
         impl proto_ecs::systems::global_systems::GlobalSystemDesc for #struct_id 
         {
             #[doc = "Name of this global system"]

@@ -71,6 +71,7 @@ impl Entity {
             debug_info,
             data_groups,
             local_systems,
+            global_systems,
         } = spawn_desc;
 
         // Init Datagroups

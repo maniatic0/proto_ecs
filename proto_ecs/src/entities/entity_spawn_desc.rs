@@ -4,6 +4,7 @@ use crate::entities::entity::MAX_DATAGROUP_INDEX;
 use crate::get_id;
 use crate::systems::common::Dependency;
 use crate::systems::local_systems::{LocalSystemRegistry, SystemClassID};
+use crate::systems::global_systems::{GlobalSystemID, GlobalSystemRegistry};
 use nohash_hasher::{IntMap, IntSet};
 
 /// Description of an entity to be spawned
@@ -13,6 +14,7 @@ pub struct EntitySpawnDescription {
     pub(super) debug_info: String,
     pub(super) data_groups: IntMap<DataGroupID, DataGroupInitType>,
     pub(super) local_systems: IntSet<SystemClassID>,
+    pub(super) global_systems: IntSet<GlobalSystemID>
 }
 
 impl EntitySpawnDescription {
@@ -140,6 +142,42 @@ impl EntitySpawnDescription {
         self.get_local_system_by_id(get_id!(S))
     }
 
+    #[inline(always)]
+    /// Add a local system to an entity to be spawned
+    pub fn add_global_system_by_id(&mut self, id: GlobalSystemID) -> bool {
+        self.global_systems.insert(id)
+    }
+
+    #[inline(always)]
+    /// Add a local system to an entity to be spawned
+    pub fn add_global_system<S>(&mut self) -> bool
+    where
+        S: ids::IDLocator,
+    {
+        self.global_systems.insert(get_id!(S))
+    }
+
+    #[inline(always)]
+    /// Get current local systems to be created for this entity
+    pub fn get_global_systems(&self) -> &IntSet<GlobalSystemID> {
+        &self.global_systems
+    }
+
+    #[inline(always)]
+    /// Get if a local system will be used by this entity
+    pub fn get_global_system_by_id(&self, id: GlobalSystemID) -> bool {
+        self.get_global_systems().contains(&id)
+    }
+
+    #[inline(always)]
+    /// Get if a local system will be used by this entity
+    pub fn get_global_system<S>(&self) -> bool
+    where
+        S: ids::IDLocator,
+    {
+        self.get_global_system_by_id(get_id!(S))
+    }
+
     /// Checks if the datagroups of this entity make sense, else panic
     pub fn check_datagroups_panic(&self) {
         assert!(
@@ -186,10 +224,45 @@ impl EntitySpawnDescription {
         });
     }
 
+    // Checks if the datagroups required by the global systems requested 
+    // by this entity are present
+    fn check_global_systems_panic(&self)
+    {
+        let global_system_registry = GlobalSystemRegistry::get_global_registry().read();
+        for &global_system in &self.global_systems
+        {
+            let gs_entry = global_system_registry.get_entry_by_id(global_system);
+            for &datagroup in &gs_entry.dependencies
+            {
+                let dg_id = match datagroup
+                    {
+                        Dependency::DataGroup(dg_id) => dg_id,
+                        Dependency::OptionalDG(_) => {continue;} // nothing to check if they're optional
+                    };
+
+                if self.get_datagroups().contains_key(&dg_id)
+                {
+                    // Everything ok, this entity has the required datagroup
+                    continue;
+                }
+                
+                let dg_name = DataGroupRegistry::get_global_registry()
+                                                        .read()
+                                                        .get_entry_by_id(dg_id)
+                                                        .name;
+                let gs_name = gs_entry.name;
+                panic!(
+                    "Entity doesn't have the datagroup '{dg_name}' required by the global system '{gs_name}', which is requested by the entity"
+                );
+            }
+        }
+    }
+
     /// Check if the entity to be spawned makes sense, else panic
     pub fn check_panic(&self) {
         self.check_datagroups_panic();
         self.check_local_systems_panic();
+        self.check_global_systems_panic();
     }
 }
 
