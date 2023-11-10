@@ -1,16 +1,19 @@
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering, AtomicUsize};
 
+use bitvec::store::BitStore;
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
+use nohash_hasher::IntMap;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
 use crate::core::locking::RwLock;
 use crate::systems::common::{StageID, STAGE_COUNT};
+use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry};
 
 use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
 
@@ -48,6 +51,13 @@ pub type EntityStorage = Box<EntityLock>;
 
 /// Entity Map Type that holds all the entities in a World
 pub type EntityMap = dashmap::DashMap<EntityID, EntityStorage>;
+
+/// Global System Storage inside world
+pub type GlobalSystemStorage = Box<dyn GlobalSystem>;
+
+/// Storage for all global systems currently loaded. If not here, 
+/// it means that it's not loaded
+pub type GlobalSystemMap = RwLock<IntMap<GlobalSystemID, GlobalSystemStorage>>;
 
 #[derive(PartialEq)]
 /// World Reference to an Entity
@@ -121,6 +131,9 @@ unsafe impl Send for EntityWorldRef {}
 /// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). Do not use at the same time as the entity map
 pub type EntitiesVec = RwLock<Vec<EntityWorldRef>>;
 
+/// Array used to count how many entities are subscribed to some global system to know when we have to unload them
+pub type GlobalSystemCount = RwLock<Vec<AtomicUsize>>;
+
 /// World Identifier in the Entity System
 pub type WorldID = u16;
 
@@ -135,6 +148,8 @@ pub struct World {
     entities_stages: [EntitiesVec; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
+    global_systems: GlobalSystemMap,
+    global_systems_count: GlobalSystemCount
 }
 
 impl World {
@@ -143,6 +158,13 @@ impl World {
     const CHUNKS_NUM: usize = 20;
 
     pub(crate) fn new(id: WorldID) -> Self {
+        let gs_count = GlobalSystemRegistry::get_global_registry().read().get_global_system_count();
+        let mut gs_count_array = Vec::new();
+        for _ in 0..gs_count
+        {
+            gs_count_array.push(AtomicUsize::ZERO);
+        }
+
         Self {
             id,
             delta_time: Default::default(),
@@ -153,6 +175,8 @@ impl World {
             entities_stages: core::array::from_fn(|_| Default::default()),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
+            global_systems: Default::default(),
+            global_systems_count: RwLock::new(gs_count_array)
         }
     }
 
@@ -207,6 +231,20 @@ impl World {
                 stage_vec.write().push(EntityWorldRef::new(entity_lock_ptr));
             }
         }
+
+        // Initialize every global system that is not currently loaded
+        for &gs_id in entity_ref.get_global_systems()
+        {
+            {
+                let gs_count = self.global_systems_count.write();
+                gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
+            }
+            if self.global_system_is_loaded(gs_id) {
+                continue;
+            }
+
+            self.load_global_system(gs_id);
+        }
     }
 
     /// Destroy an entity. Note that the entity will be destroyed at the end of the current stage
@@ -234,6 +272,20 @@ impl World {
                 if vec_ref == entity_lock_ptr {
                     entities_all.swap_remove(index);
                     break;
+                }
+            }
+        }
+
+        // Decrease counters for global systems in this entity
+        {
+            let gs_counts = self.global_systems_count.write();
+            for &gs_id in entity_ref.get_global_systems()
+            {
+                let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
+
+                if result == 1 // this was the last entity requiring this gs
+                {
+                    self.unload_global_system(gs_id);
                 }
             }
         }
@@ -333,6 +385,38 @@ impl World {
 
         // Process all the entity commands created in the stage
         self.process_entity_commands();
+    }
+
+
+    fn global_system_is_loaded(&self, global_system_id : GlobalSystemID) -> bool
+    {
+        self.global_systems.read().contains_key(&global_system_id)
+    }
+
+    /// Creates and initializes a new global system
+    fn load_global_system(&self, global_system_id : GlobalSystemID)
+    {
+        debug_assert!(
+            !self.global_systems.read().contains_key(&global_system_id), 
+            "Global system was already loaded"
+        );
+
+        let gs_registry = GlobalSystemRegistry
+                    ::get_global_registry()
+                    .read();
+
+        let gs = gs_registry.create_by_id(global_system_id);
+        self.global_systems.write().insert(global_system_id, gs);
+    }
+
+    fn unload_global_system(&self, global_system_id : GlobalSystemID)
+    {
+        debug_assert!(
+            self.global_systems.read().contains_key(&global_system_id), 
+            "Global system was already unloaded"
+        );
+
+        self.global_systems.write().remove(&global_system_id);
     }
 
     /// Merge target world into this world

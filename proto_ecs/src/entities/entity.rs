@@ -7,7 +7,7 @@ use crate::{
     entities::entity_spawn_desc::EntitySpawnDescription,
     get_id,
     systems::common::Dependency,
-    systems::local_systems::{LocalSystemDesc, LocalSystemRegistry},
+    systems::{local_systems::{LocalSystemDesc, LocalSystemRegistry}, global_systems::GlobalSystemID},
 };
 use proto_ecs::systems::common::{StageID, STAGE_COUNT};
 use proto_ecs::systems::local_systems::{SystemClassID, SystemFn};
@@ -62,6 +62,7 @@ pub struct Entity {
     local_systems_map: LocalSystemMap,
     stage_enabled_map: StageEnabledMap,
     stage_map: StageMap,
+    global_systems: IntSet<GlobalSystemID>
 }
 
 impl Entity {
@@ -165,6 +166,7 @@ impl Entity {
             local_systems_map: local_systems,
             stage_enabled_map,
             stage_map,
+            global_systems
         }
     }
 
@@ -208,6 +210,12 @@ impl Entity {
     #[inline(always)]
     pub fn get_local_systems(&self) -> &LocalSystemMap {
         &self.local_systems_map
+    }
+
+    #[inline(always)]
+    pub fn get_global_systems(&self) -> &IntSet<GlobalSystemID>
+    {
+        &self.global_systems
     }
 
     #[inline(always)]

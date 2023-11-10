@@ -233,6 +233,13 @@ impl GlobalSystemRegistry {
     {
         self.create_by_id(get_id!(D))
     }
+
+    #[inline(always)]
+    pub fn get_global_system_count(&self) -> usize
+    {
+        self.entries.len()
+    }
+
 }
 
 pub type TempRegistryLambda = Box<dyn FnOnce(&mut GlobalSystemRegistry) + Sync + Send + 'static>;
