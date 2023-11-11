@@ -7,7 +7,7 @@ use crate::{
     entities::entity_spawn_desc::EntitySpawnDescription,
     get_id,
     systems::common::Dependency,
-    systems::{local_systems::{LocalSystemDesc, LocalSystemRegistry}, global_systems::GlobalSystemID},
+    systems::{local_systems::{LocalSystemDesc, LocalSystemRegistry}, global_systems::{GlobalSystemID, GlobalSystemDesc}},
 };
 use proto_ecs::systems::common::{StageID, STAGE_COUNT};
 use proto_ecs::systems::local_systems::{SystemClassID, SystemFn};
@@ -229,6 +229,19 @@ impl Entity {
         S: IDLocator + LocalSystemDesc,
     {
         self.contains_local_system_by_id(get_id!(S))
+    }
+
+    #[inline(always)]
+    pub fn contains_global_system_by_id(&self, id: GlobalSystemID) -> bool {
+        self.get_global_systems().contains(&id)
+    }
+
+    #[inline(always)]
+    pub fn contains_global_system<S>(&self) -> bool
+    where
+        S: IDLocator + GlobalSystemDesc,
+    {
+        self.contains_global_system_by_id(get_id!(S))
     }
 
     #[inline(always)]

@@ -1,10 +1,12 @@
 #[cfg(test)]
 mod global_system_test{
     use crate::get_id;
+    use crate::tests::shared_datagroups::sdg::{MeshDataGroup, AnimationDataGroup};
     use crate::tests::shared_global_systems::sgs::{Test, TestAfter, TestBefore};
     use crate::systems::global_systems::{GlobalSystemRegistry, EntityMap};
     use crate::app::App;
     use crate::core::casting::cast_mut;
+    use crate::entities::entity_spawn_desc::EntitySpawnDescription;
 
     #[test]
     fn test_global_system_registration()
@@ -90,5 +92,34 @@ mod global_system_test{
 
         let test_gs: &mut Test = cast_mut(&mut test_gs);
         assert_eq!(test_gs._a, 69 * 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_simple_prepare_should_panic()
+    {
+        // check that you can register a global system with simple prepare and 
+        // that checks panics when they should
+        let mut spawn_desc = EntitySpawnDescription::default();
+        Test::simple_prepare(&mut spawn_desc);
+        spawn_desc.check_panic();
+    }
+
+    #[test]
+    fn test_simple_prepare_should_not_panic()
+    {
+        // check that you can register a global system with simple prepare and 
+        // that checks panics when they should
+        let mut spawn_desc = EntitySpawnDescription::default();
+        MeshDataGroup::prepare_spawn(&mut spawn_desc);
+        AnimationDataGroup::prepare_spawn(&mut spawn_desc, 
+            Box::new( 
+                AnimationDataGroup { 
+                    clip_name: "hello clip".to_string(), 
+                    duration: 42.0 
+                }
+        ));
+        Test::simple_prepare(&mut spawn_desc);
+        spawn_desc.check_panic();
     }
 }

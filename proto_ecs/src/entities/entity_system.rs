@@ -43,6 +43,8 @@ pub type EntityCreationQueue = scc::Queue<RwLock<Option<(EntityID, EntitySpawnDe
 /// Entity Deletion Queue type used by worlds
 pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
+pub type GlobalSystemCreationQueue = scc::Queue<GlobalSystemID>;
+
 /// Entity locking mechanism inside World
 pub type EntityLock = RwLock<Entity>;
 
@@ -132,7 +134,7 @@ unsafe impl Send for EntityWorldRef {}
 pub type EntitiesVec = RwLock<Vec<EntityWorldRef>>;
 
 /// Array used to count how many entities are subscribed to some global system to know when we have to unload them
-pub type GlobalSystemCount = RwLock<Vec<AtomicUsize>>;
+pub type GlobalSystemCount = Vec<AtomicUsize>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
@@ -149,7 +151,8 @@ pub struct World {
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
     global_systems: GlobalSystemMap,
-    global_systems_count: GlobalSystemCount
+    global_systems_count: GlobalSystemCount,
+    gs_creation_queue: GlobalSystemCreationQueue
 }
 
 impl World {
@@ -176,7 +179,8 @@ impl World {
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
             global_systems: Default::default(),
-            global_systems_count: RwLock::new(gs_count_array)
+            global_systems_count: gs_count_array,
+            gs_creation_queue: Default::default()
         }
     }
 
@@ -236,14 +240,15 @@ impl World {
         for &gs_id in entity_ref.get_global_systems()
         {
             {
-                let gs_count = self.global_systems_count.write();
+                let gs_count = &self.global_systems_count;
                 gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
             }
+
             if self.global_system_is_loaded(gs_id) {
                 continue;
             }
 
-            self.load_global_system(gs_id);
+            self.gs_creation_queue.push(gs_id);
         }
     }
 
@@ -278,7 +283,7 @@ impl World {
 
         // Decrease counters for global systems in this entity
         {
-            let gs_counts = self.global_systems_count.write();
+            let gs_counts = &self.global_systems_count;
             for &gs_id in entity_ref.get_global_systems()
             {
                 let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
@@ -326,6 +331,20 @@ impl World {
             .store(scaling_factor, Ordering::Release);
     }
 
+    fn process_global_systems_commands(&self)
+    {
+        while !self.gs_creation_queue.is_empty()
+        {
+            let gs_to_create = **self.gs_creation_queue.pop().unwrap();
+
+            // If already created just skip creation
+            if !self.global_system_is_loaded(gs_to_create)
+            {
+                self.load_global_system(gs_to_create);
+            }
+        }
+    }
+
     /// Process all entity commands
     fn process_entity_commands(&self) {
         // Process all deletions
@@ -357,8 +376,9 @@ impl World {
 
     /// Process a stage in this world
     fn run_stage(&self, stage_id: StageID) {
-        // Process all the entity commands before the stage
+        // Process all the entity and global systems commands before the stage
         self.process_entity_commands();
+        self.process_global_systems_commands();
 
         // Run Stage in all entities
         let entities_stage = self.entities_stages[stage_id as usize].read();
@@ -385,6 +405,7 @@ impl World {
 
         // Process all the entity commands created in the stage
         self.process_entity_commands();
+        self.process_global_systems_commands();
     }
 
 

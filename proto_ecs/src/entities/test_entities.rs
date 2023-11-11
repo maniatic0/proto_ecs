@@ -13,6 +13,7 @@ mod test {
                 AnimationDataGroup, MeshDataGroup, TestNumberDataGroup, TestNumberDataGroupArg,
             },
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
+            shared_global_systems::sgs::Test as gs_Test
         },
     };
 
@@ -31,6 +32,8 @@ mod test {
         AnimationDataGroup::prepare_spawn(&mut spawn_desc, init_params);
         MeshDataGroup::prepare_spawn(&mut spawn_desc);
         Test::simple_prepare(&mut spawn_desc);
+        gs_Test::simple_prepare(&mut spawn_desc);
+
         spawn_desc.check_local_systems_panic();
 
         spawn_desc.set_name("Test Name".to_owned());
@@ -47,7 +50,9 @@ mod test {
             entity.get_datagroup::<MeshDataGroup>(),
             Some(dg) if dg.get_id() == <MeshDataGroup as IDLocator>::get_id()
         ));
+        
         assert!(entity.contains_local_system::<Test>());
+        assert!(entity.contains_global_system::<gs_Test>());
     }
 
     #[test]
