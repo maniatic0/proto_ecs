@@ -59,7 +59,7 @@ pub type GlobalSystemStorage = Box<dyn GlobalSystem>;
 
 /// Storage for all global systems currently loaded. If not here, 
 /// it means that it's not loaded
-pub type GlobalSystemMap = RwLock<IntMap<GlobalSystemID, GlobalSystemStorage>>;
+pub type GlobalSystemMap = RwLock<Vec<Option<GlobalSystemStorage>>>;
 
 #[derive(PartialEq)]
 /// World Reference to an Entity
@@ -148,6 +148,7 @@ pub struct World {
     entities: EntityMap,
     entities_all: EntitiesVec,
     entities_stages: [EntitiesVec; STAGE_COUNT],
+    global_system_stages: [RwLock<Vec<GlobalSystemID>>; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
     global_systems: GlobalSystemMap,
@@ -180,6 +181,7 @@ impl World {
             deletion_queue: Default::default(),
             global_systems: Default::default(),
             global_systems_count: gs_count_array,
+            global_system_stages: core::array::from_fn(|_| Default::default()),
             gs_creation_queue: Default::default()
         }
     }
@@ -244,11 +246,10 @@ impl World {
                 gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
             }
 
-            if self.global_system_is_loaded(gs_id) {
-                continue;
+            if !self.global_system_is_loaded(gs_id) {
+                self.gs_creation_queue.push(gs_id);
             }
 
-            self.gs_creation_queue.push(gs_id);
         }
     }
 
@@ -333,6 +334,7 @@ impl World {
 
     fn process_global_systems_commands(&self)
     {
+        let mut changed = false;
         while !self.gs_creation_queue.is_empty()
         {
             let gs_to_create = **self.gs_creation_queue.pop().unwrap();
@@ -341,6 +343,17 @@ impl World {
             if !self.global_system_is_loaded(gs_to_create)
             {
                 self.load_global_system(gs_to_create);
+                changed = true;
+            }
+        }
+
+        // we have to sort stage vectors so that global systems run in the right order
+        if changed
+        {
+            for stage_vec_lock in self.global_system_stages.iter()
+            {
+                let mut stage_vec = stage_vec_lock.write();
+                stage_vec.sort();
             }
         }
     }
@@ -403,6 +416,8 @@ impl World {
                 }
             });
 
+        // TODO: Now that all entities ran, we have to run global systems.
+
         // Process all the entity commands created in the stage
         self.process_entity_commands();
         self.process_global_systems_commands();
@@ -411,14 +426,17 @@ impl World {
 
     fn global_system_is_loaded(&self, global_system_id : GlobalSystemID) -> bool
     {
-        self.global_systems.read().contains_key(&global_system_id)
+        self.global_systems.read()[global_system_id as usize].is_some()
     }
 
-    /// Creates and initializes a new global system
+    /// Creates and initializes a new global system.
+    /// After adding a new global systems the list of global systems to
+    /// run per stage will be out of order. You should sort those list after
+    /// adding more global systems.
     fn load_global_system(&self, global_system_id : GlobalSystemID)
     {
         debug_assert!(
-            !self.global_systems.read().contains_key(&global_system_id), 
+            !self.global_systems.read()[global_system_id as usize].is_none(), 
             "Global system was already loaded"
         );
 
@@ -427,17 +445,48 @@ impl World {
                     .read();
 
         let gs = gs_registry.create_by_id(global_system_id);
-        self.global_systems.write().insert(global_system_id, gs);
+        self.global_systems.write()[global_system_id as usize] =  Some(gs);
+
+        // Add this global system to the list of global systems to run per stage 
+        // to its corresponding stages
+        let entry = gs_registry.get_entry_by_id(global_system_id);
+        for (i, stage_fn) in entry.functions.iter().enumerate()
+        {
+            if stage_fn.is_none()
+            {
+                continue;
+            }
+
+            self.global_system_stages[i].write().push(global_system_id);
+        }
     }
 
     fn unload_global_system(&self, global_system_id : GlobalSystemID)
     {
         debug_assert!(
-            self.global_systems.read().contains_key(&global_system_id), 
+            self.global_systems.read()[global_system_id as usize].is_some(), 
             "Global system was already unloaded"
         );
 
-        self.global_systems.write().remove(&global_system_id);
+        self.global_systems.write()[global_system_id as usize] = None;
+
+        // Remove this global system from the stages that require their functions
+        let registry = GlobalSystemRegistry::get_global_registry().read();
+        let entry = registry.get_entry_by_id(global_system_id);
+        for (i, gs_fn) in entry.functions.iter().enumerate()
+        {
+            if gs_fn.is_none()
+            {
+                continue;
+            }
+            let mut stage_gs = self.global_system_stages[i].write();
+            let gs_index = *stage_gs
+                                .iter()
+                                .find(|&&gs_id|{ gs_id == global_system_id})
+                                .expect("Programming Error: This global system should be in the stages vector");
+                        
+            stage_gs.swap_remove(gs_index as usize);
+        }
     }
 
     /// Merge target world into this world
