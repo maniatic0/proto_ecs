@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -43,7 +44,7 @@ pub type EntityCreationQueue = scc::Queue<RwLock<Option<(EntityID, EntitySpawnDe
 /// Entity Deletion Queue type used by worlds
 pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
-pub type GlobalSystemCreationQueue = scc::Queue<GlobalSystemID>;
+pub type GlobalSystemQueue = scc::Queue<GlobalSystemID>;
 
 /// Entity locking mechanism inside World
 pub type EntityLock = RwLock<Entity>;
@@ -55,7 +56,7 @@ pub type EntityStorage = Box<EntityLock>;
 pub type EntityMap = dashmap::DashMap<EntityID, EntityStorage>;
 
 /// Global System Storage inside world
-pub type GlobalSystemStorage = Box<dyn GlobalSystem>;
+pub type GlobalSystemStorage = RwLock<Box<dyn GlobalSystem>>;
 
 /// Storage for all global systems currently loaded. If not here, 
 /// it means that it's not loaded
@@ -148,12 +149,13 @@ pub struct World {
     entities: EntityMap,
     entities_all: EntitiesVec,
     entities_stages: [EntitiesVec; STAGE_COUNT],
-    global_system_stages: [RwLock<Vec<GlobalSystemID>>; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
+    global_system_stages: [RwLock<Vec<GlobalSystemID>>; STAGE_COUNT],
     global_systems: GlobalSystemMap,
     global_systems_count: GlobalSystemCount,
-    gs_creation_queue: GlobalSystemCreationQueue
+    gs_creation_queue: GlobalSystemQueue,
+    gs_deletion_queue: GlobalSystemQueue,
 }
 
 impl World {
@@ -182,7 +184,8 @@ impl World {
             global_systems: Default::default(),
             global_systems_count: gs_count_array,
             global_system_stages: core::array::from_fn(|_| Default::default()),
-            gs_creation_queue: Default::default()
+            gs_creation_queue: Default::default(),
+            gs_deletion_queue: Default::default()
         }
     }
 
@@ -289,9 +292,9 @@ impl World {
             {
                 let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
 
-                if result == 1 // this was the last entity requiring this gs
+                if result == 1 // this was the last entity requiring this GS
                 {
-                    self.unload_global_system(gs_id);
+                    self.gs_deletion_queue.push(gs_id);
                 }
             }
         }
@@ -335,6 +338,20 @@ impl World {
     fn process_global_systems_commands(&self)
     {
         let mut changed = false;
+        // Delete global systems scheduled for deletion
+        while !self.gs_deletion_queue.is_empty()
+        {
+            let gs_to_delete = **self.gs_creation_queue.pop().unwrap();
+            
+            // If just deleted skip deletion
+            if !self.global_system_is_loaded(gs_to_delete)
+            {
+                self.unload_global_system(gs_to_delete);
+                changed = true;
+            }
+        }
+        
+        // Create global systems scheduled for deletion
         while !self.gs_creation_queue.is_empty()
         {
             let gs_to_create = **self.gs_creation_queue.pop().unwrap();
@@ -393,31 +410,48 @@ impl World {
         self.process_entity_commands();
         self.process_global_systems_commands();
 
-        // Run Stage in all entities
-        let entities_stage = self.entities_stages[stage_id as usize].read();
-
-        if !entities_stage.is_empty() {
-            // Nothing to do, no more commands can be created
-            // TODO: Check this for Global Systems. They might need to execute?
-            return;
+        {
+            // Run Stage in all entities
+            let entities_stage = self.entities_stages[stage_id as usize].read();
+            if !entities_stage.is_empty() {
+                // Nothing to do, no more commands can be created
+                // TODO: Check this for Global Systems. They might need to execute?
+                return;
+            }
+    
+            entities_stage
+                .par_chunks(World::CHUNKS_NUM)
+                .for_each(|map_refs| {
+                    for map_ref in map_refs {
+                        // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
+                        let entity = unsafe { &mut *map_ref.data_ptr() };
+    
+                        // Check if stage is enabled
+                        if entity.is_stage_enabled(stage_id) {
+                            entity.run_stage(self, stage_id);
+                        }
+                    }
+                });
         }
 
-        entities_stage
-            .par_chunks(World::CHUNKS_NUM)
-            .for_each(|map_refs| {
-                for map_ref in map_refs {
-                    // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
-                    let entity = unsafe { &mut *map_ref.data_ptr() };
-
-                    // Check if stage is enabled
-                    if entity.is_stage_enabled(stage_id) {
-                        entity.run_stage(self, stage_id);
-                    }
-                }
-            });
-
-        // TODO: Now that all entities ran, we have to run global systems.
-
+        // Run all global systems
+        {
+            let gs_stage = self.global_system_stages[stage_id as usize].read();
+            let gs_registry = GlobalSystemRegistry::get_global_registry().read();
+            let gs_storages = self.global_systems.read();
+            for &gs_id in gs_stage.iter()
+            {
+                let entry = gs_registry.get_entry_by_id(gs_id);
+                let mut storage = gs_storages[gs_id as usize].as_ref().unwrap().write();
+                let current_fn = entry
+                                .functions[stage_id as usize]
+                                .expect("This global system should have a function for the current stage");
+                            
+                // TODO: Replace this dummy hashmap with the actual entity map
+                (current_fn)( storage.deref_mut(), &HashMap::new()); 
+            }
+        }
+        
         // Process all the entity commands created in the stage
         self.process_entity_commands();
         self.process_global_systems_commands();
@@ -431,7 +465,7 @@ impl World {
 
     /// Creates and initializes a new global system.
     /// After adding a new global systems the list of global systems to
-    /// run per stage will be out of order. You should sort those list after
+    /// run per stage will be out of order. You should sort those lists after
     /// adding more global systems.
     fn load_global_system(&self, global_system_id : GlobalSystemID)
     {
@@ -445,7 +479,7 @@ impl World {
                     .read();
 
         let gs = gs_registry.create_by_id(global_system_id);
-        self.global_systems.write()[global_system_id as usize] =  Some(gs);
+        self.global_systems.write()[global_system_id as usize] =  Some(RwLock::new(gs));
 
         // Add this global system to the list of global systems to run per stage 
         // to its corresponding stages
@@ -461,6 +495,10 @@ impl World {
         }
     }
 
+    /// Deletes a global system.
+    /// After deleting a global system the list of global systems to
+    /// run per stage will be out of order. You should sort those lists after
+    /// unloading global systems.
     fn unload_global_system(&self, global_system_id : GlobalSystemID)
     {
         debug_assert!(
