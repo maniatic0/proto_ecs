@@ -208,6 +208,10 @@ impl World {
 
     /// Create a new entity based on its spawn description. Note that the entity will spawn at the end of the current stage
     pub fn create_entity(&self, spawn_desc: EntitySpawnDescription) -> EntityID {
+        if cfg!(debug_assertions) {
+            // Check that the spawn desc makes sense. Maybe change the cfg macro to be separate of all debug assertions
+            spawn_desc.check_panic();
+        }
         let new_id = allocate_entity_id();
         self.creation_queue
             .push(RwLock::new(Some((new_id, spawn_desc))));
