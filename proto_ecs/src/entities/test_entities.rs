@@ -12,8 +12,8 @@ mod test {
             shared_datagroups::sdg::{
                 AnimationDataGroup, MeshDataGroup, TestNumberDataGroup, TestNumberDataGroupArg,
             },
+            shared_global_systems::sgs::Test as gs_Test,
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
-            shared_global_systems::sgs::Test as gs_Test
         },
     };
 
@@ -50,7 +50,7 @@ mod test {
             entity.get_datagroup::<MeshDataGroup>(),
             Some(dg) if dg.get_id() == <MeshDataGroup as IDLocator>::get_id()
         ));
-        
+
         assert!(entity.contains_local_system::<Test>());
         assert!(entity.contains_global_system::<gs_Test>());
     }

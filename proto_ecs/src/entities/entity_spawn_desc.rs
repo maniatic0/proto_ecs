@@ -3,8 +3,8 @@ use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupRegistry};
 use crate::entities::entity::MAX_DATAGROUP_INDEX;
 use crate::get_id;
 use crate::systems::common::Dependency;
-use crate::systems::local_systems::{LocalSystemRegistry, SystemClassID};
 use crate::systems::global_systems::{GlobalSystemID, GlobalSystemRegistry};
+use crate::systems::local_systems::{LocalSystemRegistry, SystemClassID};
 use nohash_hasher::{IntMap, IntSet};
 
 /// Description of an entity to be spawned
@@ -14,7 +14,7 @@ pub struct EntitySpawnDescription {
     pub(super) debug_info: String,
     pub(super) data_groups: IntMap<DataGroupID, DataGroupInitType>,
     pub(super) local_systems: IntSet<SystemClassID>,
-    pub(super) global_systems: IntSet<GlobalSystemID>
+    pub(super) global_systems: IntSet<GlobalSystemID>,
 }
 
 impl EntitySpawnDescription {
@@ -224,32 +224,29 @@ impl EntitySpawnDescription {
         });
     }
 
-    // Checks if the datagroups required by the global systems requested 
+    // Checks if the datagroups required by the global systems requested
     // by this entity are present
-    fn check_global_systems_panic(&self)
-    {
+    fn check_global_systems_panic(&self) {
         let global_system_registry = GlobalSystemRegistry::get_global_registry().read();
-        for &global_system in &self.global_systems
-        {
+        for &global_system in &self.global_systems {
             let gs_entry = global_system_registry.get_entry_by_id(global_system);
-            for &datagroup in &gs_entry.dependencies
-            {
-                let dg_id = match datagroup
-                    {
-                        Dependency::DataGroup(dg_id) => dg_id,
-                        Dependency::OptionalDG(_) => {continue;} // nothing to check if they're optional
-                    };
+            for &datagroup in &gs_entry.dependencies {
+                let dg_id = match datagroup {
+                    Dependency::DataGroup(dg_id) => dg_id,
+                    Dependency::OptionalDG(_) => {
+                        continue;
+                    } // nothing to check if they're optional
+                };
 
-                if self.get_datagroups().contains_key(&dg_id)
-                {
+                if self.get_datagroups().contains_key(&dg_id) {
                     // Everything ok, this entity has the required datagroup
                     continue;
                 }
-                
+
                 let dg_name = DataGroupRegistry::get_global_registry()
-                                                        .read()
-                                                        .get_entry_by_id(dg_id)
-                                                        .name;
+                    .read()
+                    .get_entry_by_id(dg_id)
+                    .name;
                 let gs_name = gs_entry.name;
                 panic!(
                     "Entity doesn't have the datagroup '{dg_name}' required by the global system '{gs_name}', which is requested by the entity"
@@ -269,12 +266,11 @@ impl EntitySpawnDescription {
 /// Helpers to handle common uses cases for entity spawn descriptions
 pub mod helpers {
     use crate::{
+        core::common::InitDesc,
         core::ids,
         data_group::{
-            DataGroup, DataGroupInitDescTrait, DataGroupInitType,
-            DataGroupRegistryEntry,
+            DataGroup, DataGroupInitDescTrait, DataGroupInitType, DataGroupRegistryEntry,
         },
-        core::common::InitDesc,
         get_id,
     };
 
