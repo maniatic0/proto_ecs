@@ -528,7 +528,9 @@ pub type DeltaTimeAtomicType = AtomicF64;
 pub type DeltaTimeType = f64;
 
 #[derive(Debug)]
+/// Errors produced by the Entity System
 pub enum EntitySystemError {
+    /// Failed to find the specified world
     WorldNotFound,
 }
 
