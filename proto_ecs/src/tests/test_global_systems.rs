@@ -95,6 +95,10 @@ mod global_system_test {
     #[test]
     #[should_panic]
     fn test_simple_prepare_should_panic() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
         // check that you can register a global system with simple prepare and
         // that checks panics when they should
         let mut spawn_desc = EntitySpawnDescription::default();
@@ -104,6 +108,10 @@ mod global_system_test {
 
     #[test]
     fn test_simple_prepare_should_not_panic() {
+        if !App::is_initialized() {
+            App::initialize();
+        }
+
         // check that you can register a global system with simple prepare and
         // that checks panics when they should
         let mut spawn_desc = EntitySpawnDescription::default();
