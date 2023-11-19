@@ -8,7 +8,6 @@ use bitvec::store::BitStore;
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
-use nohash_hasher::IntMap;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
@@ -470,7 +469,7 @@ impl World {
     fn load_global_system(&self, global_system_id : GlobalSystemID)
     {
         debug_assert!(
-            !self.global_systems.read()[global_system_id as usize].is_none(), 
+            self.global_systems.read()[global_system_id as usize].is_some(), 
             "Global system was already loaded"
         );
 
@@ -547,6 +546,21 @@ pub type DeltaTimeAtomicType = AtomicF64;
 
 /// Entity System type used for deltas
 pub type DeltaTimeType = f64;
+
+#[derive(Debug)]
+pub enum EntitySystemError {
+    WorldNotFound
+}
+
+impl std::fmt::Display for EntitySystemError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EntitySystemError::WorldNotFound => write!(f, "World Not Found"),
+        }
+    }
+}
+
+impl std::error::Error for EntitySystemError { }
 
 #[derive(Debug)]
 pub struct EntitySystem {
@@ -690,17 +704,17 @@ impl EntitySystem {
         }
     }
 
-    /// Create a new entity in World `world_id` based on its spawn description. Note that the entity will spawn at the end of the current stage. If the world cannot be found, it returns the spawn desc as an err
+    /// Create a new entity in World `world_id` based on its spawn description. Note that the entity will spawn at the end of the current stage. If the world cannot be found, it returns an err
     pub fn create_entity(
         &self,
         world_id: WorldID,
         spawn_desc: EntitySpawnDescription,
-    ) -> Result<EntityID, EntitySpawnDescription> {
+    ) -> Result<EntityID, EntitySystemError> {
         match self.worlds.get(&world_id) {
             Some(entry) => Ok(entry.create_entity(spawn_desc)),
             None => {
                 println!("Failed to create entity due to: Couldn't find World {world_id}!");
-                Err(spawn_desc)
+                Err(EntitySystemError::WorldNotFound)
             }
         }
     }
@@ -723,8 +737,7 @@ impl EntitySystem {
 
     /// Get the the list of current worlds. Note that this is only valid if no stage is being executed, or if called from a Local/Global System, else it might include deleted worlds
     pub fn get_worlds_list(&self) -> Vec<WorldID> {
-        let mut worlds: Vec<WorldID> = Vec::new();
-        worlds.reserve(self.worlds.len());
+        let mut worlds: Vec<WorldID> = Vec::with_capacity(self.worlds.len());
 
         self.worlds.iter().for_each(|map_ref| {
             worlds.push(*map_ref.key());
