@@ -8,7 +8,6 @@ use bitvec::store::BitStore;
 use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
-use nohash_hasher::IntMap;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 

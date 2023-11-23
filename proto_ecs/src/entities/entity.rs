@@ -51,6 +51,7 @@ pub type StageMap = VecMap<StageID, Vec<(DataGroupIndexingType, SystemFn)>>;
 /// Map type used by entities to store the reference to its children
 pub type ChildrenMap = VecSet<EntityID>;
 
+#[derive(Default)]
 pub struct Entity {
     id: EntityID,
     name: String,
