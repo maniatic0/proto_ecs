@@ -1,11 +1,10 @@
-/// This module implements the entire Application workflow.
-/// Put any glue code between parts of our application here
-
-use lazy_static::lazy_static;
 use crate::core::locking::RwLock;
 use crate::data_group::DataGroupRegistry;
-use crate::systems::local_systems::LocalSystemRegistry;
 use crate::systems::global_systems::GlobalSystemRegistry;
+use crate::systems::local_systems::LocalSystemRegistry;
+/// This module implements the entire Application workflow.
+/// Put any glue code between parts of our application here
+use lazy_static::lazy_static;
 
 pub struct App {
     is_initialized: bool,
@@ -48,7 +47,7 @@ impl App {
         );
         LocalSystemRegistry::initialize();
 
-        // Global systems can initialize at any point 
+        // Global systems can initialize at any point
         GlobalSystemRegistry::initialize();
 
         global_app.init();

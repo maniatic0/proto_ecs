@@ -1,6 +1,7 @@
 // -- < Testing datagroups API > ---------------------------
 #[cfg(test)]
 pub mod datagroup_test {
+    use crate::core::common::InitDesc;
     use crate::{
         app::App,
         core::casting::{cast, cast_mut},
@@ -9,7 +10,6 @@ pub mod datagroup_test {
         get_id,
     };
     use proto_ecs::data_group::*;
-    use crate::core::common::InitDesc;
 
     use super::super::shared_datagroups::sdg::*;
 

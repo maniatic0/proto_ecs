@@ -1,4 +1,3 @@
-
 #[derive(Debug, PartialEq)]
 /// Whether a something has an init function
 /// If it has one, it can specify if it doesn't take an argument,

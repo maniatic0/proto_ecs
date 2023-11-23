@@ -1,28 +1,27 @@
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
-use proto_ecs::core::ids;
-use proto_ecs::get_id;
-use proto_ecs::systems::common::*;
-use topological_sort::TopologicalSort;
-use std::collections::HashMap;
-use proto_ecs::entities::entity;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::common::InitDesc;
+use proto_ecs::core::ids;
+use proto_ecs::entities::entity;
+use proto_ecs::get_id;
+use proto_ecs::systems::common::*;
+use std::collections::HashMap;
+use topological_sort::TopologicalSort;
 
 pub use ecs_macros::register_global_system;
 
-
 // TODO Change to a smaller type
-pub type GlobalSystemID = u32; 
+pub type GlobalSystemID = u32;
 
 pub const INVALID_GLOBAL_SYSTEM_CLASS_ID: GlobalSystemID = GlobalSystemID::MAX;
 
 // TODO Change for the right type of map
-pub type EntityMap = HashMap<entity::EntityID, Box<entity::Entity>>; 
+pub type EntityMap = HashMap<entity::EntityID, Box<entity::Entity>>;
 pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, &EntityMap);
 
 /// Maps from stage to Global System function
-pub type GSStageMap = StageMap<GSStageFn>; 
+pub type GSStageMap = StageMap<GSStageFn>;
 
 pub type GSFactoryFn = fn() -> Box<dyn GlobalSystem>;
 
@@ -47,9 +46,11 @@ pub trait GlobalSystemInitDescTrait {
 }
 
 /// Similarly to Datagroups, implements the initialization function
-pub trait GlobalSystem : ids::HasID + CanCast + std::fmt::Debug + Send + Sync
-{
-    fn __init__(&mut self, init_data: std::option::Option<Box<dyn GenericGlobalSystemInitArgTrait>>);
+pub trait GlobalSystem: ids::HasID + CanCast + std::fmt::Debug + Send + Sync {
+    fn __init__(
+        &mut self,
+        init_data: std::option::Option<Box<dyn GenericGlobalSystemInitArgTrait>>,
+    );
 }
 
 #[derive(Debug)]
@@ -62,7 +63,7 @@ pub struct GlobalSystemRegistryEntry {
     pub before: Vec<GlobalSystemID>,
     pub after: Vec<GlobalSystemID>,
     pub factory: GSFactoryFn,
-    pub init_desc : InitDesc,
+    pub init_desc: InitDesc,
     pub set_id_fn: fn(GlobalSystemID), // Only used for init, don't use it manually
 }
 
@@ -235,11 +236,9 @@ impl GlobalSystemRegistry {
     }
 
     #[inline(always)]
-    pub fn get_global_system_count(&self) -> usize
-    {
+    pub fn get_global_system_count(&self) -> usize {
         self.entries.len()
     }
-
 }
 
 pub type TempRegistryLambda = Box<dyn FnOnce(&mut GlobalSystemRegistry) + Sync + Send + 'static>;

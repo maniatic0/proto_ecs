@@ -15,7 +15,6 @@ use lazy_static::lazy_static;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::{ids, locking::RwLock};
 use proto_ecs::get_id;
-use proto_ecs::core::common;
 use std::fmt::Debug;
 
 use crate::core::common::InitDesc;
