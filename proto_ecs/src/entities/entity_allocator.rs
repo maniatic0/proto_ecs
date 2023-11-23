@@ -88,7 +88,7 @@ impl EntityAllocator
         
         return EntityPtr{
                     index, 
-                    generation: entry.header.generation.load(Ordering::Relaxed)
+                    generation: entry.header.generation.load(Ordering::Acquire)
                 };
     }
 
@@ -100,7 +100,7 @@ impl EntityAllocator
         }
 
         let entry  = &mut self.entries[entity_ptr.index];
-        entry.header.generation.fetch_add(1, Ordering::Relaxed);
+        entry.header.generation.fetch_add(1, Ordering::Release);
         unsafe { entry.mem.assume_init_drop() };
 
         self.free.push(entity_ptr.index);
