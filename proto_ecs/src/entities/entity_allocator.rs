@@ -39,6 +39,10 @@ struct EntryHeader
 
 type AtomicGeneration = AtomicU32;
 
+/// A not owning reference to an [Entity]. Use this to access an entity allocated
+/// by the [EntityAllocator]. Note that since this pointer does not own the memory,
+/// dereferencing it would cause a segfault if the allocator that returned this 
+/// pointer is dead. 
 #[derive(Debug, Clone, Copy)]
 pub struct EntityPtr
 {
@@ -100,6 +104,14 @@ impl EntityAllocator
                 };
     }
 
+    /// Free an entity. 
+    /// 
+    /// The Drop function will be called and the memory
+    /// will remain uninitialized, and therefore the input
+    /// pointer will be invalid.\
+    /// 
+    /// You can check if a pointer is valid using `ptr.is_live()`
+    /// And you can check if the entity is initialized using `ptr.is_initialized()`
     pub fn free(&mut self, entity_ptr: &EntityPtr)
     {
         if !entity_ptr.is_live()
@@ -119,6 +131,7 @@ impl EntityAllocator
         self.free.push(entity_ptr.ptr);
     }
 
+    /// Get a reference to the global allocator
     pub fn get_global() -> &'static Self
     {
         &GLOBAL_ALLOCATOR
@@ -152,6 +165,13 @@ impl DerefMut for EntityPtr
 
 impl<'a> EntityEntry
 {
+    /// Create an entity entry from an entity ptr
+    ///
+    /// # Safety
+    /// This function assumes that the `ptr` comes from an [EntityEntry]
+    /// allocated by an [EntityAllocator]. Also the allocator will free all allocated
+    /// entities after dying, so this pointer can only be safely used when you are sure that
+    /// the allocator is still alive.
     unsafe fn from_ptr(ptr: *mut Entity) -> &'a mut Self
     {
         ptr
