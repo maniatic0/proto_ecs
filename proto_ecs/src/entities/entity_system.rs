@@ -41,6 +41,7 @@ pub type EntityCreationQueue = scc::Queue<RwLock<Option<(EntityID, EntitySpawnDe
 /// Entity Deletion Queue type used by worlds
 pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
+/// Queue of global systems used to schedule deletion and creation
 pub type GlobalSystemQueue = scc::Queue<GlobalSystemID>;
 
 /// Entity Map Type that holds all the entities in a World
