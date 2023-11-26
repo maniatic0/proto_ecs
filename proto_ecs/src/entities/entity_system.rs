@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut};
-use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering};
 
 use bitvec::store::BitStore;
@@ -14,8 +12,8 @@ use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 use crate::core::locking::RwLock;
 use crate::systems::common::{StageID, STAGE_COUNT};
 use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry};
-
-use super::{entity::Entity, entity_spawn_desc::EntitySpawnDescription};
+use crate::entities::entity_allocator::{EntityAllocator, EntityPtr};
+use super::entity_spawn_desc::EntitySpawnDescription;
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 
@@ -45,14 +43,8 @@ pub type EntityDeletionQueue = scc::Queue<EntityID>;
 
 pub type GlobalSystemQueue = scc::Queue<GlobalSystemID>;
 
-/// Entity locking mechanism inside World
-pub type EntityLock = RwLock<Entity>;
-
-/// Entity storage inside World
-pub type EntityStorage = Box<EntityLock>;
-
 /// Entity Map Type that holds all the entities in a World
-pub type EntityMap = dashmap::DashMap<EntityID, EntityStorage>;
+pub type EntityMap = dashmap::DashMap<EntityID, EntityPtr>;
 
 /// Global System Storage inside world
 pub type GlobalSystemStorage = RwLock<Box<dyn GlobalSystem>>;
@@ -61,77 +53,8 @@ pub type GlobalSystemStorage = RwLock<Box<dyn GlobalSystem>>;
 /// it means that it's not loaded
 pub type GlobalSystemMap = RwLock<Vec<Option<GlobalSystemStorage>>>;
 
-#[derive(PartialEq)]
-/// World Reference to an Entity
-/// Warning: Only valid while the world is still alive. Never copy or change the ptr manually
-pub struct EntityWorldRef {
-    pub(super) ptr: NonNull<EntityLock>,
-}
-
-impl EntityWorldRef {
-    pub(super) fn new(entity_ptr: *mut EntityLock) -> Self {
-        Self {
-            ptr: unsafe { NonNull::new_unchecked(entity_ptr) },
-        }
-    }
-
-    /// Gets the internal ptr from the entity storage
-    pub(super) fn entity_storage_to_entity_lock_ptr(
-        entity_box: &mut EntityStorage,
-    ) -> *mut EntityLock {
-        std::ptr::addr_of_mut!(**entity_box)
-    }
-}
-
-impl Deref for EntityWorldRef {
-    type Target = EntityLock;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { self.ptr.as_ref() }
-    }
-}
-
-impl DerefMut for EntityWorldRef {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.ptr.as_mut() }
-    }
-}
-
-impl PartialEq<*const EntityLock> for EntityWorldRef {
-    fn eq(&self, other: &*const EntityLock) -> bool {
-        std::ptr::eq(self.ptr.as_ptr(), *other)
-    }
-}
-
-impl PartialEq<*mut EntityLock> for EntityWorldRef {
-    fn eq(&self, other: &*mut EntityLock) -> bool {
-        std::ptr::eq(self.ptr.as_ptr(), *other)
-    }
-}
-
-impl PartialEq<*const EntityLock> for &EntityWorldRef {
-    fn eq(&self, other: &*const EntityLock) -> bool {
-        std::ptr::eq(self.ptr.as_ptr(), *other)
-    }
-}
-
-impl PartialEq<*mut EntityLock> for &EntityWorldRef {
-    fn eq(&self, other: &*mut EntityLock) -> bool {
-        std::ptr::eq(self.ptr.as_ptr(), *other)
-    }
-}
-
-impl Debug for EntityWorldRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-
-unsafe impl Sync for EntityWorldRef {}
-unsafe impl Send for EntityWorldRef {}
-
 /// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). Do not use at the same time as the entity map
-pub type EntitiesVec = RwLock<Vec<EntityWorldRef>>;
+pub type EntitiesVec = RwLock<Vec<EntityPtr>>;
 
 /// Array used to count how many entities are subscribed to some global system to know when we have to unload them
 pub type GlobalSystemCount = Vec<AtomicUsize>;
@@ -150,7 +73,8 @@ pub struct World {
     entities_stages: [EntitiesVec; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
-    global_system_stages: [RwLock<Vec<GlobalSystemID>>; STAGE_COUNT],
+    // Which global systems to run per stage
+    global_system_stages: [RwLock<Vec<GlobalSystemID>>; STAGE_COUNT], 
     global_systems: GlobalSystemMap,
     global_systems_count: GlobalSystemCount,
     gs_creation_queue: GlobalSystemQueue,
@@ -220,10 +144,13 @@ impl World {
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
-        let mut entity_box = Box::new(RwLock::new(Entity::init(id, spawn_desc)));
-        let entity_lock_ptr: *mut EntityLock =
-            EntityWorldRef::entity_storage_to_entity_lock_ptr(&mut entity_box);
-        let old = self.entities.insert(id, entity_box);
+
+        // Allocate entity from the global allocator
+        let global_allocator = EntityAllocator::get_global();
+        let mut entity_ptr = global_allocator.write().allocate();
+        entity_ptr.init(id, spawn_desc);
+
+        let old = self.entities.insert(id, entity_ptr);
         assert!(
             old.is_none(),
             "Duplicated Entity ID, old entity {:?}",
@@ -233,15 +160,15 @@ impl World {
         // Insert entity for iteration
         {
             let mut entities_all = self.entities_all.write();
-            entities_all.push(EntityWorldRef::new(entity_lock_ptr));
+            entities_all.push(entity_ptr);
         }
 
-        let entity_ref = unsafe { &*(*entity_lock_ptr).data_ptr() };
+        let entity_ref = unsafe { &*(*entity_ptr).data_ptr() };
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
             if entity_ref.is_stage_enabled(stage_id) {
-                stage_vec.write().push(EntityWorldRef::new(entity_lock_ptr));
+                stage_vec.write().push(entity_ptr);
             }
         }
 
@@ -270,17 +197,13 @@ impl World {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
             return;
         }
-        let (_id, mut entity_box) = prev.unwrap();
-
-        let entity_lock_ptr: *mut EntityLock =
-            EntityWorldRef::entity_storage_to_entity_lock_ptr(&mut entity_box);
-        let entity_ref = unsafe { &*(*entity_lock_ptr).data_ptr() };
+        let (_id, entity_ptr) = prev.unwrap();
 
         // Destroy entity from iteration lists
         {
             let mut entities_all = self.entities_all.write();
-            for (index, vec_ref) in entities_all.iter().enumerate() {
-                if vec_ref == entity_lock_ptr {
+            for (index, &vec_ref) in entities_all.iter().enumerate() {
+                if vec_ref == entity_ptr {
                     entities_all.swap_remove(index);
                     break;
                 }
@@ -290,7 +213,7 @@ impl World {
         // Decrease counters for global systems in this entity
         {
             let gs_counts = &self.global_systems_count;
-            for &gs_id in entity_ref.get_global_systems() {
+            for &gs_id in entity_ptr.read().get_global_systems() {
                 let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
 
                 if result == 1
@@ -303,10 +226,10 @@ impl World {
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
-            if entity_ref.is_stage_enabled(stage_id) {
+            if entity_ptr.read().is_stage_enabled(stage_id) {
                 let mut stage_vec = stage_vec.write();
-                for (index, vec_ref) in stage_vec.iter().enumerate() {
-                    if vec_ref == entity_lock_ptr {
+                for (index, &vec_ref) in stage_vec.iter().enumerate() {
+                    if vec_ref == entity_ptr {
                         stage_vec.swap_remove(index);
                         break;
                     }
@@ -315,6 +238,9 @@ impl World {
         }
 
         deallocate_entity_id(id);
+        // Actually destroy entity 
+        let global_allocator = EntityAllocator::get_global();
+        global_allocator.write().free(&entity_ptr);
     }
 
     // Update the delta times in this world
@@ -441,7 +367,7 @@ impl World {
                     .expect("This global system should have a function for the current stage");
 
                 // TODO: Replace this dummy hashmap with the actual entity map
-                (current_fn)(storage.deref_mut(), &HashMap::new());
+                (current_fn)(&mut storage, &HashMap::new());
             }
         }
 

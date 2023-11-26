@@ -23,8 +23,8 @@ fn test_allocation()
     assert!(entity_ptr.is_initialized());
 
     // Check that we can access to the entity without segfaulting and initialization went ok
-    assert_eq!(entity_ptr.get_name(), "hello".to_owned());
-    assert_eq!(entity_ptr.get_id(), 420);
+    assert_eq!(entity_ptr.read().get_name(), "hello".to_owned());
+    assert_eq!(entity_ptr.read().get_id(), 420);
 }
 
 #[test]
@@ -66,5 +66,5 @@ fn test_panic_use_after_free()
 
     entity_ptr.init(420, spawn_desc);
     alloc.free(&entity_ptr);
-    entity_ptr.get_id();
+    entity_ptr.read().get_id();
 }

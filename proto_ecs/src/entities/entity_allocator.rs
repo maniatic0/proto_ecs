@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use crate::core::locking::RwLock;
 use scc::Queue;
 use std::ops::{Deref, DerefMut};
+use std::fmt::Debug;
 
 use super::entity::EntityID;
 use super::entity_spawn_desc::EntitySpawnDescription;
@@ -17,16 +18,22 @@ use super::entity_spawn_desc::EntitySpawnDescription;
 pub struct EntityAllocator
 {
     entries : RwLock<Vec<Box<EntityEntry>>>,
-    free : Queue<*mut Entity>
+    free : FreeQueue
 }
+
+/// A lock-free queue of pointers to locked entities
+type FreeQueue = Queue<*mut EntityLock>;
 
 #[derive(Debug)]
 #[repr(C)]
 struct EntityEntry
 {
     header : EntryHeader,
-    mem : MaybeUninit<Entity>,
+    mem : MaybeUninit<EntityLock>,
 }
+
+/// A Locked entity
+pub type EntityLock = RwLock<Entity>;
 
 #[derive(Debug)]
 struct EntryHeader
@@ -43,10 +50,16 @@ type AtomicGeneration = AtomicU32;
 /// by the [EntityAllocator]. Note that since this pointer does not own the memory,
 /// dereferencing it would cause a segfault if the allocator that returned this 
 /// pointer is dead. 
-#[derive(Debug, Clone, Copy)]
+/// 
+/// You can also segfault if the memory you are trying to access is not yet initialized.
+/// This can happen if you have not initialized the pointer after allocating it.
+/// 
+/// To check if the pointer is initialized you can use `entity_ptr.is_initialized()`.
+/// To initialize the pointer use `entity_ptr.init(id, spawn_desc)`
+#[derive(Clone, Copy, PartialEq)]
 pub struct EntityPtr
 {
-    ptr : *mut Entity,
+    ptr : *mut EntityLock,
     generation: Generation
 }
 
@@ -55,7 +68,9 @@ type Generation = u32;
 // -- < Implementations > --------------------------------
 
 lazy_static!{
-    static ref GLOBAL_ALLOCATOR : EntityAllocator = EntityAllocator::new();
+    // I use a RwLock for the global allocator because otherwise we can't get mutable 
+    // references to it.
+    static ref GLOBAL_ALLOCATOR : RwLock<EntityAllocator> = RwLock::new(EntityAllocator::new());
 }
 
 unsafe impl Send for EntityAllocator{}
@@ -66,7 +81,10 @@ impl EntityAllocator
     /// Create a new empty allocator
     pub fn new() -> Self
     {
-        Self::default()
+        Self{
+            entries: RwLock::new(Vec::with_capacity(10_000)),
+            free: FreeQueue::default()
+        }
     }
 
     /// Allocate an entity and get a pointer for such entity. 
@@ -83,7 +101,7 @@ impl EntityAllocator
                     generation: AtomicGeneration::ZERO, 
                     is_initialized: false 
                 }, 
-                mem: MaybeUninit::<Entity>::uninit()
+                mem: MaybeUninit::uninit()
             });
 
             // Pointer to return
@@ -132,7 +150,7 @@ impl EntityAllocator
     }
 
     /// Get a reference to the global allocator
-    pub fn get_global() -> &'static Self
+    pub fn get_global() -> &'static RwLock<Self>
     {
         &GLOBAL_ALLOCATOR
     }
@@ -141,7 +159,7 @@ impl EntityAllocator
 
 impl Deref for EntityPtr {
 
-    type Target = Entity;
+    type Target = EntityLock;
 
     fn deref(&self) -> &Self::Target {
         debug_assert!(self.is_live(), "Trying to deref invalid entity ptr");
@@ -172,11 +190,11 @@ impl<'a> EntityEntry
     /// allocated by an [EntityAllocator]. Also the allocator will free all allocated
     /// entities after dying, so this pointer can only be safely used when you are sure that
     /// the allocator is still alive.
-    unsafe fn from_ptr(ptr: *mut Entity) -> &'a mut Self
+    unsafe fn from_ptr(ptr: *mut EntityLock) -> &'a mut Self
     {
         ptr
             .cast::<u8>()
-            .sub(std::mem::size_of::<EntityEntry>() - std::mem::size_of::<Entity>())
+            .sub(std::mem::size_of::<EntityEntry>() - std::mem::size_of::<EntityLock>())
             .cast::<EntityEntry>()
             .as_mut()
             .unwrap()
@@ -198,7 +216,7 @@ impl EntityPtr
     pub fn init(&mut self, id: EntityID, spawn_desc : EntitySpawnDescription) 
     {
         let entry = unsafe { EntityEntry::from_ptr(self.ptr) };
-        entry.mem.write(Entity::init(id, spawn_desc));
+        entry.mem.write(RwLock::new(Entity::init(id, spawn_desc)));
         entry.header.is_initialized = true;
     }
 
@@ -209,3 +227,36 @@ impl EntityPtr
         entry.header.is_initialized
     }
 }
+
+impl PartialEq<*const EntityLock> for EntityPtr {
+    fn eq(&self, other: &*const EntityLock) -> bool {
+        std::ptr::eq(self.ptr, *other)
+    }
+}
+
+impl PartialEq<*mut EntityLock> for EntityPtr {
+    fn eq(&self, other: &*mut EntityLock) -> bool {
+        std::ptr::eq(self.ptr, *other)
+    }
+}
+
+impl PartialEq<*const EntityLock> for &EntityPtr {
+    fn eq(&self, other: &*const EntityLock) -> bool {
+        std::ptr::eq(self.ptr, *other)
+    }
+}
+
+impl PartialEq<*mut EntityLock> for &EntityPtr {
+    fn eq(&self, other: &*mut EntityLock) -> bool {
+        std::ptr::eq(self.ptr, *other)
+    }
+}
+
+impl Debug for EntityPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+unsafe impl Sync for EntityPtr {}
+unsafe impl Send for EntityPtr {}
