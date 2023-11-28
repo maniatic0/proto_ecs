@@ -8,7 +8,7 @@ use crate::{
     get_id,
     systems::common::Dependency,
     systems::{
-        global_systems::{GlobalSystemDesc, GlobalSystemID, GlobalSystemRegistry},
+        global_systems::{GlobalSystemDesc, GlobalSystemID},
         local_systems::{LocalSystemDesc, LocalSystemRegistry},
     },
 };
@@ -68,7 +68,6 @@ pub struct Entity {
     stage_map: StageMap,
 
     global_systems: IntSet<GlobalSystemID>,
-    gs_stage_enabled_map: StageEnabledMap,
 }
 
 impl Entity {
@@ -165,25 +164,6 @@ impl Entity {
         }
         local_systems_indices.shrink_to_fit();
 
-        // Set stages enabled for global systems
-        let mut gs_stage_enabled_map = BitArray::ZERO;
-        let mut sorted_global_systems: Vec<SystemClassID> = global_systems.iter().copied().collect();
-        sorted_global_systems.sort();
-
-        let gs_registry = GlobalSystemRegistry::get_global_registry().read();
-        for gs_id in sorted_global_systems
-        {
-            let entry = gs_registry.get_entry_by_id(gs_id);
-
-            for (stage, fun) in entry.functions.iter().enumerate()
-            {
-                if fun.is_some()
-                {
-                    gs_stage_enabled_map.set(stage, true);
-                }
-            }
-        }
-
         Self {
             id,
             name,
@@ -194,7 +174,6 @@ impl Entity {
             ls_stage_enabled_map,
             stage_map,
             global_systems,
-            gs_stage_enabled_map
         }
     }
 

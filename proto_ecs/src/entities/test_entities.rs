@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod test {
-    use bitvec::slice::BitSliceIndex;
-
     use crate::{
         app::App,
         core::ids::{HasID, IDLocator},
@@ -9,7 +7,7 @@ mod test {
         entities::{
             entity::Entity,
             entity_spawn_desc::EntitySpawnDescription,
-            entity_system::{EntitySystem, World, DEFAULT_WORLD}, self,
+            entity_system::{EntitySystem, World, DEFAULT_WORLD}, 
         },
         tests::{
             shared_datagroups::sdg::{

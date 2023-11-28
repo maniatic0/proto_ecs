@@ -478,13 +478,27 @@ impl World {
         todo!("Implement world merge!")
     }
 
+    /// Get a reference to the entity map. 
+    /// 
+    /// This function is intended to be used for tests
+    /// to check the state of some entity.
+    /// 
+    /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[inline(always)]
+    #[allow(unused)]
     pub(super) fn get_entities(&self) -> &EntityMap
     {
         &self.entities
     }
 
+    /// Get a reference to the global system map. 
+    /// 
+    /// This function is intended to be used for tests
+    /// to check the state of some global system.
+    /// 
+    /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[inline(always)]
+    #[allow(unused)]
     pub(super) fn get_global_systems(&self) -> &GlobalSystemMap
     {
         &self.global_systems
@@ -746,9 +760,14 @@ impl EntitySystem {
         );
     }
 
-    /// This function is intended to be used in tests only, that's
-    /// why it uses pub(super)
+    /// Get a reference to worlds. 
+    /// 
+    /// This function is intended to be used for tests
+    /// to check the state of some world.
+    /// 
+    /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[inline(always)]
+    #[allow(unused)]
     pub(super) fn get_worlds(&self) -> &WorldMap
     {
         return &self.worlds;

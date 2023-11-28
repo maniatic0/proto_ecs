@@ -40,7 +40,7 @@ pub mod sgs {
             self._b = _init_data._b;
         }
 
-        fn stage_42(&mut self, world : &World, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
+        fn stage_42(&mut self, _world : &World, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
             self._a *= 2;
         }
     }
@@ -69,7 +69,7 @@ pub mod sgs {
     impl TestBeforeGlobalSystem for TestBefore {
         fn init(&mut self, _init_data: std::boxed::Box<TestBefore>) {}
 
-        fn stage_42(&mut self, world : &World, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
+        fn stage_42(&mut self, _world : &World, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
             
         }
     }
@@ -98,7 +98,7 @@ pub mod sgs {
     impl TestAfterGlobalSystem for TestAfter {
         fn init(&mut self) {}
 
-        fn stage_42(&mut self, world : &World, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
+        fn stage_42(&mut self, _world : &World, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
             
         }
     }
@@ -148,8 +148,7 @@ pub mod sgs {
 
     impl GSFlowTesterGlobalSystem for GSFlowTester
     {
-        
-        fn stage_69(&mut self, world : &World, entity_map: &crate::entities::entity_system::EntityMap,registered_entities: &Vec<crate::entities::entity_system::EntityPtr>) {
+        fn stage_69(&mut self, _world : &World, _entity_map: &crate::entities::entity_system::EntityMap,registered_entities: &Vec<crate::entities::entity_system::EntityPtr>) {
             self.n_entities = registered_entities.len();
             for (i, entity) in registered_entities.iter().enumerate()
             {
@@ -158,7 +157,5 @@ pub mod sgs {
                 dg.id = i+1;
             }
         }
-        
-        
     }
 }
