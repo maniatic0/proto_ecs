@@ -3,7 +3,7 @@ mod global_system_test {
     use crate::app::App;
     use crate::core::casting::cast_mut;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
-    use crate::entities::entity_system::{EntitiesVec, EntityMap};
+    use crate::entities::entity_system::{EntitiesVec, EntityMap, World};
     use crate::get_id;
     use crate::systems::global_systems::GlobalSystemRegistry;
     use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
@@ -83,10 +83,11 @@ mod global_system_test {
         let test_gs_entry = gs_registry.get_entry::<Test>();
         let entity_map = EntityMap::new();
         let entity_vec = EntitiesVec::default();
+        let world = World::new(69);
 
         for f in test_gs_entry.functions {
             match f {
-                Some(f) => (f)(&mut test_gs, &entity_map, &entity_vec),
+                Some(f) => (f)(&mut test_gs, &world, &entity_map, &entity_vec),
                 _ => {}
             }
         }

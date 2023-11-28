@@ -10,13 +10,15 @@ use topological_sort::TopologicalSort;
 
 pub use ecs_macros::register_global_system;
 
+use crate::entities::entity_system::World;
+
 // TODO Change to a smaller type
 pub type GlobalSystemID = u32;
 
 pub const INVALID_GLOBAL_SYSTEM_CLASS_ID: GlobalSystemID = GlobalSystemID::MAX;
 
 /// A function to run to update a global system
-pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, &EntityMap, &EntitiesVec);
+pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, &World, &EntityMap, &EntitiesVec);
 
 /// Maps from stage to Global System function
 pub type GSStageMap = StageMap<GSStageFn>;

@@ -404,7 +404,7 @@ impl World {
                 let mut stage_entities = self.gs_entity_map.write();
                 let current_stage_entities = &mut stage_entities[gs_id as usize];
 
-                (current_fn)(&mut storage, &self.entities, &current_stage_entities);
+                (current_fn)(&mut storage, self, &self.entities, &current_stage_entities);
             }
         }
 
