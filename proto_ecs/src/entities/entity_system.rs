@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering};
 
@@ -12,10 +11,12 @@ use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 use crate::core::locking::RwLock;
 use crate::systems::common::{StageID, STAGE_COUNT};
 use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry};
-use crate::entities::entity_allocator::{EntityAllocator, EntityPtr};
+use crate::entities::entity_allocator::EntityAllocator;
 use super::entity_spawn_desc::EntitySpawnDescription;
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
+
+pub use crate::entities::entity_allocator::EntityPtr;
 
 /// We just go up. If we ever run out of them we can think of blocks of IDs per thread and a better allocation system
 static ENTITY_COUNT: std::sync::atomic::AtomicU64 =
@@ -54,14 +55,23 @@ pub type GlobalSystemStorage = RwLock<Box<dyn GlobalSystem>>;
 /// it means that it's not loaded
 pub type GlobalSystemMap = RwLock<Vec<Option<GlobalSystemStorage>>>;
 
-/// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). Do not use at the same time as the entity map
+/// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). 
+/// Do not use at the same time as the entity map
 pub type EntitiesVec = RwLock<Vec<EntityPtr>>;
 
-/// Array used to count how many entities are subscribed to some global system to know when we have to unload them
+/// Array used to count how many entities are subscribed to some global system 
+/// to know when we have to unload them
 pub type GlobalSystemCount = Vec<AtomicUsize>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
+
+/// A list of global system identifiers, mostly used to 
+/// Know which global systems should be ran per stage
+pub type GlobalSystemIDVec = RwLock<Vec<GlobalSystemID>>;
+
+// A map from global system to the set of entities it has to run
+pub type GSEntitiesMap = RwLock<Vec<EntitiesVec>>;
 
 #[derive(Debug)]
 pub struct World {
@@ -74,12 +84,13 @@ pub struct World {
     entities_stages: [EntitiesVec; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
-    // Which global systems to run per stage
-    global_system_stages: [RwLock<Vec<GlobalSystemID>>; STAGE_COUNT], 
+
+    global_system_stages: [GlobalSystemIDVec; STAGE_COUNT], 
     global_systems: GlobalSystemMap,
     global_systems_count: GlobalSystemCount,
     gs_creation_queue: GlobalSystemQueue,
     gs_deletion_queue: GlobalSystemQueue,
+    gs_entity_map: GSEntitiesMap, // entities to run per stage per global system
 }
 
 impl World {
@@ -92,8 +103,13 @@ impl World {
             .read()
             .get_global_system_count();
         let mut gs_count_array = Vec::new();
+        let mut gs_entity_map: Vec<EntitiesVec> = Vec::with_capacity(gs_count);
+        let mut gs_map = Vec::with_capacity(gs_count);
+
         for _ in 0..gs_count {
             gs_count_array.push(AtomicUsize::ZERO);
+            gs_entity_map.push(EntitiesVec::default());
+            gs_map.push(None);
         }
 
         Self {
@@ -106,11 +122,12 @@ impl World {
             entities_stages: core::array::from_fn(|_| Default::default()),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
-            global_systems: Default::default(),
+            global_systems: GlobalSystemMap::new(gs_map),
             global_systems_count: gs_count_array,
             global_system_stages: core::array::from_fn(|_| Default::default()),
             gs_creation_queue: Default::default(),
             gs_deletion_queue: Default::default(),
+            gs_entity_map: RwLock::new(gs_entity_map)
         }
     }
 
@@ -183,6 +200,11 @@ impl World {
             if !self.global_system_is_loaded(gs_id) {
                 self.gs_creation_queue.push(gs_id);
             }
+
+            // Add this entity to the entity vector for each GS it requires
+            let mut entities_per_gs = self.gs_entity_map.write();
+            let gs_entities = &mut entities_per_gs[gs_id as usize];
+            gs_entities.write().push(entity_ptr);
         }
     }
 
@@ -218,9 +240,21 @@ impl World {
                 let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
 
                 if result == 1
-                // this was the last entity requiring this GS
-                {
+                { // this was the last entity requiring this GS
                     self.gs_deletion_queue.push(gs_id);
+                }
+
+                // Delete this entity from the GS entity vec
+                let gs_entities_map = self.gs_entity_map.read();
+                let gs_entities = &mut gs_entities_map[gs_id as usize].write();
+
+                for i in 0..gs_entities.len()
+                {
+                    let other_entity_ptr = gs_entities[i];
+                    if other_entity_ptr == entity_ptr
+                    {
+                        gs_entities.swap_remove(i);
+                    }
                 }
             }
         }
@@ -367,8 +401,10 @@ impl World {
                 let current_fn = entry.functions[stage_id as usize]
                     .expect("This global system should have a function for the current stage");
 
-                // TODO: Replace this dummy hashmap with the actual entity map
-                (current_fn)(&mut storage, &HashMap::new());
+                let mut stage_entities = self.gs_entity_map.write();
+                let current_stage_entities = &mut stage_entities[gs_id as usize];
+
+                (current_fn)(&mut storage, &self.entities, &current_stage_entities);
             }
         }
 
@@ -387,7 +423,7 @@ impl World {
     /// adding more global systems.
     fn load_global_system(&self, global_system_id: GlobalSystemID) {
         debug_assert!(
-            self.global_systems.read()[global_system_id as usize].is_some(),
+            self.global_systems.read()[global_system_id as usize].is_none(),
             "Global system was already loaded"
         );
 
@@ -440,6 +476,18 @@ impl World {
     /// Merge target world into this world
     fn merge_world(&mut self, mut _target: Self) {
         todo!("Implement world merge!")
+    }
+
+    #[inline(always)]
+    pub(super) fn get_entities(&self) -> &EntityMap
+    {
+        &self.entities
+    }
+
+    #[inline(always)]
+    pub(super) fn get_global_systems(&self) -> &GlobalSystemMap
+    {
+        &self.global_systems
     }
 }
 
@@ -696,6 +744,14 @@ impl EntitySystem {
             Ordering::Acquire,
             Ordering::Relaxed,
         );
+    }
+
+    /// This function is intended to be used in tests only, that's
+    /// why it uses pub(super)
+    #[inline(always)]
+    pub(super) fn get_worlds(&self) -> &WorldMap
+    {
+        return &self.worlds;
     }
 }
 

@@ -3,8 +3,9 @@ mod global_system_test {
     use crate::app::App;
     use crate::core::casting::cast_mut;
     use crate::entities::entity_spawn_desc::EntitySpawnDescription;
+    use crate::entities::entity_system::{EntitiesVec, EntityMap};
     use crate::get_id;
-    use crate::systems::global_systems::{EntityMap, GlobalSystemRegistry};
+    use crate::systems::global_systems::GlobalSystemRegistry;
     use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
     use crate::tests::shared_global_systems::sgs::{Test, TestAfter, TestBefore};
 
@@ -58,6 +59,7 @@ mod global_system_test {
         }
 
         {
+            // Test that the state changes according to the initialization arguments
             let mut test_gs = gs_registry.create::<Test>();
             test_gs.__init__(Some(Box::new(Test {
                 _a: 42,
@@ -80,10 +82,11 @@ mod global_system_test {
         let mut test_gs = gs_registry.create::<Test>();
         let test_gs_entry = gs_registry.get_entry::<Test>();
         let entity_map = EntityMap::new();
+        let entity_vec = EntitiesVec::default();
 
         for f in test_gs_entry.functions {
             match f {
-                Some(f) => (f)(&mut test_gs, &entity_map),
+                Some(f) => (f)(&mut test_gs, &entity_map, &entity_vec),
                 _ => {}
             }
         }
@@ -100,7 +103,8 @@ mod global_system_test {
         }
 
         // check that you can register a global system with simple prepare and
-        // that checks panics when they should
+        // that checks panics when they should. In this case the entity does not provide 
+        // the datagroups required by `Test`
         let mut spawn_desc = EntitySpawnDescription::default();
         Test::simple_prepare(&mut spawn_desc);
         spawn_desc.check_panic();

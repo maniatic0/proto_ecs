@@ -1,8 +1,10 @@
 #[cfg(test)]
 pub mod sgs {
+    use crate::data_group::{DataGroup, GenericDataGroupInitArgTrait};
     use crate::systems::global_systems::*;
     use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
-    use ecs_macros::CanCast;
+    use ecs_macros::{CanCast, register_datagroup, register_datagroup_init};
+    use crate::entities::entity_system::*;
 
     // -- < First global system > ------------------------------
     #[derive(Debug, CanCast)]
@@ -38,7 +40,7 @@ pub mod sgs {
             self._b = _init_data._b;
         }
 
-        fn stage_42(&mut self, _entity_map: &crate::systems::global_systems::EntityMap) {
+        fn stage_42(&mut self, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
             self._a *= 2;
         }
     }
@@ -67,7 +69,9 @@ pub mod sgs {
     impl TestBeforeGlobalSystem for TestBefore {
         fn init(&mut self, _init_data: std::boxed::Box<TestBefore>) {}
 
-        fn stage_42(&mut self, _entity_map: &crate::systems::global_systems::EntityMap) {}
+        fn stage_42(&mut self, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
+            
+        }
     }
 
     // -- < Third global system > ------------------------------
@@ -94,6 +98,64 @@ pub mod sgs {
     impl TestAfterGlobalSystem for TestAfter {
         fn init(&mut self) {}
 
-        fn stage_42(&mut self, _entity_map: &crate::systems::global_systems::EntityMap) {}
+        fn stage_42(&mut self, _entity_map: &crate::entities::entity_system::EntityMap, _registered_entities: &Vec<proto_ecs::entities::entity_system::EntityPtr>) {
+            
+        }
+    }
+
+    /// This datagroup is used along with GSFlowTester 
+    /// global system to check the global system flow
+    #[derive(CanCast, Debug)]
+    pub struct GSFlowDG {
+        pub id: usize,
+    }
+
+    impl GenericDataGroupInitArgTrait for GSFlowDG {}
+
+    fn gs_flow_factory() -> Box<dyn DataGroup> {
+        return Box::new(GSFlowDG {
+            id: 0,
+        });
+    }
+
+    register_datagroup_init!(GSFlowDG, NoArg);
+
+    impl GSFlowDGDesc for GSFlowDG {
+        fn init(&mut self) {
+            self.id = 0;
+        }
+    }
+
+    register_datagroup!(GSFlowDG, gs_flow_factory);
+
+    #[derive(Debug, CanCast)]
+    pub struct GSFlowTester 
+    {
+        pub n_entities : usize,
+    }
+
+    fn gs_flow_tester_factory() -> Box<dyn GlobalSystem>
+    {
+        return Box::new(GSFlowTester{n_entities: 0});
+    }
+
+    register_global_system!{
+        GSFlowTester,
+        factory = gs_flow_tester_factory,
+        stages = (69),
+        dependencies = (GSFlowDG)
+    }
+
+    impl GSFlowTesterGlobalSystem for GSFlowTester
+    {
+        fn stage_69(&mut self, _entity_map: &EntityMap, _registered_entities: &Vec<EntityPtr>) {
+            self.n_entities = _registered_entities.len();
+            for (i, entity) in _registered_entities.iter().enumerate()
+            {
+                let mut entity_ptr = entity.write();
+                let dg = entity_ptr.get_datagroup_mut::<GSFlowDG>().unwrap();
+                dg.id = i+1;
+            }
+        }
     }
 }

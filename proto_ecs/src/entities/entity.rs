@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        casting::{cast, CanCast},
+        casting::{cast, cast_mut, CanCast},
         ids::IDLocator,
     },
     data_group::{DataGroup, DataGroupID, DataGroupInitType, DataGroupRegistry},
@@ -8,7 +8,7 @@ use crate::{
     get_id,
     systems::common::Dependency,
     systems::{
-        global_systems::{GlobalSystemDesc, GlobalSystemID},
+        global_systems::{GlobalSystemDesc, GlobalSystemID, GlobalSystemRegistry},
         local_systems::{LocalSystemDesc, LocalSystemRegistry},
     },
 };
@@ -64,9 +64,11 @@ pub struct Entity {
 
     local_systems_indices: LocalSystemIndexingVec,
     local_systems_map: LocalSystemMap,
-    stage_enabled_map: StageEnabledMap,
+    ls_stage_enabled_map: StageEnabledMap,
     stage_map: StageMap,
+
     global_systems: IntSet<GlobalSystemID>,
+    gs_stage_enabled_map: StageEnabledMap,
 }
 
 impl Entity {
@@ -111,12 +113,13 @@ impl Entity {
         }
 
         // Build stage information and collect datagroup indices
-        let mut stage_enabled_map = BitArray::ZERO;
+        let mut ls_stage_enabled_map = BitArray::ZERO;
         let mut stage_map = StageMap::new();
         let mut local_systems_indices: LocalSystemIndexingVec = Vec::new();
 
         let mut sorted_local_systems: Vec<SystemClassID> = local_systems.iter().copied().collect();
         sorted_local_systems.sort();
+
         let ls_registry = LocalSystemRegistry::get_global_registry().read();
         for &id in &sorted_local_systems {
             let entry = ls_registry.get_entry_by_id(id);
@@ -130,8 +133,10 @@ impl Entity {
                     match fun {
                         None => (),
                         Some(fun) => {
-                            if !stage_enabled_map[stage_id as usize] {
-                                stage_enabled_map.set(stage_id as usize, true);
+
+                            // Mark this stage as enabled if there's a function for it
+                            if !ls_stage_enabled_map[stage_id as usize] {
+                                ls_stage_enabled_map.set(stage_id as usize, true);
                                 stage_map.insert(stage_id, Vec::new());
                             }
 
@@ -158,8 +163,26 @@ impl Entity {
                     }
                 });
         }
-
         local_systems_indices.shrink_to_fit();
+
+        // Set stages enabled for global systems
+        let mut gs_stage_enabled_map = BitArray::ZERO;
+        let mut sorted_global_systems: Vec<SystemClassID> = global_systems.iter().copied().collect();
+        sorted_global_systems.sort();
+
+        let gs_registry = GlobalSystemRegistry::get_global_registry().read();
+        for gs_id in sorted_global_systems
+        {
+            let entry = gs_registry.get_entry_by_id(gs_id);
+
+            for (stage, fun) in entry.functions.iter().enumerate()
+            {
+                if fun.is_some()
+                {
+                    gs_stage_enabled_map.set(stage, true);
+                }
+            }
+        }
 
         Self {
             id,
@@ -168,9 +191,10 @@ impl Entity {
             datagroups,
             local_systems_indices,
             local_systems_map: local_systems,
-            stage_enabled_map,
+            ls_stage_enabled_map,
             stage_map,
             global_systems,
+            gs_stage_enabled_map
         }
     }
 
@@ -203,12 +227,29 @@ impl Entity {
         }
     }
 
+    #[inline]
+    pub fn get_datagroup_by_id_mut(&mut self, id: DataGroupID) -> Option<&mut dyn DataGroup> {
+        let pos = self.datagroups.binary_search_by_key(&id, |dg| dg.get_id());
+        match pos {
+            Ok(pos) => Some(self.datagroups[pos].as_mut()),
+            Err(_) => None,
+        }
+    }
+
     #[inline(always)]
     pub fn get_datagroup<DG>(&self) -> Option<&DG>
     where
         DG: IDLocator + DataGroup + CanCast + Sized + 'static,
     {
         self.get_datagroup_by_id(get_id!(DG)).map(|dg| cast(dg))
+    }
+
+    #[inline(always)]
+    pub fn get_datagroup_mut<DG>(&mut self) -> Option<&mut DG>
+    where
+        DG: IDLocator + DataGroup + CanCast + Sized + 'static,
+    {
+        self.get_datagroup_by_id_mut(get_id!(DG)).map(|dg| cast_mut(dg))
     }
 
     #[inline(always)]
@@ -248,14 +289,14 @@ impl Entity {
     }
 
     #[inline(always)]
-    pub fn get_stage_enabled_map(&self) -> &StageEnabledMap {
-        &self.stage_enabled_map
+    pub fn get_ls_stage_enabled_map(&self) -> &StageEnabledMap {
+        &self.ls_stage_enabled_map
     }
 
     #[inline(always)]
     /// If a stage is enabled for this entity
     pub fn is_stage_enabled(&self, stage_id: StageID) -> bool {
-        self.stage_enabled_map[stage_id as usize]
+        self.ls_stage_enabled_map[stage_id as usize]
     }
 
     /// Runs a stage. Note that it panics if the stage is not enabled
@@ -362,15 +403,15 @@ impl std::fmt::Debug for Entity {
 
         let mut stage_map: IntMap<StageID, Stage> = IntMap::default();
 
-        let mut stage_enabled_map: Vec<StageID> = Vec::new();
-        stage_enabled_map.reserve_exact(self.stage_enabled_map.count_ones());
+        let mut ls_stage_enabled_map: Vec<StageID> = Vec::new();
+        ls_stage_enabled_map.reserve_exact(self.ls_stage_enabled_map.count_ones());
 
-        self.stage_enabled_map
+        self.ls_stage_enabled_map
             .iter()
             .enumerate()
             .for_each(|(stage, enabled)| {
                 if *enabled {
-                    stage_enabled_map.push(stage as StageID);
+                    ls_stage_enabled_map.push(stage as StageID);
                     stage_map.insert(
                         stage as StageID,
                         Stage {
@@ -411,7 +452,7 @@ impl std::fmt::Debug for Entity {
             .field("debug_info", &self.debug_info)
             .field("datagroups", &self.datagroups)
             .field("local_systems", &local_system_map.values())
-            .field("stage_enabled_map", &stage_enabled_map)
+            .field("ls_stage_enabled_map", &ls_stage_enabled_map)
             .field("stages", &stage_map)
             .finish()
     }

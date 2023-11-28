@@ -3,10 +3,9 @@ use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::common::InitDesc;
 use proto_ecs::core::ids;
-use proto_ecs::entities::entity;
 use proto_ecs::get_id;
 use proto_ecs::systems::common::*;
-use std::collections::HashMap;
+use proto_ecs::entities::entity_system::{EntityMap, EntitiesVec};
 use topological_sort::TopologicalSort;
 
 pub use ecs_macros::register_global_system;
@@ -16,9 +15,8 @@ pub type GlobalSystemID = u32;
 
 pub const INVALID_GLOBAL_SYSTEM_CLASS_ID: GlobalSystemID = GlobalSystemID::MAX;
 
-// TODO Change for the right type of map
-pub type EntityMap = HashMap<entity::EntityID, Box<entity::Entity>>;
-pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, &EntityMap);
+/// A function to run to update a global system
+pub type GSStageFn = fn(&mut Box<dyn GlobalSystem>, &EntityMap, &EntitiesVec);
 
 /// Maps from stage to Global System function
 pub type GSStageMap = StageMap<GSStageFn>;
