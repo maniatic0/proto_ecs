@@ -90,7 +90,8 @@ pub struct World {
     global_systems_count: GlobalSystemCount,
     gs_creation_queue: GlobalSystemQueue,
     gs_deletion_queue: GlobalSystemQueue,
-    gs_entity_map: GSEntitiesMap, // entities to run per stage per global system
+    /// entities to run per stage per global system
+    gs_entity_map: GSEntitiesMap, 
 }
 
 impl World {
@@ -185,7 +186,7 @@ impl World {
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
-            if entity_ref.is_stage_enabled(stage_id) {
+            if entity_ref.should_run_in_stage(stage_id) {
                 stage_vec.write().push(entity_ptr);
             }
         }
@@ -225,9 +226,11 @@ impl World {
         // Destroy entity from iteration lists
         {
             let mut entities_all = self.entities_all.write();
-            for (index, &vec_ref) in entities_all.iter().enumerate() {
+            for i in 0..entities_all.len()
+            {
+                let vec_ref = entities_all[i];
                 if vec_ref == entity_ptr {
-                    entities_all.swap_remove(index);
+                    entities_all.swap_remove(i);
                     break;
                 }
             }
@@ -261,7 +264,7 @@ impl World {
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
-            if entity_ptr.read().is_stage_enabled(stage_id) {
+            if entity_ptr.read().should_run_in_stage(stage_id) {
                 let mut stage_vec = stage_vec.write();
                 for (index, &vec_ref) in stage_vec.iter().enumerate() {
                     if vec_ref == entity_ptr {
@@ -381,10 +384,16 @@ impl World {
                     for map_ref in map_refs {
                         // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
                         let entity = unsafe { &mut *map_ref.data_ptr() };
+                        let mut recursion_stack = Vec::with_capacity(20);
 
-                        // Check if stage is enabled
-                        if entity.is_stage_enabled(stage_id) {
+                        // Check if stage is enabled before running
+                        if !entity.is_spatial_entity() && entity.is_stage_enabled(stage_id) {
+                            // If not a spatial entity, just run it
                             entity.run_stage(self, stage_id);
+                        }
+                        else if entity.is_spatial_entity() && entity.should_run_in_stage(stage_id){
+                            // If a spatial entity, run recursively
+                            entity.run_stage_recursive_no_alloc(self, stage_id, &mut recursion_stack);
                         }
                     }
                 });

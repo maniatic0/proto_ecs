@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use crate::{
     core::{
         casting::{cast, cast_mut, CanCast},
@@ -19,7 +21,7 @@ use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
 use vector_map::{set::VecSet, VecMap};
 
-use super::entity_system::World;
+use super::entity_system::{World, EntityPtr};
 
 pub type EntityID = u64;
 
@@ -68,6 +70,26 @@ pub struct Entity {
     stage_map: StageMap,
 
     global_systems: IntSet<GlobalSystemID>,
+
+    /// An entity is considered a spatial entity if it provides
+    /// the [SpatialHierarchy] struct
+    hierarchy : Option<SpatialHierarchy>
+}
+
+/// A spatial hierarchy for entities. Entities that provide this 
+/// struct can define spatial relationships to other entities.
+#[derive(Debug)]
+pub struct SpatialHierarchy
+{
+    parent : Option<EntityPtr>,
+    children : Vec<EntityPtr>,
+
+    /// How many nodes in this spatial hierarchy, including the current node.
+    n_nodes : usize,
+
+    /// Amount of entities to run per stage in this hierarchy, 
+    /// including the current node
+    stage_count : [AtomicUsize; STAGE_COUNT]
 }
 
 impl Entity {
@@ -174,6 +196,7 @@ impl Entity {
             ls_stage_enabled_map,
             stage_map,
             global_systems,
+            hierarchy: None
         }
     }
 
@@ -275,16 +298,44 @@ impl Entity {
     #[inline(always)]
     /// If a stage is enabled for this entity
     pub fn is_stage_enabled(&self, stage_id: StageID) -> bool {
+
         self.ls_stage_enabled_map[stage_id as usize]
     }
+
+    /// Checks if this entity should run in the specified stage.
+    /// 
+    /// Note: this function is used by the engine to check if this entity 
+    /// should be included in the list of entities to run per stage
+    pub(super) fn should_run_in_stage(&self, stage_id: StageID) -> bool
+    {
+        if !self.is_spatial_entity()
+        {
+            return self.ls_stage_enabled_map[stage_id as usize];
+        }
+        else if self.is_root() {
+            let hierarchy = self.hierarchy.as_ref().unwrap();
+            let count_for_stage = hierarchy.stage_count[stage_id as usize].load(Ordering::Acquire);
+            return count_for_stage > 0;
+        }
+
+        // Never add spatial-non-root entities to the stage list, 
+        return false;
+    }
+
 
     /// Runs a stage. Note that it panics if the stage is not enabled
     /// Only to be called by the entity system
     pub(super) fn run_stage(&mut self, world: &World, stage_id: StageID) {
         debug_assert!(
-            self.is_stage_enabled(stage_id),
+            self.should_run_in_stage(stage_id),
             "Check if the stage is enabled before running it!"
         );
+
+        // Do nothing if this stage is not enabled for this entity
+        if !self.is_stage_enabled(stage_id)
+        {
+            return;
+        }
 
         let stage = self
             .stage_map
@@ -303,6 +354,64 @@ impl Entity {
             );
             indices_start += indices_num;
         }
+    }
+
+    pub(super) fn run_stage_recursive(&mut self, world: &World, stage_id: StageID)
+    {
+        debug_assert!(self.is_spatial_entity(), "Can't recursively run stages for a non-spatial entity");
+        let mut recursion_stack : Vec<EntityPtr> = Vec::with_capacity(20);
+        self.run_stage_recursive_no_alloc(world, stage_id, &mut recursion_stack);
+    }
+
+    /// Run a stage recursively for an entity which is a spatial entity.
+    /// 
+    /// This function will ensure that the update order for entities is consistent
+    /// with the hierarchy structure. Parents should always run before their children,
+    /// and siblings can run in parallel
+    pub(super) fn run_stage_recursive_no_alloc(&mut self, world: &World, stage_id: StageID, recursion_stack:&mut Vec<EntityPtr>)
+    {
+        // TODO change this recursion to use rayon for parallel execution
+        debug_assert!(self.is_spatial_entity(), "Can't recursively run stages for a non-spatial entity");
+        debug_assert!(self.is_root(), "Entity to run recursively should be the root entity!");
+        debug_assert!(recursion_stack.is_empty(), "Recursion stack should be empty or results will be inconsistent");
+
+        // Run stage for the current node and push its children
+        self.run_stage(world, stage_id);
+        for child in self.hierarchy.as_ref().unwrap().children.iter()
+        {
+            recursion_stack.push(child.clone());
+        }
+
+        // Perform a dfs traversal over the children of this node.
+        // We use iterative DFS to prevent recursion overhead
+        while !recursion_stack.is_empty()
+        {
+            let entity_lock = recursion_stack.pop().unwrap();
+            let mut entity = entity_lock.write();
+            entity.run_stage(world, stage_id);
+
+            for child in entity.hierarchy.as_ref().unwrap().children.iter()
+            {
+                recursion_stack.push(child.clone());
+            }
+        }
+    }
+
+    /// Checks if this entity is a spatial entity
+    #[inline(always)]
+    pub fn is_spatial_entity(&self) -> bool
+    {
+        self.hierarchy.is_some()
+    }
+
+    /// Checks if this entity is a root entity. 
+    /// 
+    /// Will panic if not a spatial entity.
+    #[inline(always)]
+    pub fn is_root(&self) -> bool
+    {
+        debug_assert!(self.is_spatial_entity(), "Non-spatial entities can't have a root");
+        self.hierarchy.as_ref().unwrap().is_root()
     }
 }
 
@@ -434,5 +543,15 @@ impl std::fmt::Debug for Entity {
             .field("ls_stage_enabled_map", &ls_stage_enabled_map)
             .field("stages", &stage_map)
             .finish()
+    }
+}
+
+impl SpatialHierarchy {
+
+    /// Checks if this hierarchy node is the root of some hierarchy
+    #[inline(always)]
+    pub fn is_root(&self) -> bool
+    {
+        self.parent.is_none()
     }
 }
