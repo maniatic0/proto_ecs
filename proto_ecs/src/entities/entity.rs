@@ -85,7 +85,7 @@ pub struct SpatialHierarchy
     children : Vec<EntityPtr>,
 
     /// How many nodes in this spatial hierarchy, including the current node.
-    n_nodes : usize,
+    n_nodes : usize, // ? Should this be an Atomic instead?
 
     /// Amount of entities to run per stage in this hierarchy, 
     /// including the current node
@@ -370,7 +370,8 @@ impl Entity {
     /// and siblings can run in parallel
     pub(super) fn run_stage_recursive_no_alloc(&mut self, world: &World, stage_id: StageID, recursion_stack:&mut Vec<EntityPtr>)
     {
-        // TODO change this recursion to use rayon for parallel execution
+        // TODO change this function to use rayon for parallel execution.
+        // As long as the parent updates before its children, you can run it in parallel
         debug_assert!(self.is_spatial_entity(), "Can't recursively run stages for a non-spatial entity");
         debug_assert!(self.is_root(), "Entity to run recursively should be the root entity!");
         debug_assert!(recursion_stack.is_empty(), "Recursion stack should be empty or results will be inconsistent");
@@ -412,6 +413,114 @@ impl Entity {
     {
         debug_assert!(self.is_spatial_entity(), "Non-spatial entities can't have a root");
         self.hierarchy.as_ref().unwrap().is_root()
+    }
+
+    /// Sets `other_ptr` as the parent of `entity_ptr`
+    /// 
+    /// # Panics
+    /// If `other` is not a spatial entity, or if this is not a spatial entity
+    pub fn set_parent(entity_ptr : EntityPtr, other_ptr : EntityPtr)
+    {
+        debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't set parent of non-spatial entity");
+        debug_assert!(other_ptr.read().is_spatial_entity(), "Parent entity should be a spatial entity as well");
+        debug_assert!(entity_ptr.read().id != other_ptr.read().id, "Can't be parent of yourself");
+        
+        // Clear current parent. Note that you have to sub a few counters from the old parent before 
+        // reparenting
+        Entity::clear_parent(entity_ptr);
+
+        let mut entity = entity_ptr.write();        
+        let hierarchy = entity.hierarchy.as_mut().unwrap();
+
+        hierarchy.parent = Some(other_ptr);
+
+        // Make this node a child of the other node
+        {
+            let mut other = other_ptr.write();
+            let other_hierarchy = other.hierarchy.as_mut().unwrap();
+            other_hierarchy.children.push(entity_ptr);
+        }
+
+        // Now we have to go upwards updating the parent with the 
+        // cached values of the amount of entities and entities that want to run 
+        // some stage
+        let mut next_parent_ptr = Some(other_ptr);
+        while next_parent_ptr.is_some()
+        {
+            let next_parent;
+            {
+                let mut parent = next_parent_ptr.as_mut().unwrap().write();
+                let parent_hierarchy = parent.hierarchy.as_mut().unwrap();
+                parent_hierarchy.n_nodes += hierarchy.n_nodes;
+                for i in 0..STAGE_COUNT
+                {
+                    // Add to the nodes per stage
+                    parent_hierarchy.stage_count[i]
+                    .fetch_add(
+                        hierarchy.stage_count[i].load(Ordering::Acquire), 
+                        Ordering::Acquire
+                    );
+                }
+
+                next_parent = parent_hierarchy.parent;
+            }
+            
+            next_parent_ptr = next_parent;
+        }
+    }
+
+    /// Clears the parent of this entity, setting it to None
+    /// 
+    /// # Panics
+    /// if this is not a spatial entity
+    pub fn clear_parent(entity_ptr : EntityPtr)
+    {
+        debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't clear parent of a non-spatial entity");
+
+        let mut entity = entity_ptr.write();
+        let hierarchy = entity.hierarchy.as_mut().unwrap();
+        let mut parent = hierarchy.parent;
+
+        // Return if nothing to do
+        if parent.is_none() 
+        { return; }
+
+        while parent.is_some()
+        {
+            let next_parent;
+            {
+                let mut parent = parent.as_mut().unwrap().write();
+                let parent_hierarchy = parent.hierarchy.as_mut().unwrap();
+
+                parent_hierarchy.n_nodes -= hierarchy.n_nodes;
+                for i in 0..STAGE_COUNT
+                {
+                    parent_hierarchy.stage_count[i]
+                        .fetch_sub(
+                            hierarchy.stage_count[i].load(Ordering::Acquire), 
+                            Ordering::Acquire
+                        );
+                }
+                next_parent = parent_hierarchy.parent;
+            }
+
+            parent = next_parent;
+        }
+
+        // Remove `entity_ptr` from the child list of `parent_ptr`
+        {
+            let mut parent = hierarchy.parent.as_mut().unwrap().write();
+            let parent_hierarchy = parent.hierarchy.as_mut().unwrap();
+            for i in 0..parent_hierarchy.children.len()
+            {
+                let child = parent_hierarchy.children[i];
+                if child == entity_ptr
+                {
+                    parent_hierarchy.children.swap_remove(i);
+                    break;
+                }
+            }
+        }
     }
 }
 
