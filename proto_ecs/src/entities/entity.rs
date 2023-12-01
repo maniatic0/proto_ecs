@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 
 use crate::{
     core::{
@@ -21,7 +21,7 @@ use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
 use vector_map::{set::VecSet, VecMap};
 
-use super::entity_system::{World, EntityPtr};
+use super::{entity_system::{World, EntityPtr}, transform_datagroup::Transform};
 
 pub type EntityID = u64;
 
@@ -71,25 +71,8 @@ pub struct Entity {
 
     global_systems: IntSet<GlobalSystemID>,
 
-    /// An entity is considered a spatial entity if it provides
-    /// the [SpatialHierarchy] struct
-    hierarchy : Option<SpatialHierarchy>
-}
-
-/// A spatial hierarchy for entities. Entities that provide this 
-/// struct can define spatial relationships to other entities.
-#[derive(Debug)]
-pub struct SpatialHierarchy
-{
-    parent : Option<EntityPtr>,
-    children : Vec<EntityPtr>,
-
-    /// How many nodes in this spatial hierarchy, including the current node.
-    n_nodes : usize, // ? Should this be an Atomic instead?
-
-    /// Amount of entities to run per stage in this hierarchy, 
-    /// including the current node
-    stage_count : [AtomicUsize; STAGE_COUNT]
+    // Index of the transform datagroup in the `datagroups` vector
+    transform_index: usize
 }
 
 impl Entity {
@@ -106,9 +89,10 @@ impl Entity {
         let dg_registry = DataGroupRegistry::get_global_registry().read();
         let mut datagroups = DataGroupVec::new();
 
+        let mut transform_requested = false;
         for (id, init_params) in data_groups {
             let entry = dg_registry.get_entry_by_id(id);
-
+            
             let mut new_dg = (entry.factory_func)();
 
             match init_params {
@@ -122,10 +106,21 @@ impl Entity {
             }
 
             datagroups.push(new_dg);
+
+            transform_requested = transform_requested || id == Transform::get_id();
         }
 
         // Sort them to be able to use binary search
         datagroups.sort_by_key(|dg| dg.get_id());
+        let mut transform_index = usize::MAX;
+        if transform_requested
+        {
+            transform_index = datagroups
+                .binary_search_by_key(
+                    &Transform::get_id(), 
+                    |dg|{dg.get_id()}
+                ).unwrap();
+        }
 
         // Build temp map for their positions (for Local Systems lookup)
         let mut dg_to_pos_map: IntMap<DataGroupID, DataGroupIndexingType> = IntMap::default();
@@ -186,7 +181,7 @@ impl Entity {
         }
         local_systems_indices.shrink_to_fit();
 
-        Self {
+        let mut entity = Self {
             id,
             name,
             debug_info,
@@ -196,8 +191,16 @@ impl Entity {
             ls_stage_enabled_map,
             stage_map,
             global_systems,
-            hierarchy: None
+            transform_index
+        };
+
+        // Remember to initialize transform 
+        if entity.is_spatial_entity()
+        {
+            entity.init_transform();
         }
+
+        entity
     }
 
     #[inline(always)]
@@ -252,6 +255,24 @@ impl Entity {
         DG: IDLocator + DataGroup + CanCast + Sized + 'static,
     {
         self.get_datagroup_by_id_mut(get_id!(DG)).map(|dg| cast_mut(dg))
+    }
+
+    #[inline(always)]
+    pub fn get_transform(&self) -> Option<&Transform>
+    {
+        if self.transform_index == usize::MAX
+        { None }
+        else
+        { Some(cast(&self.datagroups[self.transform_index])) }
+    }
+
+    #[inline(always)]
+    pub fn get_transform_mut(&mut self) -> Option<&mut Transform>
+    {
+        if self.transform_index == usize::MAX
+        { None }
+        else
+        { Some(cast_mut(&mut self.datagroups[self.transform_index])) }
     }
 
     #[inline(always)]
@@ -313,7 +334,7 @@ impl Entity {
             return self.ls_stage_enabled_map[stage_id as usize];
         }
         else if self.is_root() {
-            let hierarchy = self.hierarchy.as_ref().unwrap();
+            let hierarchy = *self.get_transform().as_ref().unwrap();
             let count_for_stage = hierarchy.stage_count[stage_id as usize].load(Ordering::Acquire);
             return count_for_stage > 0;
         }
@@ -378,7 +399,7 @@ impl Entity {
 
         // Run stage for the current node and push its children
         self.run_stage(world, stage_id);
-        for child in self.hierarchy.as_ref().unwrap().children.iter()
+        for child in self.get_transform().as_ref().unwrap().children.iter()
         {
             recursion_stack.push(child.clone());
         }
@@ -391,7 +412,7 @@ impl Entity {
             let mut entity = entity_lock.write();
             entity.run_stage(world, stage_id);
 
-            for child in entity.hierarchy.as_ref().unwrap().children.iter()
+            for child in entity.get_transform().as_ref().unwrap().children.iter()
             {
                 recursion_stack.push(child.clone());
             }
@@ -402,7 +423,7 @@ impl Entity {
     #[inline(always)]
     pub fn is_spatial_entity(&self) -> bool
     {
-        self.hierarchy.is_some()
+        self.get_transform().is_some()
     }
 
     /// Checks if this entity is a root entity. 
@@ -411,8 +432,10 @@ impl Entity {
     #[inline(always)]
     pub fn is_root(&self) -> bool
     {
-        debug_assert!(self.is_spatial_entity(), "Non-spatial entities can't have a root");
-        self.hierarchy.as_ref().unwrap().is_root()
+        let transform = self.get_transform();
+        debug_assert!(transform.is_some(), "Non-spatial entities can't have a root");
+
+        transform.as_ref().unwrap().is_root()
     }
 
     /// Sets `other_ptr` as the parent of `entity_ptr`
@@ -423,22 +446,21 @@ impl Entity {
     {
         debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't set parent of non-spatial entity");
         debug_assert!(other_ptr.read().is_spatial_entity(), "Parent entity should be a spatial entity as well");
-        debug_assert!(entity_ptr.read().id != other_ptr.read().id, "Can't be parent of yourself");
+        debug_assert!(entity_ptr.read().id != other_ptr.read().id, "Entity can't be its own parent!");
         
         // Clear current parent. Note that you have to sub a few counters from the old parent before 
         // reparenting
         Entity::clear_parent(entity_ptr);
 
         let mut entity = entity_ptr.write();        
-        let hierarchy = entity.hierarchy.as_mut().unwrap();
-
-        hierarchy.parent = Some(other_ptr);
+        let entity_transform = entity.get_transform_mut().unwrap();
+        entity_transform.parent = Some(other_ptr);
 
         // Make this node a child of the other node
         {
             let mut other = other_ptr.write();
-            let other_hierarchy = other.hierarchy.as_mut().unwrap();
-            other_hierarchy.children.push(entity_ptr);
+            let other_transform = other.get_transform_mut().unwrap();
+            other_transform.children.push(entity_ptr);
         }
 
         // Now we have to go upwards updating the parent with the 
@@ -450,19 +472,19 @@ impl Entity {
             let next_parent;
             {
                 let mut parent = next_parent_ptr.as_mut().unwrap().write();
-                let parent_hierarchy = parent.hierarchy.as_mut().unwrap();
-                parent_hierarchy.n_nodes += hierarchy.n_nodes;
+                let parent_transform = parent.get_transform_mut().unwrap();
+                parent_transform.n_nodes += entity_transform.n_nodes;
                 for i in 0..STAGE_COUNT
                 {
                     // Add to the nodes per stage
-                    parent_hierarchy.stage_count[i]
+                    parent_transform.stage_count[i]
                     .fetch_add(
-                        hierarchy.stage_count[i].load(Ordering::Acquire), 
+                        entity_transform.stage_count[i].load(Ordering::Acquire), 
                         Ordering::Acquire
                     );
                 }
 
-                next_parent = parent_hierarchy.parent;
+                next_parent = parent_transform.parent;
             }
             
             next_parent_ptr = next_parent;
@@ -476,10 +498,9 @@ impl Entity {
     pub fn clear_parent(entity_ptr : EntityPtr)
     {
         debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't clear parent of a non-spatial entity");
-
         let mut entity = entity_ptr.write();
-        let hierarchy = entity.hierarchy.as_mut().unwrap();
-        let mut parent = hierarchy.parent;
+        let transform = entity.get_transform_mut().unwrap();
+        let mut parent = transform.parent;
 
         // Return if nothing to do
         if parent.is_none() 
@@ -490,18 +511,18 @@ impl Entity {
             let next_parent;
             {
                 let mut parent = parent.as_mut().unwrap().write();
-                let parent_hierarchy = parent.hierarchy.as_mut().unwrap();
+                let parent_transform = parent.get_transform_mut().unwrap();
+                parent_transform.n_nodes -= transform.n_nodes;
 
-                parent_hierarchy.n_nodes -= hierarchy.n_nodes;
                 for i in 0..STAGE_COUNT
                 {
-                    parent_hierarchy.stage_count[i]
+                    parent_transform.stage_count[i]
                         .fetch_sub(
-                            hierarchy.stage_count[i].load(Ordering::Acquire), 
+                            transform.stage_count[i].load(Ordering::Acquire), 
                             Ordering::Acquire
                         );
                 }
-                next_parent = parent_hierarchy.parent;
+                next_parent = parent_transform.parent;
             }
 
             parent = next_parent;
@@ -509,16 +530,41 @@ impl Entity {
 
         // Remove `entity_ptr` from the child list of `parent_ptr`
         {
-            let mut parent = hierarchy.parent.as_mut().unwrap().write();
-            let parent_hierarchy = parent.hierarchy.as_mut().unwrap();
-            for i in 0..parent_hierarchy.children.len()
+            let mut parent = transform.parent.as_mut().unwrap().write();
+            let parent_transform = parent
+                                                .get_transform_mut()
+                                                .expect("Parent should be a spatial entity");
+
+            for i in 0..parent_transform.children.len()
             {
-                let child = parent_hierarchy.children[i];
+                let child = parent_transform.children[i];
                 if child == entity_ptr
                 {
-                    parent_hierarchy.children.swap_remove(i);
+                    parent_transform.children.swap_remove(i);
                     break;
                 }
+            }
+        }
+    }
+
+    /// Initializes the transform datagroup for this entity.
+    /// 
+    /// # Panics
+    /// If called in a non-spatial entity
+    fn init_transform(&mut self)
+    {
+        let ls_stages = &self.ls_stage_enabled_map;
+        let transform = self
+            .get_transform()
+            .expect("Can't init transform if entity has no transform");
+
+        // Set the right value fot all counters
+        for i in 0..STAGE_COUNT
+        {
+            let stage_enabled = ls_stages[i];
+            if stage_enabled
+            {
+                transform.stage_count[i].store(1, Ordering::Release)
             }
         }
     }
@@ -655,12 +701,5 @@ impl std::fmt::Debug for Entity {
     }
 }
 
-impl SpatialHierarchy {
 
-    /// Checks if this hierarchy node is the root of some hierarchy
-    #[inline(always)]
-    pub fn is_root(&self) -> bool
-    {
-        self.parent.is_none()
-    }
-}
+
