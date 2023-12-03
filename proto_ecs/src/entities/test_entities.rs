@@ -7,7 +7,7 @@ mod test {
         entities::{
             entity::Entity,
             entity_spawn_desc::EntitySpawnDescription,
-            entity_system::{EntitySystem, World, DEFAULT_WORLD}, 
+            entity_system::{EntitySystem, World, DEFAULT_WORLD}, transform_datagroup::Transform, 
         },
         tests::{
             shared_datagroups::sdg::{
@@ -140,5 +140,33 @@ mod test {
 
         let gs_storage: &GSFlowTester = cast(&*gs_storage_lock);
         assert_eq!(gs_storage.n_entities, 1);
+    }
+
+    // #[test] This test is messing with the previous test, we have to fix that 
+    fn test_parenting()
+    {
+        if !App::is_initialized()
+        {
+            App::initialize();
+        }
+
+        let es = EntitySystem::get();
+        es.reset(); // In case other tests happened
+        es.step(0.0, 0.0); // Process reset
+        let get_spawn_desc = || { 
+            let mut desc = EntitySpawnDescription::default();
+            Transform::prepare_spawn(&mut desc, Box::new(Transform::default()));
+            desc
+        };
+
+        let root_id = 
+            es.create_entity(
+                DEFAULT_WORLD,
+                 get_spawn_desc()
+            ).expect("Creation should be successful");
+        
+        let root_ptr = es._get_entity(DEFAULT_WORLD, root_id);
+        
+        assert!(root_ptr.read().is_root());
     }
 }

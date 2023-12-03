@@ -12,6 +12,7 @@ use crate::core::locking::RwLock;
 use crate::systems::common::{StageID, STAGE_COUNT};
 use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry};
 use crate::entities::entity_allocator::EntityAllocator;
+use super::entity::Entity;
 use super::entity_spawn_desc::EntitySpawnDescription;
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
@@ -216,12 +217,52 @@ impl World {
 
     /// Destroy an entity
     pub fn destroy_entity_internal(&self, id: EntityID) {
+        // Before deleting an entity, we have to check if the entity 
         let prev = self.entities.remove(&id);
         if prev.is_none() {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
             return;
         }
         let (_id, entity_ptr) = prev.unwrap();
+
+        // TODO I'm not sure this implementation is the best option for recursive deletion.
+
+        // Delete all your children bellow you if you're a spatial entity 
+        if entity_ptr.is_live() && entity_ptr.read().is_spatial_entity() // might be deleted 
+        {
+            // Note that the only parent that should be deleted with `clear_parent`
+            // is the first entity to be deleted in the hierarchy, for the rest we can just forget
+            // about their transform state since it doesn't matter after deletion.
+
+            // ? Can this be a problem if we want entities to have a `on_delete` callback? do we want one?
+
+            Entity::clear_parent(entity_ptr);
+            let mut entity_stack = Vec::with_capacity(100);
+            let mut ids_to_delete = Vec::with_capacity(100);
+            entity_stack.push(entity_ptr);
+
+            // Collect all entities in the hierarchy and delete their transform
+            while ! entity_stack.is_empty()
+            {
+                let next_entity_ptr = entity_stack.pop().unwrap();
+                let mut entity = next_entity_ptr.write();
+                entity.delete_transform();
+                ids_to_delete.push(entity.get_id());
+
+                let entity_transform = entity.get_transform().unwrap();
+                for entity_ptr in entity_transform.children.iter()
+                {
+                    entity_stack.push(entity_ptr.clone());
+                }
+            }
+
+            // delete all entities in the hierarchy. The order doesn't matter,
+            // so this might be a good place to add parallel execution with rayon
+            for id in ids_to_delete
+            {
+                self.destroy_entity_internal(id);
+            }
+        }
 
         // Destroy entity from iteration lists
         {
@@ -780,6 +821,17 @@ impl EntitySystem {
     pub(super) fn get_worlds(&self) -> &WorldMap
     {
         return &self.worlds;
+    }
+
+    /// Get a reference to an entity from the specified world.
+    /// 
+    /// This function is intended to be used in tests only. 
+    /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
+    pub(super) fn _get_entity(&self, world_id : WorldID, entity_id : EntityID) -> EntityPtr
+    {
+        let world = self.worlds.get(&world_id).unwrap();
+        let entity = world.entities.get(&entity_id).unwrap();
+        return entity.clone()
     }
 }
 

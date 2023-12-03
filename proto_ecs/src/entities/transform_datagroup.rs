@@ -11,6 +11,8 @@ use ecs_macros::{CanCast, register_datagroup, register_datagroup_init};
 
 use crate::{entities::entity_allocator::EntityPtr, systems::common::STAGE_COUNT, data_group::{DataGroup, GenericDataGroupInitArgTrait}};
 
+use super::entity::EntityID;
+
 /// A spatial hierarchy for entities. Entities that provide this 
 /// datagroup can define spatial relationships to other entities.
 #[derive(Debug, CanCast)]

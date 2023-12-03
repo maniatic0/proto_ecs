@@ -257,6 +257,17 @@ impl Entity {
         self.get_datagroup_by_id_mut(get_id!(DG)).map(|dg| cast_mut(dg))
     }
 
+    /// Use this function to mark this as without transform. 
+    /// 
+    /// Useful when you want an entity to forget about its transform.
+    pub(super) fn delete_transform(&mut self)
+    {
+        // the transform can't actually be deleted, 
+        // we just set its index to an invalid value so that all
+        // `get_transform` operations return `None`
+        self.transform_index = usize::MAX;
+    }
+
     #[inline(always)]
     pub fn get_transform(&self) -> Option<&Transform>
     {
