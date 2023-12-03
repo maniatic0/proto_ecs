@@ -7,7 +7,7 @@ mod test {
         entities::{
             entity::Entity,
             entity_spawn_desc::EntitySpawnDescription,
-            entity_system::{EntitySystem, World, DEFAULT_WORLD}, transform_datagroup::Transform, 
+            entity_system::{EntitySystem, World}, transform_datagroup::Transform, 
         },
         tests::{
             shared_datagroups::sdg::{
@@ -93,7 +93,9 @@ mod test {
         }
 
         let es = EntitySystem::get();
-        es.reset(); // In case other tests happened
+        let new_world_id = es.create_world();
+        // We can't reset bc it will delete worlds for other tests
+        // es.reset(); // In case other tests happened. 
         es.step(0.0, 0.0); // Process reset
 
         for _ in 0..100 {
@@ -108,7 +110,7 @@ mod test {
 
             spawn_desc.set_name("Test Name".to_owned());
 
-            es.create_entity(DEFAULT_WORLD, spawn_desc)
+            es.create_entity(new_world_id, spawn_desc)
                 .expect("Failed to create entity!");
         }
 
@@ -119,12 +121,12 @@ mod test {
         spawn_desc.check_datagroups_panic(); // Should not panic
         spawn_desc.set_name("GSFlow Entity".to_owned());
 
-        let entity_id = es.create_entity(DEFAULT_WORLD, spawn_desc).expect("Failed to create entity!");
+        let entity_id = es.create_entity(new_world_id, spawn_desc).expect("Failed to create entity!");
 
         es.step(0.0, 0.0);
 
         // Check that the entity with `GSFlowDG` has the right state
-        let world = es.get_worlds().get(&DEFAULT_WORLD).unwrap();
+        let world = es.get_worlds().get(&new_world_id).unwrap();
         let entities = world.get_entities();
         let entity_lock = entities.get(&entity_id).expect("Should retrieve entity that was previously created"); 
         let entity = entity_lock.read();
@@ -140,9 +142,10 @@ mod test {
 
         let gs_storage: &GSFlowTester = cast(&*gs_storage_lock);
         assert_eq!(gs_storage.n_entities, 1);
+        es.destroy_world(new_world_id);
     }
 
-    // #[test] This test is messing with the previous test, we have to fix that 
+    #[test]
     fn test_parenting()
     {
         if !App::is_initialized()
@@ -151,8 +154,9 @@ mod test {
         }
 
         let es = EntitySystem::get();
-        es.reset(); // In case other tests happened
-        es.step(0.0, 0.0); // Process reset
+        let new_world_id = es.create_world();
+        es.step(0.0, 0.0); // Process world creation
+
         let get_spawn_desc = || { 
             let mut desc = EntitySpawnDescription::default();
             Transform::prepare_spawn(&mut desc, Box::new(Transform::default()));
@@ -161,12 +165,24 @@ mod test {
 
         let root_id = 
             es.create_entity(
-                DEFAULT_WORLD,
+                new_world_id,
                  get_spawn_desc()
             ).expect("Creation should be successful");
         
-        let root_ptr = es._get_entity(DEFAULT_WORLD, root_id);
-        
+        let node_id = 
+            es.create_entity(
+                new_world_id, 
+                get_spawn_desc()
+            ).expect("Creation should be successful");
+
+        es.step(0.0, 0.0); // Process entity creation
+        let root_ptr = es._get_entity(new_world_id, root_id);
+        let node_ptr = es._get_entity(new_world_id, node_id);
+        Entity::set_parent(node_ptr, root_ptr);
+
         assert!(root_ptr.read().is_root());
+        assert!(!node_ptr.read().is_root());
+        
+        es.destroy_world(new_world_id);
     }
 }
