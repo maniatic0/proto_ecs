@@ -96,7 +96,7 @@ mod test {
         let new_world_id = es.create_world();
         // We can't reset bc it will delete worlds for other tests
         // es.reset(); // In case other tests happened. 
-        es.step(0.0, 0.0); // Process reset
+        es.step_world(0.0, 0.0, new_world_id); // Process reset
 
         for _ in 0..100 {
             let mut spawn_desc = EntitySpawnDescription::default();
@@ -123,7 +123,7 @@ mod test {
 
         let entity_id = es.create_entity(new_world_id, spawn_desc).expect("Failed to create entity!");
 
-        es.step(0.0, 0.0);
+        es.step_world(0.0, 0.0, new_world_id);
 
         // Check that the entity with `GSFlowDG` has the right state
         let world = es.get_worlds().get(&new_world_id).unwrap();
@@ -142,6 +142,7 @@ mod test {
 
         let gs_storage: &GSFlowTester = cast(&*gs_storage_lock);
         assert_eq!(gs_storage.n_entities, 1);
+        
         es.destroy_world(new_world_id);
     }
 
@@ -155,7 +156,7 @@ mod test {
 
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
-        es.step(0.0, 0.0); // Process world creation
+        es.step_world(0.0, 0.0, new_world_id); // Process world creation
 
         let get_spawn_desc = || { 
             let mut desc = EntitySpawnDescription::default();
@@ -175,9 +176,9 @@ mod test {
                 get_spawn_desc()
             ).expect("Creation should be successful");
 
-        es.step(0.0, 0.0); // Process entity creation
-        let root_ptr = es._get_entity(new_world_id, root_id);
-        let node_ptr = es._get_entity(new_world_id, node_id);
+        es.step_world(0.0, 0.0, new_world_id); // Process entity creation
+        let root_ptr = es.get_entity(new_world_id, root_id);
+        let node_ptr = es.get_entity(new_world_id, node_id);
         Entity::set_parent(node_ptr, root_ptr);
 
         assert!(root_ptr.read().is_root());

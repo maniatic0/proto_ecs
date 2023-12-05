@@ -345,8 +345,8 @@ impl World {
     fn process_global_systems_commands(&self) {
         let mut changed = false;
         // Delete global systems scheduled for deletion
-        while !self.gs_deletion_queue.is_empty() {
-            let gs_to_delete = **self.gs_creation_queue.pop().unwrap();
+        while let Some(val) = self.gs_deletion_queue.pop() {
+            let gs_to_delete = **val;
 
             // If just deleted skip deletion
             if !self.global_system_is_loaded(gs_to_delete) {
@@ -355,16 +355,16 @@ impl World {
             }
         }
 
-        // Create global systems scheduled for deletion
-        while !self.gs_creation_queue.is_empty() {
-            let gs_to_create = **self.gs_creation_queue.pop().unwrap();
-
+        // Create global systems scheduled for creation
+        while let Some(val) = self.gs_creation_queue.pop(){
+            let gs_to_create = **val;
+        
             // If already created just skip creation
             if !self.global_system_is_loaded(gs_to_create) {
                 self.load_global_system(gs_to_create);
                 changed = true;
             }
-        }
+        } 
 
         // we have to sort stage vectors so that global systems run in the right order
         if changed {
@@ -380,9 +380,12 @@ impl World {
         // Process all deletions
         if !self.deletion_queue.is_empty() {
             let mut work: Vec<EntityID> = Vec::new();
-            while !self.deletion_queue.is_empty() {
-                let pop = self.deletion_queue.pop().unwrap();
-                work.push(**pop);
+            loop  {
+                match self.deletion_queue.pop()
+                {
+                    None => break,
+                    Some(val) => {work.push(**val)}
+                }
             }
 
             work.into_par_iter().for_each(|id| {
@@ -393,9 +396,12 @@ impl World {
         // Process all creations
         if !self.creation_queue.is_empty() {
             let mut work: Vec<(EntityID, EntitySpawnDescription)> = Vec::new();
-            while !self.creation_queue.is_empty() {
-                let pop = self.creation_queue.pop().unwrap();
-                work.push(pop.write().take().unwrap());
+            loop  {
+                match self.creation_queue.pop()
+                {
+                    None => break, 
+                    Some(val) => work.push(val.write().take().unwrap())
+                }
             }
 
             work.into_par_iter().for_each(|(id, spawn_desc)| {
@@ -840,11 +846,62 @@ impl EntitySystem {
     /// 
     /// This function is intended to be used in tests only. 
     /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
-    pub(super) fn _get_entity(&self, world_id : WorldID, entity_id : EntityID) -> EntityPtr
+    #[cfg(test)]
+    pub(super) fn get_entity(&self, world_id : WorldID, entity_id : EntityID) -> EntityPtr
     {
         let world = self.worlds.get(&world_id).unwrap();
         let entity = world.entities.get(&entity_id).unwrap();
         return entity.clone()
+    }
+
+    /// Run a step for the specified world. Specially useful to run a word per test 
+    /// avoid triggering concurrent steps for all stored worlds
+    #[cfg(test)]
+    pub(super) fn step_world(&self, 
+            new_delta_time: DeltaTimeType, 
+            fixed_delta_time: DeltaTimeType, 
+            world_id : WorldID
+        )
+    {
+        // Set the current unscaled delta time
+        self.delta_time.store(new_delta_time, Ordering::Release);
+        self.fixed_delta_time
+            .store(fixed_delta_time, Ordering::Release);
+
+        self.worlds.get(&world_id)
+                    .and_then(
+                        |world| 
+                        { world.update_delta_time_internal(
+                            self.get_delta_time(), 
+                            self.get_fixed_delta_time()); 
+                            Some(())
+                        })
+                    .expect("World not found");
+        
+        for stage_id in 0..STAGE_COUNT
+        {
+            self.process_stage_world(stage_id as StageID, world_id)
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn process_stage_world(&self, stage_id: StageID, world_id: WorldID)
+    {
+        // Process all commands created before the stage
+        self.process_world_command_queues();
+
+        // Process worlds in parallel
+        self.worlds.get(&world_id)
+            .and_then(
+                |world| 
+                {
+                    world.run_stage(stage_id); 
+                    Some(())
+                })
+            .expect("World should exists by now");
+
+        // Process all commands created in the stage
+        self.process_world_command_queues();
     }
 }
 
