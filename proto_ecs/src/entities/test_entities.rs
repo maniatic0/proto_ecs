@@ -175,14 +175,60 @@ mod test {
                 new_world_id, 
                 get_spawn_desc()
             ).expect("Creation should be successful");
+        
+        let leaf_node_id = 
+            es.create_entity(
+                new_world_id, 
+                get_spawn_desc()
+            ).expect("Creation should be successful");
 
         es.step_world(0.0, 0.0, new_world_id); // Process entity creation
         let root_ptr = es.get_entity(new_world_id, root_id);
         let node_ptr = es.get_entity(new_world_id, node_id);
+        let leaf_node_ptr = es.get_entity(new_world_id, leaf_node_id);
         Entity::set_parent(node_ptr, root_ptr);
+        Entity::set_parent(leaf_node_ptr, node_ptr);
 
+        // Check that the nodes are parented as expected
         assert!(root_ptr.read().is_root());
         assert!(!node_ptr.read().is_root());
+
+        { // Check that the counters make sense 
+            let root = root_ptr.read();
+            let root_transform = root.get_transform().unwrap();
+            assert_eq!(root_transform.n_nodes, 3);
+
+            let node = node_ptr.read();
+            let node_transform = node.get_transform().unwrap();
+            assert_eq!(node_transform.n_nodes, 2);
+
+            let leaf_node = leaf_node_ptr.read();
+            let leaf_node_transform = leaf_node.get_transform().unwrap();
+            assert_eq!(leaf_node_transform.n_nodes, 1);
+        }
+
+        { // Check that parent is properly set
+            let node = node_ptr.read();
+            let node_transform = node.get_transform().unwrap();
+            assert!(node_transform.parent.is_some());
+            assert_eq!(node_transform.parent.unwrap(), root_ptr);
+        }
+
+        { // Check that deleting an intermediate node deletes the entire subtree
+            es.destroy_entity(new_world_id, node_id);
+            // force to delete
+            es.step_world(0.0, 0.0, new_world_id); 
+
+            assert!(!node_ptr.is_live());
+            assert!(!leaf_node_ptr.is_live());
+            assert!(root_ptr.is_live());
+
+            // Check that the root node is properly set
+            let root = root_ptr.read();
+            let root_transform = root.get_transform().unwrap();
+            assert_eq!(root_transform.n_nodes, 1);
+            assert!(root_transform.children.is_empty());
+        }
         
         es.destroy_world(new_world_id);
     }

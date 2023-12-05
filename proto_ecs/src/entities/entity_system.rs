@@ -233,7 +233,6 @@ impl World {
             // Note that the only parent that should be deleted with `clear_parent`
             // is the first entity to be deleted in the hierarchy, for the rest we can just forget
             // about their transform state since it doesn't matter after deletion.
-
             // ? Can this be a problem if we want entities to have a `on_delete` callback? do we want one?
 
             Entity::clear_parent(entity_ptr);
@@ -242,18 +241,19 @@ impl World {
             entity_stack.push(entity_ptr);
 
             // Collect all entities in the hierarchy and delete their transform
-            while ! entity_stack.is_empty()
+            while !entity_stack.is_empty()
             {
                 let next_entity_ptr = entity_stack.pop().unwrap();
                 let mut entity = next_entity_ptr.write();
-                entity.delete_transform();
-                ids_to_delete.push(entity.get_id());
-
+                
                 let entity_transform = entity.get_transform().unwrap();
                 for entity_ptr in entity_transform.children.iter()
                 {
                     entity_stack.push(entity_ptr.clone());
                 }
+                
+                entity.delete_transform();
+                ids_to_delete.push(entity.get_id());
             }
 
             // delete all entities in the hierarchy. The order doesn't matter,
