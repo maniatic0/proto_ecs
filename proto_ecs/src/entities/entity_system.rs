@@ -603,7 +603,6 @@ pub struct EntitySystem {
     world_id_counter: AtomicU16,
     destroy_world_queue: WorldDestroyQueue,
     merge_worlds_queue: WorldMergeQueue,
-    step_running: AtomicBool
 }
 
 impl EntitySystem {
@@ -717,15 +716,6 @@ impl EntitySystem {
 
     /// Step the entity system
     pub fn step(&self, new_delta_time: DeltaTimeType, fixed_delta_time: DeltaTimeType) {
-        if cfg!(test)
-        {
-            // This is only required during tests, since usually there's a single 
-            // thread calling step at the same time
-            while self.step_running.load(Ordering::Acquire)
-            { } // Busy wait until step is no longer running
-        }
-
-        self.step_running.store(true, Ordering::Release);
 
         // Set the current unscaled delta time
         self.delta_time.store(new_delta_time, Ordering::Release);
@@ -744,8 +734,6 @@ impl EntitySystem {
         for stage_id in 0..STAGE_COUNT {
             self.process_stage(stage_id as StageID);
         }
-
-        self.step_running.store(false, Ordering::Release);
     }
 
     /// Create a new entity in World `world_id` based on its spawn description. Note that the entity will spawn at the end of the current stage. If the world cannot be found, it returns an err
@@ -884,6 +872,10 @@ impl EntitySystem {
         }
     }
 
+    /// Process a stage for a specific world. 
+    /// 
+    /// This functions is intended to be used in tests only. 
+    /// DO NOT USE OUTSIDE A TEST
     #[cfg(test)]
     pub(super) fn process_stage_world(&self, stage_id: StageID, world_id: WorldID)
     {
@@ -920,10 +912,9 @@ impl EntitySystem {
             fixed_delta_time: Default::default(),
             requested_reset: Default::default(),
             worlds: Default::default(),
-            world_id_counter: AtomicU16::new(1), // Note that the default world has id 0
+            world_id_counter: AtomicU16::new(DEFAULT_WORLD + 1), // Note that the default world has id 0
             destroy_world_queue: Default::default(),
             merge_worlds_queue: Default::default(),
-            step_running: AtomicBool::new(false)
         };
 
         new_self.reset_internal();
