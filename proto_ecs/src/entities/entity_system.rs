@@ -8,12 +8,12 @@ use atomic_float::AtomicF64;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
+use super::entity::{self, Entity};
+use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
+use crate::entities::entity_allocator::EntityAllocator;
 use crate::systems::common::{StageID, STAGE_COUNT};
 use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry};
-use crate::entities::entity_allocator::EntityAllocator;
-use super::entity::Entity;
-use super::entity_spawn_desc::EntitySpawnDescription;
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 
@@ -56,23 +56,32 @@ pub type GlobalSystemStorage = RwLock<Box<dyn GlobalSystem>>;
 /// it means that it's not loaded
 pub type GlobalSystemMap = RwLock<Vec<Option<GlobalSystemStorage>>>;
 
-/// Vector with all the entities inside a world or inside a stage in a world (for faster iteration). 
+/// Vector with all the entities inside a world or inside a stage in a world (for faster iteration).
 /// Do not use at the same time as the entity map
 pub type EntitiesVec = RwLock<Vec<EntityPtr>>;
 
-/// Array used to count how many entities are subscribed to some global system 
+/// Array used to count how many entities are subscribed to some global system
 /// to know when we have to unload them
 pub type GlobalSystemCount = Vec<AtomicUsize>;
 
 /// World Identifier in the Entity System
 pub type WorldID = u16;
 
-/// A list of global system identifiers, mostly used to 
+/// A list of global system identifiers, mostly used to
 /// Know which global systems should be ran per stage
 pub type GlobalSystemIDVec = RwLock<Vec<GlobalSystemID>>;
 
 // A map from global system to the set of entities it has to run
 pub type GSEntitiesMap = RwLock<Vec<EntitiesVec>>;
+
+pub type ReparentingQueue = scc::Queue<ReparentingOps>;
+
+/// Possible re-parenting operations
+#[derive(Debug)]
+enum ReparentingOps {
+    SetParent { child: EntityID, parent: EntityID },
+    ClearParent(EntityID),
+}
 
 #[derive(Debug)]
 pub struct World {
@@ -85,14 +94,15 @@ pub struct World {
     entities_stages: [EntitiesVec; STAGE_COUNT],
     creation_queue: EntityCreationQueue,
     deletion_queue: EntityDeletionQueue,
+    reparenting_queue: ReparentingQueue,
 
-    global_system_stages: [GlobalSystemIDVec; STAGE_COUNT], 
+    global_system_stages: [GlobalSystemIDVec; STAGE_COUNT],
     global_systems: GlobalSystemMap,
     global_systems_count: GlobalSystemCount,
     gs_creation_queue: GlobalSystemQueue,
     gs_deletion_queue: GlobalSystemQueue,
     /// entities to run per stage per global system
-    gs_entity_map: GSEntitiesMap, 
+    gs_entity_map: GSEntitiesMap,
 }
 
 impl World {
@@ -124,12 +134,13 @@ impl World {
             entities_stages: core::array::from_fn(|_| Default::default()),
             creation_queue: Default::default(),
             deletion_queue: Default::default(),
+            reparenting_queue: Default::default(),
             global_systems: GlobalSystemMap::new(gs_map),
             global_systems_count: gs_count_array,
             global_system_stages: core::array::from_fn(|_| Default::default()),
             gs_creation_queue: Default::default(),
             gs_deletion_queue: Default::default(),
-            gs_entity_map: RwLock::new(gs_entity_map)
+            gs_entity_map: RwLock::new(gs_entity_map),
         }
     }
 
@@ -164,7 +175,6 @@ impl World {
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
-
         // Allocate entity from the global allocator
         let global_allocator = EntityAllocator::get_global();
         let mut entity_ptr = global_allocator.write().allocate();
@@ -185,6 +195,7 @@ impl World {
 
         let entity_ref = unsafe { &*(*entity_ptr).data_ptr() };
 
+        // Schedule this entity to run in the right stage
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
             if entity_ref.should_run_in_stage(stage_id) {
@@ -217,7 +228,7 @@ impl World {
 
     /// Destroy an entity
     pub fn destroy_entity_internal(&self, id: EntityID) {
-        // Before deleting an entity, we have to check if the entity 
+        // Before deleting an entity, we have to check if the entity
         let prev = self.entities.remove(&id);
         if prev.is_none() {
             println!("Failed to destroy Entity {id}, maybe it was already deleted (?)");
@@ -227,8 +238,9 @@ impl World {
 
         // TODO I'm not sure this implementation is the best option for recursive deletion.
 
-        // Delete all your children bellow you if you're a spatial entity 
-        if entity_ptr.is_live() && entity_ptr.read().is_spatial_entity() // might be deleted 
+        // Delete all your children bellow you if you're a spatial entity
+        if entity_ptr.is_live() && entity_ptr.read().is_spatial_entity()
+        // might be deleted
         {
             // Note that the only parent that should be deleted with `clear_parent`
             // is the first entity to be deleted in the hierarchy, for the rest we can just forget
@@ -241,34 +253,32 @@ impl World {
             entity_stack.push(entity_ptr);
 
             // Collect all entities in the hierarchy and delete their transform
-            while !entity_stack.is_empty()
-            {
+            while !entity_stack.is_empty() {
                 let next_entity_ptr = entity_stack.pop().unwrap();
                 let mut entity = next_entity_ptr.write();
-                
+
                 let entity_transform = entity.get_transform().unwrap();
-                for entity_ptr in entity_transform.children.iter()
-                {
+                for entity_ptr in entity_transform.children.iter() {
                     entity_stack.push(entity_ptr.clone());
                 }
-                
+
                 entity.delete_transform();
                 ids_to_delete.push(entity.get_id());
             }
 
             // delete all entities in the hierarchy. The order doesn't matter,
             // so this might be a good place to add parallel execution with rayon
-            for id in ids_to_delete
-            {
+            for id in ids_to_delete {
                 self.destroy_entity_internal(id);
             }
+
+            // TODO we have to update the list of entities to run per stage after all children were deleted
         }
 
         // Destroy entity from iteration lists
         {
             let mut entities_all = self.entities_all.write();
-            for i in 0..entities_all.len()
-            {
+            for i in 0..entities_all.len() {
                 let vec_ref = entities_all[i];
                 if vec_ref == entity_ptr {
                     entities_all.swap_remove(i);
@@ -283,8 +293,8 @@ impl World {
             for &gs_id in entity_ptr.read().get_global_systems() {
                 let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
 
-                if result == 1
-                { // this was the last entity requiring this GS
+                if result == 1 {
+                    // this was the last entity requiring this GS
                     self.gs_deletion_queue.push(gs_id);
                 }
 
@@ -292,11 +302,9 @@ impl World {
                 let gs_entities_map = self.gs_entity_map.read();
                 let gs_entities = &mut gs_entities_map[gs_id as usize].write();
 
-                for i in 0..gs_entities.len()
-                {
+                for i in 0..gs_entities.len() {
                     let other_entity_ptr = gs_entities[i];
-                    if other_entity_ptr == entity_ptr
-                    {
+                    if other_entity_ptr == entity_ptr {
                         gs_entities.swap_remove(i);
                     }
                 }
@@ -317,9 +325,77 @@ impl World {
         }
 
         deallocate_entity_id(id);
-        // Actually destroy entity 
+        // Actually destroy entity
         let global_allocator = EntityAllocator::get_global();
         global_allocator.write().free(&entity_ptr);
+    }
+
+    /// Request to make `parent_id` the parent of `entity_id`.
+    ///
+    /// The reparenting operation will take effect the next frame, not the current frame.
+    /// You can call this over an entity that will be created for the next frame
+    pub fn set_entity_parent(&self, entity_id: EntityID, parent_id: EntityID) {
+        self.reparenting_queue.push(ReparentingOps::SetParent {
+            child: entity_id,
+            parent: parent_id,
+        });
+    }
+
+    /// Request to clear the parent of `entity_id`.
+    ///
+    /// The reparenting operation will take effect the next frame, not the current frame.
+    pub fn clear_entity_parent(&self, entity_id: EntityID) {
+        self.reparenting_queue
+            .push(ReparentingOps::ClearParent(entity_id));
+    }
+
+    pub(super) fn set_entity_parent_internal(&self, entity_id: EntityID, parent_id: EntityID) {
+        let mut old_stages_to_run = [false; STAGE_COUNT];
+        let parent_ptr = self
+            .entities
+            .get(&parent_id)
+            .expect("Entity should be created by now!");
+        let entity_ptr = self
+            .entities
+            .get(&entity_id)
+            .expect("Entity should be created by now!");
+
+        for stage_id in 0..STAGE_COUNT {
+            old_stages_to_run[stage_id] =
+                parent_ptr.read().should_run_in_stage(stage_id as StageID);
+        }
+
+        Entity::set_parent(*entity_ptr, *parent_ptr);
+
+        // Now check if we have to update the internal local system running list
+        let mut root = *parent_ptr;
+
+        // Get hierarchy root
+        while !root.read().is_root() {
+            let parent;
+            {
+                let root_obj = root.read();
+                let root_transform = root_obj.get_transform().unwrap();
+                parent = root_transform.parent.unwrap();
+            }
+            root = parent;
+        }
+
+        // TODO if the entity didn't had a parent, it might be a root that should be removed from the per-stage run list
+        for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+            if root.read().should_run_in_stage(stage_id as StageID) && !old_stages_to_run[stage_id]
+            {
+                stage_vec.write().push(root);
+            }
+        }
+    }
+
+    pub(super) fn clear_parent_internal(&self, entity_id: EntityID) {
+        // TODO We have to:
+        //  Actually clear the parent
+        //  remove the root of this entity from the per-stage entity list
+        //  add this entity to the per-stage entity list
+        todo!("Implement this like the re-parent")
     }
 
     // Update the delta times in this world
@@ -356,15 +432,15 @@ impl World {
         }
 
         // Create global systems scheduled for creation
-        while let Some(val) = self.gs_creation_queue.pop(){
+        while let Some(val) = self.gs_creation_queue.pop() {
             let gs_to_create = **val;
-        
+
             // If already created just skip creation
             if !self.global_system_is_loaded(gs_to_create) {
                 self.load_global_system(gs_to_create);
                 changed = true;
             }
-        } 
+        }
 
         // we have to sort stage vectors so that global systems run in the right order
         if changed {
@@ -380,12 +456,8 @@ impl World {
         // Process all deletions
         if !self.deletion_queue.is_empty() {
             let mut work: Vec<EntityID> = Vec::new();
-            loop  {
-                match self.deletion_queue.pop()
-                {
-                    None => break,
-                    Some(val) => {work.push(**val)}
-                }
+            while let Some(val) = self.deletion_queue.pop() {
+                work.push(**val);
             }
 
             work.into_par_iter().for_each(|id| {
@@ -396,17 +468,27 @@ impl World {
         // Process all creations
         if !self.creation_queue.is_empty() {
             let mut work: Vec<(EntityID, EntitySpawnDescription)> = Vec::new();
-            loop  {
-                match self.creation_queue.pop()
-                {
-                    None => break, 
-                    Some(val) => work.push(val.write().take().unwrap())
-                }
+            while let Some(val) = self.creation_queue.pop() {
+                work.push(val.write().take().unwrap())
             }
 
             work.into_par_iter().for_each(|(id, spawn_desc)| {
                 self.create_entity_internal(id, spawn_desc);
             });
+        }
+
+        // Process re-parenting
+        if !self.reparenting_queue.is_empty() {
+            // No parallelism allowed here, reparenting operations
+            // require careful manipulation between references of entities
+            while let Some(op) = self.reparenting_queue.pop() {
+                match **op {
+                    ReparentingOps::SetParent { child, parent } => {
+                        self.set_entity_parent_internal(child, parent)
+                    }
+                    ReparentingOps::ClearParent(entity) => self.clear_parent_internal(entity),
+                }
+            }
         }
     }
 
@@ -419,12 +501,13 @@ impl World {
         {
             // Run Stage in all entities
             let entities_stage = self.entities_stages[stage_id as usize].read();
-            if !entities_stage.is_empty() {
+            if entities_stage.is_empty() {
                 // Nothing to do, no more commands can be created
                 // TODO: Check this for Global Systems. They might need to execute?
                 return;
             }
 
+            println!("Stage has {} entities", entities_stage.len());
             entities_stage
                 .par_chunks(World::CHUNKS_NUM)
                 .for_each(|map_refs| {
@@ -433,14 +516,20 @@ impl World {
                         let entity = unsafe { &mut *map_ref.data_ptr() };
                         let mut recursion_stack = Vec::with_capacity(20);
 
+                        println!("Entity is {}", entity.get_name());
+
                         // Check if stage is enabled before running
                         if !entity.is_spatial_entity() && entity.is_stage_enabled(stage_id) {
                             // If not a spatial entity, just run it
                             entity.run_stage(self, stage_id);
-                        }
-                        else if entity.is_spatial_entity() && entity.should_run_in_stage(stage_id){
+                        } else if entity.is_spatial_entity() && entity.should_run_in_stage(stage_id)
+                        {
                             // If a spatial entity, run recursively
-                            entity.run_stage_recursive_no_alloc(self, stage_id, &mut recursion_stack);
+                            entity.run_stage_recursive_no_alloc(
+                                self,
+                                stage_id,
+                                &mut recursion_stack,
+                            );
                         }
                     }
                 });
@@ -534,29 +623,27 @@ impl World {
         todo!("Implement world merge!")
     }
 
-    /// Get a reference to the entity map. 
-    /// 
+    /// Get a reference to the entity map.
+    ///
     /// This function is intended to be used for tests
     /// to check the state of some entity.
-    /// 
+    ///
     /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[inline(always)]
     #[allow(unused)]
-    pub(super) fn get_entities(&self) -> &EntityMap
-    {
+    pub(super) fn get_entities(&self) -> &EntityMap {
         &self.entities
     }
 
-    /// Get a reference to the global system map. 
-    /// 
+    /// Get a reference to the global system map.
+    ///
     /// This function is intended to be used for tests
     /// to check the state of some global system.
-    /// 
+    ///
     /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[inline(always)]
     #[allow(unused)]
-    pub(super) fn get_global_systems(&self) -> &GlobalSystemMap
-    {
+    pub(super) fn get_global_systems(&self) -> &GlobalSystemMap {
         &self.global_systems
     }
 }
@@ -716,7 +803,6 @@ impl EntitySystem {
 
     /// Step the entity system
     pub fn step(&self, new_delta_time: DeltaTimeType, fixed_delta_time: DeltaTimeType) {
-
         // Set the current unscaled delta time
         self.delta_time.store(new_delta_time, Ordering::Release);
         self.fixed_delta_time
@@ -817,79 +903,82 @@ impl EntitySystem {
         );
     }
 
-    /// Get a reference to worlds. 
-    /// 
+    /// Get a reference to worlds.
+    ///
     /// This function is intended to be used for tests
     /// to check the state of some world.
-    /// 
+    ///
     /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[inline(always)]
     #[allow(unused)]
-    pub(super) fn get_worlds(&self) -> &WorldMap
-    {
+    pub(super) fn get_worlds(&self) -> &WorldMap {
         return &self.worlds;
     }
 
     /// Get a reference to an entity from the specified world.
-    /// 
-    /// This function is intended to be used in tests only. 
+    ///
+    /// This function is intended to be used in tests only.
     /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
     #[cfg(test)]
-    pub(super) fn get_entity(&self, world_id : WorldID, entity_id : EntityID) -> EntityPtr
-    {
+    pub(super) fn get_entity(&self, world_id: WorldID, entity_id: EntityID) -> EntityPtr {
         let world = self.worlds.get(&world_id).unwrap();
         let entity = world.entities.get(&entity_id).unwrap();
-        return entity.clone()
+        return entity.clone();
     }
 
-    /// Run a step for the specified world. Specially useful to run a word per test 
+    /// Get a reference to the worldmap
+    ///
+    /// This function is intended to be used in tests only.
+    /// DO NOT USE THIS FUNCTION OUTSIDE TESTS
+    #[cfg(test)]
+    pub(super) fn get_world_map(&self) -> &WorldMap {
+        return &self.worlds;
+    }
+
+    /// Run a step for the specified world. Specially useful to run a word per test
     /// avoid triggering concurrent steps for all stored worlds
     #[cfg(test)]
-    pub(super) fn step_world(&self, 
-            new_delta_time: DeltaTimeType, 
-            fixed_delta_time: DeltaTimeType, 
-            world_id : WorldID
-        )
-    {
+    pub(super) fn step_world(
+        &self,
+        new_delta_time: DeltaTimeType,
+        fixed_delta_time: DeltaTimeType,
+        world_id: WorldID,
+    ) {
         // Set the current unscaled delta time
         self.delta_time.store(new_delta_time, Ordering::Release);
         self.fixed_delta_time
             .store(fixed_delta_time, Ordering::Release);
 
-        self.worlds.get(&world_id)
-                    .and_then(
-                        |world| 
-                        { world.update_delta_time_internal(
-                            self.get_delta_time(), 
-                            self.get_fixed_delta_time()); 
-                            Some(())
-                        })
-                    .expect("World not found");
-        
-        for stage_id in 0..STAGE_COUNT
-        {
+        self.worlds
+            .get(&world_id)
+            .and_then(|world| {
+                world
+                    .update_delta_time_internal(self.get_delta_time(), self.get_fixed_delta_time());
+                Some(())
+            })
+            .expect("World not found");
+
+        for stage_id in 0..STAGE_COUNT {
             self.process_stage_world(stage_id as StageID, world_id)
         }
     }
 
-    /// Process a stage for a specific world. 
-    /// 
-    /// This functions is intended to be used in tests only. 
+    /// Process a stage for a specific world.
+    ///
+    /// This functions is intended to be used in tests only.
     /// DO NOT USE OUTSIDE A TEST
     #[cfg(test)]
-    pub(super) fn process_stage_world(&self, stage_id: StageID, world_id: WorldID)
-    {
+    pub(super) fn process_stage_world(&self, stage_id: StageID, world_id: WorldID) {
         // Process all commands created before the stage
         self.process_world_command_queues();
 
         // Process worlds in parallel
-        self.worlds.get(&world_id)
-            .and_then(
-                |world| 
-                {
-                    world.run_stage(stage_id); 
-                    Some(())
-                })
+        self.worlds
+            .get(&world_id)
+            .and_then(|world| {
+                world.run_stage(stage_id);
+                Some(())
+            })
             .expect("World should exists by now");
 
         // Process all commands created in the stage

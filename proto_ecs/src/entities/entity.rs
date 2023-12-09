@@ -334,7 +334,10 @@ impl Entity {
         self.ls_stage_enabled_map[stage_id as usize]
     }
 
-    /// Checks if this entity should run in the specified stage.
+    /// Checks if this entity should be scheduled to run in the specified stage. 
+    /// 
+    /// Spatial entities that are not root entities are not scheduled to be ran
+    /// by the engine, their parent should run them instead
     /// 
     /// Note: this function is used by the engine to check if this entity 
     /// should be included in the list of entities to run per stage
@@ -359,15 +362,9 @@ impl Entity {
     /// Only to be called by the entity system
     pub(super) fn run_stage(&mut self, world: &World, stage_id: StageID) {
         debug_assert!(
-            self.should_run_in_stage(stage_id),
+            self.is_stage_enabled(stage_id),
             "Check if the stage is enabled before running it!"
         );
-
-        // Do nothing if this stage is not enabled for this entity
-        if !self.is_stage_enabled(stage_id)
-        {
-            return;
-        }
 
         let stage = self
             .stage_map
@@ -409,7 +406,11 @@ impl Entity {
         debug_assert!(recursion_stack.is_empty(), "Recursion stack should be empty or results will be inconsistent");
 
         // Run stage for the current node and push its children
-        self.run_stage(world, stage_id);
+        if self.is_stage_enabled(stage_id)
+        {
+            self.run_stage(world, stage_id);
+        }
+
         for child in self.get_transform().as_ref().unwrap().children.iter()
         {
             recursion_stack.push(child.clone());
@@ -417,11 +418,14 @@ impl Entity {
 
         // Perform a dfs traversal over the children of this node.
         // We use iterative DFS to prevent recursion overhead
-        while !recursion_stack.is_empty()
+        while let Some(entity_lock) = recursion_stack.pop()
         {
-            let entity_lock = recursion_stack.pop().unwrap();
             let mut entity = entity_lock.write();
-            entity.run_stage(world, stage_id);
+
+            if entity.is_stage_enabled(stage_id)
+            {
+                entity.run_stage(world, stage_id);
+            }
 
             for child in entity.get_transform().as_ref().unwrap().children.iter()
             {
@@ -449,15 +453,18 @@ impl Entity {
         transform.as_ref().unwrap().is_root()
     }
 
-    /// Sets `other_ptr` as the parent of `entity_ptr`
+    /// Sets `parent_ptr` as the parent of `entity_ptr`
     /// 
+    /// Used internally by the engine to re-parent an entity.
+    /// 
+    /// Users should enqueue its reparenting requests.
     /// # Panics
-    /// If `other` is not a spatial entity, or if this is not a spatial entity
-    pub fn set_parent(entity_ptr : EntityPtr, other_ptr : EntityPtr)
+    /// If `parent` is not a spatial entity, or if this is not a spatial entity
+    pub(super) fn set_parent(entity_ptr : EntityPtr, parent_ptr : EntityPtr)
     {
         debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't set parent of non-spatial entity");
-        debug_assert!(other_ptr.read().is_spatial_entity(), "Parent entity should be a spatial entity as well");
-        debug_assert!(entity_ptr.read().id != other_ptr.read().id, "Entity can't be its own parent!");
+        debug_assert!(parent_ptr.read().is_spatial_entity(), "Parent entity should be a spatial entity as well");
+        debug_assert!(entity_ptr.read().id != parent_ptr.read().id, "Entity can't be its own parent!");
         
         // Clear current parent. Note that you have to sub a few counters from the old parent before 
         // reparenting
@@ -465,19 +472,19 @@ impl Entity {
 
         let mut entity = entity_ptr.write();        
         let entity_transform = entity.get_transform_mut().unwrap();
-        entity_transform.parent = Some(other_ptr);
+        entity_transform.parent = Some(parent_ptr);
 
         // Make this node a child of the other node
         {
-            let mut other = other_ptr.write();
+            let mut other = parent_ptr.write();
             let other_transform = other.get_transform_mut().unwrap();
             other_transform.children.push(entity_ptr);
         }
 
         // Now we have to go upwards updating the parent with the 
-        // cached values of the amount of entities and entities that want to run 
-        // some stage
-        let mut next_parent_ptr = Some(other_ptr);
+        // cached values of the amount of entities in hierarchy 
+        // and entities that want to run some stage
+        let mut next_parent_ptr = Some(parent_ptr);
         while next_parent_ptr.is_some()
         {
             let next_parent;
@@ -502,11 +509,14 @@ impl Entity {
         }
     }
 
-    /// Clears the parent of this entity, setting it to None
+    /// Clears the parent of this entity, setting it to None.
     /// 
+    /// Used internally by the engine to clear the parent of some entity. 
+    /// 
+    /// Users should enqueue its reparenting requests.
     /// # Panics
     /// if this is not a spatial entity
-    pub fn clear_parent(entity_ptr : EntityPtr)
+    pub(super) fn clear_parent(entity_ptr : EntityPtr)
     {
         debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't clear parent of a non-spatial entity");
         let mut entity = entity_ptr.write();
