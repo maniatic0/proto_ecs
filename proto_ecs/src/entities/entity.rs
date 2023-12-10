@@ -19,7 +19,7 @@ use proto_ecs::systems::local_systems::{SystemClassID, SystemFn};
 
 use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
-use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
+use rayon::prelude::*;
 use vector_map::{set::VecSet, VecMap};
 
 use super::{
