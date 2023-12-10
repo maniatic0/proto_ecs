@@ -249,7 +249,7 @@ impl World {
             // ? Can this be a problem if we want entities to have a `on_delete` callback? do we want one?
 
             entity_ptr.write().clear_parent();
-            const RECURSIVE_DELETION_EXPECTED_STACK_LEN : usize = 100;
+            const RECURSIVE_DELETION_EXPECTED_STACK_LEN: usize = 100;
             let mut entity_stack = Vec::with_capacity(RECURSIVE_DELETION_EXPECTED_STACK_LEN);
             let mut ids_to_delete = Vec::with_capacity(RECURSIVE_DELETION_EXPECTED_STACK_LEN);
             entity_stack.push(entity_ptr);
@@ -366,7 +366,7 @@ impl World {
                 parent_ptr.read().should_run_in_stage(stage_id as StageID);
         }
 
-        Entity::set_parent(*entity_ptr, *parent_ptr);
+        entity_ptr.write().set_parent(*parent_ptr);
 
         // Now check if we have to update the internal local system running list
         let mut root = *parent_ptr;

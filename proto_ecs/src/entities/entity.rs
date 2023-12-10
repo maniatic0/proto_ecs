@@ -501,9 +501,9 @@ impl Entity {
     /// Users should enqueue its reparenting requests.
     /// # Panics
     /// If `parent` is not a spatial entity, or if this is not a spatial entity
-    pub(super) fn set_parent(entity_ptr: EntityPtr, parent_ptr: EntityPtr) {
+    pub(super) fn set_parent(&mut self, parent_ptr: EntityPtr) {
         debug_assert!(
-            entity_ptr.read().is_spatial_entity(),
+            self.is_spatial_entity(),
             "Can't set parent of non-spatial entity"
         );
         debug_assert!(
@@ -511,23 +511,23 @@ impl Entity {
             "Parent entity should be a spatial entity as well"
         );
         debug_assert!(
-            entity_ptr.read().id != parent_ptr.read().id,
+            self.id != parent_ptr.read().id,
             "Entity can't be its own parent!"
         );
 
         // Clear current parent. Note that you have to sub a few counters from the old parent before
         // reparenting
-        entity_ptr.write().clear_parent();
+        self.clear_parent();
 
-        let mut entity = entity_ptr.write();
-        let entity_transform = unsafe { entity.get_transform_mut_unsafe() };
+        let self_ptr = self.self_ptr.clone();
+        let entity_transform = unsafe { self.get_transform_mut_unsafe() };
         entity_transform.parent = Some(parent_ptr);
 
         // Make this node a child of the parent node
         {
             let mut parent = parent_ptr.write();
             let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
-            parent_transform.children.push(entity_ptr);
+            parent_transform.children.push(self_ptr);
         }
 
         // Now we have to go upwards updating the parent with the

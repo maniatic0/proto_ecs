@@ -213,8 +213,8 @@ mod test {
         let node_ptr = es.get_entity(new_world_id, node_id);
         let leaf_node_ptr = es.get_entity(new_world_id, leaf_node_id);
 
-        Entity::set_parent(node_ptr, root_ptr);
-        Entity::set_parent(leaf_node_ptr, node_ptr);
+        node_ptr.write().set_parent(root_ptr);
+        leaf_node_ptr.write().set_parent(node_ptr);
 
         // Check that the nodes are parented as expected
         assert!(root_ptr.read().is_root());
