@@ -460,6 +460,13 @@ impl Entity {
                         // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks
                         // and because an entity has at most 1 parent
                         let child = unsafe { &mut *child_ptr.data_ptr() };
+
+                        let transform = unsafe { child.get_transform_unsafe() };
+                        if transform.stage_count[stage_id as usize].load(Ordering::Acquire) == 0 {
+                            // Nothing else to do, this child branch doesn't need updating
+                            continue;
+                        }
+
                         recurse(child, world, stage_id);
                     }
                 });
