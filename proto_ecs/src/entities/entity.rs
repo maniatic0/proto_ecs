@@ -547,19 +547,21 @@ impl Entity {
     {
         debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't clear parent of a non-spatial entity");
         let mut entity = entity_ptr.write();
-        let transform = entity.get_transform_mut().unwrap();
+        let transform = unsafe { entity.get_transform_mut_unsafe() };
         let mut parent = transform.parent;
 
         // Return if nothing to do
         if parent.is_none() 
-        { return; }
+        { 
+            return; 
+        }
 
         while parent.is_some()
         {
-            let next_parent;
+            let next_parent =
             {
                 let mut parent = parent.as_mut().unwrap().write();
-                let parent_transform = parent.get_transform_mut().unwrap();
+                let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
                 parent_transform.n_nodes -= transform.n_nodes;
 
                 for i in 0..STAGE_COUNT
@@ -570,8 +572,9 @@ impl Entity {
                             Ordering::Acquire
                         );
                 }
-                next_parent = parent_transform.parent;
-            }
+                
+                parent_transform.parent
+            };
 
             parent = next_parent;
         }
@@ -579,9 +582,7 @@ impl Entity {
         // Remove `entity_ptr` from the child list of `parent_ptr`
         {
             let mut parent = transform.parent.as_mut().unwrap().write();
-            let parent_transform = parent
-                                                .get_transform_mut()
-                                                .expect("Parent should be a spatial entity");
+            let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
 
             for i in 0..parent_transform.children.len()
             {
