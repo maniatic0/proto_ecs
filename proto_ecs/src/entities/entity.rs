@@ -19,6 +19,7 @@ use proto_ecs::systems::local_systems::{SystemClassID, SystemFn};
 
 use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
+use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 use vector_map::{set::VecSet, VecMap};
 
 use super::{
@@ -423,27 +424,12 @@ impl Entity {
         }
     }
 
-    pub(super) fn run_stage_recursive(&mut self, world: &World, stage_id: StageID) {
-        debug_assert!(
-            self.is_spatial_entity(),
-            "Can't recursively run stages for a non-spatial entity"
-        );
-        let mut recursion_stack: Vec<EntityPtr> = Vec::with_capacity(20);
-        self.run_stage_recursive_no_alloc(world, stage_id, &mut recursion_stack);
-    }
-
     /// Run a stage recursively for an entity which is a spatial entity.
     ///
     /// This function will ensure that the update order for entities is consistent
     /// with the hierarchy structure. Parents should always run before their children,
     /// and siblings can run in parallel
-    pub(super) fn run_stage_recursive_no_alloc(
-        &mut self,
-        world: &World,
-        stage_id: StageID,
-        recursion_stack: &mut Vec<EntityPtr>,
-    ) {
-        // TODO change this function to use rayon for parallel execution.
+    pub(super) fn run_stage_recursive(&mut self, world: &World, stage_id: StageID) {
         // As long as the parent updates before its children, you can run it in parallel
         debug_assert!(
             self.is_spatial_entity(),
@@ -453,33 +439,33 @@ impl Entity {
             self.is_root(),
             "Entity to run recursively should be the root entity!"
         );
-        debug_assert!(
-            recursion_stack.is_empty(),
-            "Recursion stack should be empty or results will be inconsistent"
-        );
 
-        // Run stage for the current node and push its children
-        if self.is_stage_enabled(stage_id) {
-            self.run_stage(world, stage_id);
-        }
+        fn recurse(entity: &mut Entity, world: &World, stage_id: StageID) {
+            // As long as the parent updates before its children, you can run it in parallel
+            debug_assert!(
+                entity.is_spatial_entity(),
+                "Can't recursively run stages for a non-spatial entity"
+            );
 
-        for child in self.get_transform().as_ref().unwrap().children.iter() {
-            recursion_stack.push(*child);
-        }
-
-        // Perform a dfs traversal over the children of this node.
-        // We use iterative DFS to prevent recursion overhead
-        while let Some(entity_lock) = recursion_stack.pop() {
-            let mut entity = entity_lock.write();
-
+            // Run stage for the current entity
             if entity.is_stage_enabled(stage_id) {
                 entity.run_stage(world, stage_id);
             }
 
-            for child in entity.get_transform().as_ref().unwrap().children.iter() {
-                recursion_stack.push(*child);
-            }
+            unsafe { entity.get_transform_unsafe() }
+                .children
+                .par_chunks(World::PAR_CHUNKS_NUM)
+                .for_each(|children_chunk| {
+                    for child_ptr in children_chunk {
+                        // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks
+                        // and because an entity has at most 1 parent
+                        let child = unsafe { &mut *child_ptr.data_ptr() };
+                        recurse(child, world, stage_id);
+                    }
+                });
         }
+
+        recurse(self, world, stage_id)
     }
 
     /// Checks if this entity is a spatial entity

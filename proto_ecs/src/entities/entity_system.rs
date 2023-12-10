@@ -108,7 +108,7 @@ pub struct World {
 impl World {
     /// Number of chunks to use for stepping a stage
     /// Maybe this should be variable based on load
-    const CHUNKS_NUM: usize = 20;
+    pub const PAR_CHUNKS_NUM: usize = 20;
 
     pub(crate) fn new(id: WorldID) -> Self {
         let gs_count = GlobalSystemRegistry::get_global_registry()
@@ -582,16 +582,12 @@ impl World {
                 return;
             }
 
-            println!("Stage has {} entities", entities_stage.len());
             entities_stage
-                .par_chunks(World::CHUNKS_NUM)
+                .par_chunks(World::PAR_CHUNKS_NUM)
                 .for_each(|map_refs| {
                     for map_ref in map_refs {
                         // Note we don't need to take the lock as we are 100% sure rayon is executing disjoint tasks.
                         let entity = unsafe { &mut *map_ref.data_ptr() };
-                        let mut recursion_stack = Vec::with_capacity(20);
-
-                        println!("Entity is {}", entity.get_name());
 
                         // Check if stage is enabled before running
                         if !entity.is_spatial_entity() && entity.is_stage_enabled(stage_id) {
@@ -600,11 +596,7 @@ impl World {
                         } else if entity.is_spatial_entity() && entity.should_run_in_stage(stage_id)
                         {
                             // If a spatial entity, run recursively
-                            entity.run_stage_recursive_no_alloc(
-                                self,
-                                stage_id,
-                                &mut recursion_stack,
-                            );
+                            entity.run_stage_recursive(self, stage_id);
                         }
                     }
                 });
