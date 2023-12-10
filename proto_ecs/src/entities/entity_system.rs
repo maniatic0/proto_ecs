@@ -74,7 +74,7 @@ pub type GlobalSystemIDVec = RwLock<Vec<GlobalSystemID>>;
 // A map from global system to the set of entities it has to run
 pub type GSEntitiesMap = RwLock<Vec<EntitiesVec>>;
 
-pub type ReparentingQueue = scc::Queue<ReparentingOps>;
+type ReparentingQueue = scc::Queue<ReparentingOps>;
 
 /// Possible re-parenting operations
 #[derive(Debug)]
