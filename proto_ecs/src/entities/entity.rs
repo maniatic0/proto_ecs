@@ -122,6 +122,7 @@ impl Entity {
                     &Transform::get_id(), 
                     |dg|{dg.get_id()}
                 ).unwrap() as DataGroupIndexingType;
+            debug_assert_ne!(transform_index, INVALID_DATAGROUP_INDEX, "Failed to find transform DG!");
         }
 
         // Build temp map for their positions (for Local Systems lookup)
@@ -271,21 +272,35 @@ impl Entity {
     }
 
     #[inline(always)]
+    pub unsafe fn get_transform_unsafe(&self) -> &Transform
+    {
+        debug_assert!(self.is_spatial_entity(), "Can't get transform from non spatial entity!");
+        cast(&self.datagroups[self.transform_index as usize])
+    }
+
+    #[inline(always)]
     pub fn get_transform(&self) -> Option<&Transform>
     {
-        if self.transform_index == INVALID_DATAGROUP_INDEX
+        if !self.is_spatial_entity()
         { None }
         else
-        { Some(cast(&self.datagroups[self.transform_index as usize])) }
+        { Some(unsafe { self.get_transform_unsafe() }) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn get_transform_mut_unsafe(&mut self) -> &mut Transform
+    {
+        debug_assert!(self.is_spatial_entity(), "Can't get transform from non spatial entity!");
+        cast_mut(&mut self.datagroups[self.transform_index as usize])
     }
 
     #[inline(always)]
     pub fn get_transform_mut(&mut self) -> Option<&mut Transform>
     {
-        if self.transform_index == INVALID_DATAGROUP_INDEX
+        if !self.is_spatial_entity()
         { None }
         else
-        { Some(cast_mut(&mut self.datagroups[self.transform_index as usize])) }
+        { Some(unsafe { self.get_transform_mut_unsafe() }) }
     }
 
     #[inline(always)]
@@ -440,7 +455,7 @@ impl Entity {
     #[inline(always)]
     pub fn is_spatial_entity(&self) -> bool
     {
-        self.get_transform().is_some()
+        self.transform_index != INVALID_DATAGROUP_INDEX
     }
 
     /// Checks if this entity is a root entity. 
