@@ -361,9 +361,12 @@ impl World {
             .get(&entity_id)
             .expect("Entity should be created by now!");
 
-        for stage_id in 0..STAGE_COUNT {
-            old_stages_to_run[stage_id] =
-                parent_ptr.read().should_run_in_stage(stage_id as StageID);
+        {
+            let parent_entity = parent_ptr.read();
+            for stage_id in 0..STAGE_COUNT {
+                old_stages_to_run[stage_id] =
+                    parent_entity.should_run_in_stage(stage_id as StageID);
+            }
         }
 
         entity_ptr.write().set_parent(*parent_ptr);
@@ -372,13 +375,17 @@ impl World {
         let mut root = *parent_ptr;
 
         // Get hierarchy root
-        while !root.read().is_root() {
-            let parent;
-            {
-                let root_obj = root.read();
-                let root_transform = root_obj.get_transform().unwrap();
-                parent = root_transform.parent.unwrap();
-            }
+        loop {
+            let parent = {
+                let root_entity = root.read();
+
+                if root_entity.is_root() {
+                    break;
+                }
+
+                let root_transform = unsafe { root_entity.get_transform_unsafe() };
+                root_transform.parent.unwrap()
+            };
             root = parent;
         }
 
