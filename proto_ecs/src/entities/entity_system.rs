@@ -249,8 +249,9 @@ impl World {
             // ? Can this be a problem if we want entities to have a `on_delete` callback? do we want one?
 
             entity_ptr.write().clear_parent();
-            let mut entity_stack = Vec::with_capacity(100);
-            let mut ids_to_delete = Vec::with_capacity(100);
+            const RECURSIVE_DELETION_EXPECTED_STACK_LEN : usize = 100;
+            let mut entity_stack = Vec::with_capacity(RECURSIVE_DELETION_EXPECTED_STACK_LEN);
+            let mut ids_to_delete = Vec::with_capacity(RECURSIVE_DELETION_EXPECTED_STACK_LEN);
             entity_stack.push(entity_ptr);
 
             // Collect all entities in the hierarchy and delete their transform
