@@ -498,13 +498,13 @@ impl Entity {
         Entity::clear_parent(entity_ptr);
 
         let mut entity = entity_ptr.write();        
-        let entity_transform = entity.get_transform_mut().unwrap();
+        let entity_transform = unsafe { entity.get_transform_mut_unsafe() };
         entity_transform.parent = Some(parent_ptr);
 
         // Make this node a child of the parent node
         {
             let mut parent = parent_ptr.write();
-            let parent_transform = parent.get_transform_mut().unwrap();
+            let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
             parent_transform.children.push(entity_ptr);
         }
 
@@ -514,10 +514,10 @@ impl Entity {
         let mut next_parent_ptr = Some(parent_ptr);
         while next_parent_ptr.is_some()
         {
-            let next_parent;
+            let next_parent =
             {
                 let mut parent = next_parent_ptr.as_mut().unwrap().write();
-                let parent_transform = parent.get_transform_mut().unwrap();
+                let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
                 parent_transform.n_nodes += entity_transform.n_nodes;
                 for i in 0..STAGE_COUNT
                 {
@@ -529,8 +529,8 @@ impl Entity {
                     );
                 }
 
-                next_parent = parent_transform.parent;
-            }
+                parent_transform.parent
+            };
             
             next_parent_ptr = next_parent;
         }
