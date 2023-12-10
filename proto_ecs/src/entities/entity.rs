@@ -501,11 +501,11 @@ impl Entity {
         let entity_transform = entity.get_transform_mut().unwrap();
         entity_transform.parent = Some(parent_ptr);
 
-        // Make this node a child of the other node
+        // Make this node a child of the parent node
         {
-            let mut other = parent_ptr.write();
-            let other_transform = other.get_transform_mut().unwrap();
-            other_transform.children.push(entity_ptr);
+            let mut parent = parent_ptr.write();
+            let parent_transform = parent.get_transform_mut().unwrap();
+            parent_transform.children.push(entity_ptr);
         }
 
         // Now we have to go upwards updating the parent with the 
