@@ -434,7 +434,7 @@ impl World {
     }
 
     pub(super) fn clear_parent_internal(&self, entity_id: EntityID) {
-        // TODO We have to:
+        // We have to:
         //  Actually clear the parent
         //  remove the root of this entity from the per-stage entity list
         //  add this entity to the per-stage entity list
