@@ -360,18 +360,28 @@ impl Entity {
     /// should be included in the list of entities to run per stage
     pub(super) fn should_run_in_stage(&self, stage_id: StageID) -> bool
     {
+        // Check if we are non-spatial
         if !self.is_spatial_entity()
         {
+            // Non-spatial entities only need to check themselves if they need to run
             return self.ls_stage_enabled_map[stage_id as usize];
         }
-        else if self.is_root() {
-            let hierarchy = *self.get_transform().as_ref().unwrap();
-            let count_for_stage = hierarchy.stage_count[stage_id as usize].load(Ordering::Acquire);
-            return count_for_stage > 0;
+
+        // We are a spatial entity
+        let hierarchy = unsafe {
+            self.get_transform_unsafe()
+        };
+
+        // Check if we are a root
+        if !hierarchy.is_root()
+        {
+            // Never add spatial-non-root entities to the stage list 
+            return false;
         }
 
-        // Never add spatial-non-root entities to the stage list, 
-        return false;
+        // Check that we need to run at this stage
+        let count_for_stage = hierarchy.stage_count[stage_id as usize].load(Ordering::Acquire);
+        return count_for_stage > 0;
     }
 
 
