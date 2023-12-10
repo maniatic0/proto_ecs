@@ -9,7 +9,6 @@ mod test {
         core::casting::cast,
         core::ids::{HasID, IDLocator},
         entities::{
-            entity::Entity,
             entity_allocator::EntityAllocator,
             entity_spawn_desc::EntitySpawnDescription,
             entity_system::{EntitySystem, World},
