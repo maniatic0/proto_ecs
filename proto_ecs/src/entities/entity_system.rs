@@ -267,11 +267,10 @@ impl World {
                 ids_to_delete.push(entity.get_id());
             }
 
-            // delete all entities in the hierarchy. The order doesn't matter,
-            // so this might be a good place to add parallel execution with rayon
-            for id in ids_to_delete {
+            // delete all entities in the hierarchy. The order doesn't matter
+            ids_to_delete.into_par_iter().for_each(|id| {
                 self.destroy_entity_internal(id);
-            }
+            });
 
             // TODO we have to update the list of entities to run per stage after all children were deleted
         }
