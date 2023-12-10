@@ -104,7 +104,7 @@ mod global_system_test {
         }
 
         // check that you can register a global system with simple prepare and
-        // that checks panics when they should. In this case the entity does not provide 
+        // that checks panics when they should. In this case the entity does not provide
         // the datagroups required by `Test`
         let mut spawn_desc = EntitySpawnDescription::default();
         Test::simple_prepare(&mut spawn_desc);

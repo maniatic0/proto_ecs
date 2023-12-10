@@ -6,21 +6,25 @@ mod test {
 
     use crate::{
         app::App,
-        core::ids::{HasID, IDLocator},
         core::casting::cast,
+        core::ids::{HasID, IDLocator},
         entities::{
             entity::Entity,
+            entity_allocator::EntityAllocator,
             entity_spawn_desc::EntitySpawnDescription,
-            entity_system::{EntitySystem, World}, transform_datagroup::Transform, entity_allocator::EntityAllocator, 
+            entity_system::{EntitySystem, World},
+            transform_datagroup::Transform,
         },
+        get_id,
+        systems::common::STAGE_COUNT,
         tests::{
             shared_datagroups::sdg::{
                 AnimationDataGroup, MeshDataGroup, TestNumberDataGroup, TestNumberDataGroupArg,
             },
             shared_global_systems::sgs::Test as gs_Test,
-            shared_global_systems::sgs::{TestBefore, GSFlowTester, GSFlowDG},
+            shared_global_systems::sgs::{GSFlowDG, GSFlowTester, TestBefore},
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
-        }, get_id, systems::common::STAGE_COUNT,
+        },
     };
 
     #[test]
@@ -63,8 +67,8 @@ mod test {
 
         assert!(entity.contains_local_system::<Test>());
         assert!(entity.contains_global_system::<gs_Test>());
-        // This GS wasn't added, it should crash when returning true 
-        assert!(!entity.contains_global_system::<TestBefore>()); 
+        // This GS wasn't added, it should crash when returning true
+        assert!(!entity.contains_global_system::<TestBefore>());
     }
 
     #[test]
@@ -88,7 +92,7 @@ mod test {
         let global_allocator = EntityAllocator::get_global();
         let mut entity_ptr = global_allocator.write().allocate();
         entity_ptr.init(1, spawn_desc);
-        
+
         let mut entity = entity_ptr.write();
 
         entity.run_stage(&world, 0);
@@ -107,7 +111,7 @@ mod test {
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
         // We can't reset bc it will delete worlds for other tests
-        // es.reset(); // In case other tests happened. 
+        // es.reset(); // In case other tests happened.
         es.step_world(0.0, 0.0, new_world_id); // Process reset
 
         for _ in 0..100 {
@@ -133,36 +137,43 @@ mod test {
         spawn_desc.check_datagroups_panic(); // Should not panic
         spawn_desc.set_name("GSFlow Entity".to_owned());
 
-        let entity_id = es.create_entity(new_world_id, spawn_desc).expect("Failed to create entity!");
+        let entity_id = es
+            .create_entity(new_world_id, spawn_desc)
+            .expect("Failed to create entity!");
 
         es.step_world(0.0, 0.0, new_world_id);
 
         // Check that the entity with `GSFlowDG` has the right state
         let world = es.get_worlds().get(&new_world_id).unwrap();
         let entities = world.get_entities();
-        let entity_lock = entities.get(&entity_id).expect("Should retrieve entity that was previously created"); 
+        let entity_lock = entities
+            .get(&entity_id)
+            .expect("Should retrieve entity that was previously created");
         let entity = entity_lock.read();
-        let gs_flow_dg = entity.get_datagroup::<GSFlowDG>().expect("This entity should be created with this datagroup");
-        assert_eq!(gs_flow_dg.id, 1, "GSFlowTester Global system didn't run properly");
-        
+        let gs_flow_dg = entity
+            .get_datagroup::<GSFlowDG>()
+            .expect("This entity should be created with this datagroup");
+        assert_eq!(
+            gs_flow_dg.id, 1,
+            "GSFlowTester Global system didn't run properly"
+        );
+
         // Check that the state of the `GSFlowTester` is as expected
         let global_systems_lock = world.get_global_systems().read();
-        let gs_storage_lock = global_systems_lock
-                [get_id!(GSFlowTester) as usize]
-                .as_ref()
-                .expect("This global system should have storage loaded right").read();
+        let gs_storage_lock = global_systems_lock[get_id!(GSFlowTester) as usize]
+            .as_ref()
+            .expect("This global system should have storage loaded right")
+            .read();
 
         let gs_storage: &GSFlowTester = cast(&*gs_storage_lock);
         assert_eq!(gs_storage.n_entities, 1);
-        
+
         es.destroy_world(new_world_id);
     }
 
     #[test]
-    fn test_parenting()
-    {
-        if !App::is_initialized()
-        {
+    fn test_parenting() {
+        if !App::is_initialized() {
             App::initialize();
         }
 
@@ -170,36 +181,32 @@ mod test {
         let new_world_id = es.create_world();
         es.step_world(0.0, 0.0, new_world_id); // Process world creation
 
-        let get_spawn_desc = || { 
+        let get_spawn_desc = || {
             let mut desc = EntitySpawnDescription::default();
             Transform::prepare_spawn(&mut desc, Box::new(Transform::default()));
             desc
         };
 
-        let root_id = 
-            es.create_entity(
-                new_world_id,
-                 get_spawn_desc()
-            ).expect("Creation should be successful");
-        
-        let node_id = 
-            es.create_entity(
-                new_world_id, 
-                get_spawn_desc()
-            ).expect("Creation should be successful");
-        
+        let root_id = es
+            .create_entity(new_world_id, get_spawn_desc())
+            .expect("Creation should be successful");
+
+        let node_id = es
+            .create_entity(new_world_id, get_spawn_desc())
+            .expect("Creation should be successful");
+
         let mut spawn_desc = get_spawn_desc();
         Test::simple_prepare(&mut spawn_desc);
         AnimationDataGroup::prepare_spawn(
-            &mut spawn_desc, 
-            Box::new(
-                    AnimationDataGroup { clip_name: "anim".into(), duration: 3.0 })
-                );
-        let leaf_node_id = 
-            es.create_entity(
-                new_world_id, 
-                spawn_desc,
-            ).expect("Creation should be successful");
+            &mut spawn_desc,
+            Box::new(AnimationDataGroup {
+                clip_name: "anim".into(),
+                duration: 3.0,
+            }),
+        );
+        let leaf_node_id = es
+            .create_entity(new_world_id, spawn_desc)
+            .expect("Creation should be successful");
 
         es.step_world(0.0, 0.0, new_world_id); // Process entity creation
         let root_ptr = es.get_entity(new_world_id, root_id);
@@ -213,14 +220,14 @@ mod test {
         assert!(root_ptr.read().is_root());
         assert!(!node_ptr.read().is_root());
 
-        { // Check that the counters make sense 
+        {
+            // Check that the counters make sense
             let root = root_ptr.read();
             let root_transform = root.get_transform().unwrap();
             assert_eq!(root_transform.n_nodes, 3);
             assert_eq!(root_transform.stage_count[0].load(Ordering::Acquire), 1);
             assert_eq!(root_transform.stage_count[1].load(Ordering::Acquire), 1);
-            for i in 2..STAGE_COUNT
-            {
+            for i in 2..STAGE_COUNT {
                 assert_eq!(root_transform.stage_count[i].load(Ordering::Acquire), 0);
             }
 
@@ -233,17 +240,19 @@ mod test {
             assert_eq!(leaf_node_transform.n_nodes, 1);
         }
 
-        { // Check that parent is properly set
+        {
+            // Check that parent is properly set
             let node = node_ptr.read();
             let node_transform = node.get_transform().unwrap();
             assert!(node_transform.parent.is_some());
             assert_eq!(node_transform.parent.unwrap(), root_ptr);
         }
 
-        { // Check that deleting an intermediate node deletes the entire subtree
+        {
+            // Check that deleting an intermediate node deletes the entire subtree
             es.destroy_entity(new_world_id, node_id);
             // force to delete
-            es.step_world(0.0, 0.0, new_world_id); 
+            es.step_world(0.0, 0.0, new_world_id);
 
             assert!(!node_ptr.is_live());
             assert!(!leaf_node_ptr.is_live());
@@ -255,15 +264,13 @@ mod test {
             assert_eq!(root_transform.n_nodes, 1);
             assert!(root_transform.children.is_empty());
         }
-        
+
         es.destroy_world(new_world_id);
     }
 
     #[test]
-    fn test_hierarchy_update()
-    {
-        if !App::is_initialized()
-        {
+    fn test_hierarchy_update() {
+        if !App::is_initialized() {
             App::initialize();
         }
 
@@ -271,8 +278,7 @@ mod test {
         let new_world_id = es.create_world();
         es.step_world(0.0, 0.0, new_world_id); // Process world creation
 
-        fn get_new_desc() -> EntitySpawnDescription
-        {
+        fn get_new_desc() -> EntitySpawnDescription {
             let mut desc = EntitySpawnDescription::default();
             Transform::prepare_spawn(&mut desc, Box::new(Transform::default()));
             desc
@@ -280,10 +286,9 @@ mod test {
 
         let mut root_desc = get_new_desc();
         root_desc.set_name("Root entity".into());
-        let root_id = es.create_entity(
-            new_world_id,
-            root_desc
-        ).expect("Creation should be successful");
+        let root_id = es
+            .create_entity(new_world_id, root_desc)
+            .expect("Creation should be successful");
 
         let mut desc = get_new_desc();
         desc.set_name("node entity".into());
@@ -292,9 +297,8 @@ mod test {
         TestMultiplier::simple_prepare(&mut desc);
         TestAssertNumber4::simple_prepare(&mut desc);
 
-        let node_id = es.create_entity(
-            new_world_id, 
-            desc)
+        let node_id = es
+            .create_entity(new_world_id, desc)
             .expect("Node creation should be successful");
         {
             let worlds = es.get_world_map();
@@ -303,12 +307,14 @@ mod test {
         }
         es.step_world(0.0, 0.0, new_world_id); // Force entity creation
 
-        { // Check that the root node is consistent
+        {
+            // Check that the root node is consistent
             let root_ptr = es.get_entity(new_world_id, root_id);
             let root = root_ptr.read();
             let root_transform = root.get_transform().unwrap();
             assert_eq!(
-                root_transform.stage_count[0].load_value(), 1, 
+                root_transform.stage_count[0].load_value(),
+                1,
                 "Root node is not properly counting local systems for its children"
             );
         }
@@ -316,9 +322,11 @@ mod test {
         let node_ptr = es.get_entity(new_world_id, node_id);
         assert!(node_ptr.is_live());
 
-        { // Check that the node state finished properly
+        {
+            // Check that the node state finished properly
             let node = node_ptr.read();
-            let number_dg = node.get_datagroup::<TestNumberDataGroup>()
+            let number_dg = node
+                .get_datagroup::<TestNumberDataGroup>()
                 .expect("Number datagroup should be added to this node");
 
             assert_eq!(number_dg.num, 4);

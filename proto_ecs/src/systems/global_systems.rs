@@ -3,9 +3,9 @@ use parking_lot::RwLock;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::common::InitDesc;
 use proto_ecs::core::ids;
+use proto_ecs::entities::entity_system::{EntitiesVec, EntityMap};
 use proto_ecs::get_id;
 use proto_ecs::systems::common::*;
-use proto_ecs::entities::entity_system::{EntityMap, EntitiesVec};
 use topological_sort::TopologicalSort;
 
 pub use ecs_macros::register_global_system;

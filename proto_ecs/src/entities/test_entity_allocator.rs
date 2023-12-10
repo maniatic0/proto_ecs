@@ -1,10 +1,9 @@
-use proto_ecs::entities::entity_allocator::*;
-use crate::entities::entity_spawn_desc::EntitySpawnDescription;
 use crate::app::App;
+use crate::entities::entity_spawn_desc::EntitySpawnDescription;
+use proto_ecs::entities::entity_allocator::*;
 
 #[test]
-fn test_allocation()
-{
+fn test_allocation() {
     if !App::is_initialized() {
         App::initialize();
     }
@@ -28,8 +27,7 @@ fn test_allocation()
 }
 
 #[test]
-fn test_free()
-{
+fn test_free() {
     if !App::is_initialized() {
         App::initialize();
     }
@@ -37,7 +35,7 @@ fn test_free()
     let mut alloc = EntityAllocator::new();
     let entity_ptr = alloc.allocate();
 
-    // Check that you can free without initializing 
+    // Check that you can free without initializing
     alloc.free(&entity_ptr);
     assert!(!entity_ptr.is_live());
 
@@ -54,12 +52,11 @@ fn test_free()
 
 #[test]
 #[should_panic]
-fn test_panic_use_after_free()
-{
+fn test_panic_use_after_free() {
     if !App::is_initialized() {
         App::initialize();
     }
-    
+
     let mut alloc = EntityAllocator::new();
     let mut entity_ptr = alloc.allocate();
     let spawn_desc = EntitySpawnDescription::default();

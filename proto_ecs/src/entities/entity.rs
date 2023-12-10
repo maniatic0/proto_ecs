@@ -21,7 +21,10 @@ use bitvec::prelude::{BitArr, BitArray};
 use nohash_hasher::{IntMap, IntSet};
 use vector_map::{set::VecSet, VecMap};
 
-use super::{entity_system::{World, EntityPtr}, transform_datagroup::Transform};
+use super::{
+    entity_system::{EntityPtr, World},
+    transform_datagroup::Transform,
+};
 
 pub type EntityID = u64;
 
@@ -56,7 +59,6 @@ pub type StageMap = VecMap<StageID, Vec<(DataGroupIndexingType, SystemFn)>>;
 /// Map type used by entities to store the reference to its children
 pub type ChildrenMap = VecSet<EntityID>;
 
-
 pub struct Entity {
     id: EntityID,
     self_ptr: EntityPtr,
@@ -73,11 +75,15 @@ pub struct Entity {
     global_systems: IntSet<GlobalSystemID>,
 
     // Index of the transform datagroup in the `datagroups` vector
-    transform_index: DataGroupIndexingType
+    transform_index: DataGroupIndexingType,
 }
 
 impl Entity {
-    pub(super) fn init(id: EntityID, self_ptr: EntityPtr, spawn_desc: EntitySpawnDescription) -> Self {
+    pub(super) fn init(
+        id: EntityID,
+        self_ptr: EntityPtr,
+        spawn_desc: EntitySpawnDescription,
+    ) -> Self {
         let EntitySpawnDescription {
             name,
             debug_info,
@@ -94,7 +100,7 @@ impl Entity {
         let mut transform_requested = false;
         for (id, init_params) in data_groups {
             let entry = dg_registry.get_entry_by_id(id);
-            
+
             let mut new_dg = (entry.factory_func)();
 
             match init_params {
@@ -116,14 +122,14 @@ impl Entity {
         // Sort them to be able to use binary search
         datagroups.sort_by_key(|dg| dg.get_id());
         let mut transform_index = INVALID_DATAGROUP_INDEX;
-        if transform_requested
-        {
+        if transform_requested {
             transform_index = datagroups
-                .binary_search_by_key(
-                    &Transform::get_id(), 
-                    |dg|{dg.get_id()}
-                ).unwrap() as DataGroupIndexingType;
-            debug_assert_ne!(transform_index, INVALID_DATAGROUP_INDEX, "Failed to find transform DG!");
+                .binary_search_by_key(&Transform::get_id(), |dg| dg.get_id())
+                .unwrap() as DataGroupIndexingType;
+            debug_assert_ne!(
+                transform_index, INVALID_DATAGROUP_INDEX,
+                "Failed to find transform DG!"
+            );
         }
 
         // Build temp map for their positions (for Local Systems lookup)
@@ -153,7 +159,6 @@ impl Entity {
                     match fun {
                         None => (),
                         Some(fun) => {
-
                             // Mark this stage as enabled if there's a function for it
                             if !ls_stage_enabled_map[stage_id as usize] {
                                 ls_stage_enabled_map.set(stage_id as usize, true);
@@ -196,12 +201,11 @@ impl Entity {
             ls_stage_enabled_map,
             stage_map,
             global_systems,
-            transform_index
+            transform_index,
         };
 
-        // Remember to initialize transform 
-        if entity.is_spatial_entity()
-        {
+        // Remember to initialize transform
+        if entity.is_spatial_entity() {
             entity.init_transform();
         }
 
@@ -259,50 +263,54 @@ impl Entity {
     where
         DG: IDLocator + DataGroup + CanCast + Sized + 'static,
     {
-        self.get_datagroup_by_id_mut(get_id!(DG)).map(|dg| cast_mut(dg))
+        self.get_datagroup_by_id_mut(get_id!(DG))
+            .map(|dg| cast_mut(dg))
     }
 
-    /// Use this function to mark this as without transform. 
-    /// 
+    /// Use this function to mark this as without transform.
+    ///
     /// Useful when you want an entity to forget about its transform.
-    pub(super) fn delete_transform(&mut self)
-    {
-        // the transform can't actually be deleted, 
+    pub(super) fn delete_transform(&mut self) {
+        // the transform can't actually be deleted,
         // we just set its index to an invalid value so that all
         // `get_transform` operations return `None`
         self.transform_index = INVALID_DATAGROUP_INDEX;
     }
 
     #[inline(always)]
-    pub unsafe fn get_transform_unsafe(&self) -> &Transform
-    {
-        debug_assert!(self.is_spatial_entity(), "Can't get transform from non spatial entity!");
+    pub unsafe fn get_transform_unsafe(&self) -> &Transform {
+        debug_assert!(
+            self.is_spatial_entity(),
+            "Can't get transform from non spatial entity!"
+        );
         cast(&self.datagroups[self.transform_index as usize])
     }
 
     #[inline(always)]
-    pub fn get_transform(&self) -> Option<&Transform>
-    {
-        if !self.is_spatial_entity()
-        { None }
-        else
-        { Some(unsafe { self.get_transform_unsafe() }) }
+    pub fn get_transform(&self) -> Option<&Transform> {
+        if !self.is_spatial_entity() {
+            None
+        } else {
+            Some(unsafe { self.get_transform_unsafe() })
+        }
     }
 
     #[inline(always)]
-    pub unsafe fn get_transform_mut_unsafe(&mut self) -> &mut Transform
-    {
-        debug_assert!(self.is_spatial_entity(), "Can't get transform from non spatial entity!");
+    pub unsafe fn get_transform_mut_unsafe(&mut self) -> &mut Transform {
+        debug_assert!(
+            self.is_spatial_entity(),
+            "Can't get transform from non spatial entity!"
+        );
         cast_mut(&mut self.datagroups[self.transform_index as usize])
     }
 
     #[inline(always)]
-    pub fn get_transform_mut(&mut self) -> Option<&mut Transform>
-    {
-        if !self.is_spatial_entity()
-        { None }
-        else
-        { Some(unsafe { self.get_transform_mut_unsafe() }) }
+    pub fn get_transform_mut(&mut self) -> Option<&mut Transform> {
+        if !self.is_spatial_entity() {
+            None
+        } else {
+            Some(unsafe { self.get_transform_mut_unsafe() })
+        }
     }
 
     #[inline(always)]
@@ -349,35 +357,29 @@ impl Entity {
     #[inline(always)]
     /// If a stage is enabled for this entity
     pub fn is_stage_enabled(&self, stage_id: StageID) -> bool {
-
         self.ls_stage_enabled_map[stage_id as usize]
     }
 
-    /// Checks if this entity should be scheduled to run in the specified stage. 
-    /// 
+    /// Checks if this entity should be scheduled to run in the specified stage.
+    ///
     /// Spatial entities that are not root entities are not scheduled to be ran
     /// by the engine, their parent should run them instead
-    /// 
-    /// Note: this function is used by the engine to check if this entity 
+    ///
+    /// Note: this function is used by the engine to check if this entity
     /// should be included in the list of entities to run per stage
-    pub(super) fn should_run_in_stage(&self, stage_id: StageID) -> bool
-    {
+    pub(super) fn should_run_in_stage(&self, stage_id: StageID) -> bool {
         // Check if we are non-spatial
-        if !self.is_spatial_entity()
-        {
+        if !self.is_spatial_entity() {
             // Non-spatial entities only need to check themselves if they need to run
             return self.ls_stage_enabled_map[stage_id as usize];
         }
 
         // We are a spatial entity
-        let hierarchy = unsafe {
-            self.get_transform_unsafe()
-        };
+        let hierarchy = unsafe { self.get_transform_unsafe() };
 
         // Check if we are a root
-        if !hierarchy.is_root()
-        {
-            // Never add spatial-non-root entities to the stage list 
+        if !hierarchy.is_root() {
+            // Never add spatial-non-root entities to the stage list
             return false;
         }
 
@@ -385,7 +387,6 @@ impl Entity {
         let count_for_stage = hierarchy.stage_count[stage_id as usize].load(Ordering::Acquire);
         return count_for_stage > 0;
     }
-
 
     /// Runs a stage. Note that it panics if the stage is not enabled
     /// Only to be called by the entity system
@@ -414,50 +415,60 @@ impl Entity {
         }
     }
 
-    pub(super) fn run_stage_recursive(&mut self, world: &World, stage_id: StageID)
-    {
-        debug_assert!(self.is_spatial_entity(), "Can't recursively run stages for a non-spatial entity");
-        let mut recursion_stack : Vec<EntityPtr> = Vec::with_capacity(20);
+    pub(super) fn run_stage_recursive(&mut self, world: &World, stage_id: StageID) {
+        debug_assert!(
+            self.is_spatial_entity(),
+            "Can't recursively run stages for a non-spatial entity"
+        );
+        let mut recursion_stack: Vec<EntityPtr> = Vec::with_capacity(20);
         self.run_stage_recursive_no_alloc(world, stage_id, &mut recursion_stack);
     }
 
     /// Run a stage recursively for an entity which is a spatial entity.
-    /// 
+    ///
     /// This function will ensure that the update order for entities is consistent
     /// with the hierarchy structure. Parents should always run before their children,
     /// and siblings can run in parallel
-    pub(super) fn run_stage_recursive_no_alloc(&mut self, world: &World, stage_id: StageID, recursion_stack:&mut Vec<EntityPtr>)
-    {
+    pub(super) fn run_stage_recursive_no_alloc(
+        &mut self,
+        world: &World,
+        stage_id: StageID,
+        recursion_stack: &mut Vec<EntityPtr>,
+    ) {
         // TODO change this function to use rayon for parallel execution.
         // As long as the parent updates before its children, you can run it in parallel
-        debug_assert!(self.is_spatial_entity(), "Can't recursively run stages for a non-spatial entity");
-        debug_assert!(self.is_root(), "Entity to run recursively should be the root entity!");
-        debug_assert!(recursion_stack.is_empty(), "Recursion stack should be empty or results will be inconsistent");
+        debug_assert!(
+            self.is_spatial_entity(),
+            "Can't recursively run stages for a non-spatial entity"
+        );
+        debug_assert!(
+            self.is_root(),
+            "Entity to run recursively should be the root entity!"
+        );
+        debug_assert!(
+            recursion_stack.is_empty(),
+            "Recursion stack should be empty or results will be inconsistent"
+        );
 
         // Run stage for the current node and push its children
-        if self.is_stage_enabled(stage_id)
-        {
+        if self.is_stage_enabled(stage_id) {
             self.run_stage(world, stage_id);
         }
 
-        for child in self.get_transform().as_ref().unwrap().children.iter()
-        {
+        for child in self.get_transform().as_ref().unwrap().children.iter() {
             recursion_stack.push(child.clone());
         }
 
         // Perform a dfs traversal over the children of this node.
         // We use iterative DFS to prevent recursion overhead
-        while let Some(entity_lock) = recursion_stack.pop()
-        {
+        while let Some(entity_lock) = recursion_stack.pop() {
             let mut entity = entity_lock.write();
 
-            if entity.is_stage_enabled(stage_id)
-            {
+            if entity.is_stage_enabled(stage_id) {
                 entity.run_stage(world, stage_id);
             }
 
-            for child in entity.get_transform().as_ref().unwrap().children.iter()
-            {
+            for child in entity.get_transform().as_ref().unwrap().children.iter() {
                 recursion_stack.push(child.clone());
             }
         }
@@ -465,41 +476,50 @@ impl Entity {
 
     /// Checks if this entity is a spatial entity
     #[inline(always)]
-    pub fn is_spatial_entity(&self) -> bool
-    {
+    pub fn is_spatial_entity(&self) -> bool {
         self.transform_index != INVALID_DATAGROUP_INDEX
     }
 
-    /// Checks if this entity is a root entity. 
-    /// 
+    /// Checks if this entity is a root entity.
+    ///
     /// Will panic if not a spatial entity.
     #[inline(always)]
-    pub fn is_root(&self) -> bool
-    {
+    pub fn is_root(&self) -> bool {
         let transform = self.get_transform();
-        debug_assert!(transform.is_some(), "Non-spatial entities can't have a root");
+        debug_assert!(
+            transform.is_some(),
+            "Non-spatial entities can't have a root"
+        );
 
         transform.as_ref().unwrap().is_root()
     }
 
     /// Sets `parent_ptr` as the parent of `entity_ptr`
-    /// 
+    ///
     /// Used internally by the engine to re-parent an entity.
-    /// 
+    ///
     /// Users should enqueue its reparenting requests.
     /// # Panics
     /// If `parent` is not a spatial entity, or if this is not a spatial entity
-    pub(super) fn set_parent(entity_ptr : EntityPtr, parent_ptr : EntityPtr)
-    {
-        debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't set parent of non-spatial entity");
-        debug_assert!(parent_ptr.read().is_spatial_entity(), "Parent entity should be a spatial entity as well");
-        debug_assert!(entity_ptr.read().id != parent_ptr.read().id, "Entity can't be its own parent!");
-        
-        // Clear current parent. Note that you have to sub a few counters from the old parent before 
+    pub(super) fn set_parent(entity_ptr: EntityPtr, parent_ptr: EntityPtr) {
+        debug_assert!(
+            entity_ptr.read().is_spatial_entity(),
+            "Can't set parent of non-spatial entity"
+        );
+        debug_assert!(
+            parent_ptr.read().is_spatial_entity(),
+            "Parent entity should be a spatial entity as well"
+        );
+        debug_assert!(
+            entity_ptr.read().id != parent_ptr.read().id,
+            "Entity can't be its own parent!"
+        );
+
+        // Clear current parent. Note that you have to sub a few counters from the old parent before
         // reparenting
         entity_ptr.write().clear_parent();
 
-        let mut entity = entity_ptr.write();        
+        let mut entity = entity_ptr.write();
         let entity_transform = unsafe { entity.get_transform_mut_unsafe() };
         entity_transform.parent = Some(parent_ptr);
 
@@ -510,70 +530,63 @@ impl Entity {
             parent_transform.children.push(entity_ptr);
         }
 
-        // Now we have to go upwards updating the parent with the 
-        // cached values of the amount of entities in hierarchy 
+        // Now we have to go upwards updating the parent with the
+        // cached values of the amount of entities in hierarchy
         // and entities that want to run some stage
         let mut next_parent_ptr = Some(parent_ptr);
-        while next_parent_ptr.is_some()
-        {
-            let next_parent =
-            {
+        while next_parent_ptr.is_some() {
+            let next_parent = {
                 let mut parent = next_parent_ptr.as_mut().unwrap().write();
                 let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
                 parent_transform.n_nodes += entity_transform.n_nodes;
-                for i in 0..STAGE_COUNT
-                {
+                for i in 0..STAGE_COUNT {
                     // Add to the nodes per stage
-                    parent_transform.stage_count[i]
-                    .fetch_add(
-                        entity_transform.stage_count[i].load(Ordering::Acquire), 
-                        Ordering::Acquire
+                    parent_transform.stage_count[i].fetch_add(
+                        entity_transform.stage_count[i].load(Ordering::Acquire),
+                        Ordering::Acquire,
                     );
                 }
 
                 parent_transform.parent
             };
-            
+
             next_parent_ptr = next_parent;
         }
     }
 
     /// Clears the parent of this entity, setting it to None.
-    /// 
-    /// Used internally by the engine to clear the parent of some entity. 
-    /// 
+    ///
+    /// Used internally by the engine to clear the parent of some entity.
+    ///
     /// Users should enqueue its reparenting requests.
     /// # Panics
     /// if this is not a spatial entity
-    pub(super) fn clear_parent(&mut self)
-    {
-        debug_assert!(self.is_spatial_entity(), "Can't clear parent of a non-spatial entity");
+    pub(super) fn clear_parent(&mut self) {
+        debug_assert!(
+            self.is_spatial_entity(),
+            "Can't clear parent of a non-spatial entity"
+        );
         let transform = unsafe { self.get_transform_unsafe() };
         let mut parent = transform.parent;
 
         // Return if nothing to do
-        if parent.is_none() 
-        { 
-            return; 
+        if parent.is_none() {
+            return;
         }
 
-        while parent.is_some()
-        {
-            let next_parent =
-            {
+        while parent.is_some() {
+            let next_parent = {
                 let mut parent = parent.as_mut().unwrap().write();
                 let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
                 parent_transform.n_nodes -= transform.n_nodes;
 
-                for i in 0..STAGE_COUNT
-                {
-                    parent_transform.stage_count[i]
-                        .fetch_sub(
-                            transform.stage_count[i].load(Ordering::Acquire), 
-                            Ordering::Acquire
-                        );
+                for i in 0..STAGE_COUNT {
+                    parent_transform.stage_count[i].fetch_sub(
+                        transform.stage_count[i].load(Ordering::Acquire),
+                        Ordering::Acquire,
+                    );
                 }
-                
+
                 parent_transform.parent
             };
 
@@ -586,11 +599,9 @@ impl Entity {
             let mut parent = parent_ptr.write();
             let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
 
-            for i in 0..parent_transform.children.len()
-            {
+            for i in 0..parent_transform.children.len() {
                 let child = &parent_transform.children[i];
-                if child == &self.self_ptr
-                {
+                if child == &self.self_ptr {
                     parent_transform.children.swap_remove(i);
                     break;
                 }
@@ -599,22 +610,19 @@ impl Entity {
     }
 
     /// Initializes the transform datagroup for this entity.
-    /// 
+    ///
     /// # Panics
     /// If called in a non-spatial entity
-    fn init_transform(&mut self)
-    {
+    fn init_transform(&mut self) {
         let ls_stages = &self.ls_stage_enabled_map;
         let transform = self
             .get_transform()
             .expect("Can't init transform if entity has no transform");
 
         // Set the right value fot all counters
-        for i in 0..STAGE_COUNT
-        {
+        for i in 0..STAGE_COUNT {
             let stage_enabled = ls_stages[i];
-            if stage_enabled
-            {
+            if stage_enabled {
                 transform.stage_count[i].store(1, Ordering::Release)
             }
         }
@@ -751,6 +759,3 @@ impl std::fmt::Debug for Entity {
             .finish()
     }
 }
-
-
-

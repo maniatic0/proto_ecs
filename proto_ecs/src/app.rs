@@ -24,8 +24,7 @@ impl App {
     /// Initialize internal systems (like datagroup registry).
     pub fn initialize() {
         let mut global_app = APP.write();
-        if global_app.is_initialized
-        {
+        if global_app.is_initialized {
             // Already initialized
             return;
         }
