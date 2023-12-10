@@ -1,6 +1,6 @@
 use crate::core::ids;
 use crate::data_group::{DataGroupID, DataGroupInitType, DataGroupRegistry};
-use crate::entities::entity::MAX_DATAGROUP_INDEX;
+use crate::entities::entity::MAX_DATAGROUP_LEN;
 use crate::get_id;
 use crate::systems::common::Dependency;
 use crate::systems::global_systems::{GlobalSystemID, GlobalSystemRegistry};
@@ -181,10 +181,10 @@ impl EntitySpawnDescription {
     /// Checks if the datagroups of this entity make sense, else panic
     pub fn check_datagroups_panic(&self) {
         assert!(
-            self.get_datagroups().len() <= MAX_DATAGROUP_INDEX as usize,
+            self.get_datagroups().len() <= MAX_DATAGROUP_LEN as usize,
             "More datagroups than what the indexing type can support: {} (limit {})",
             self.get_datagroups().len(),
-            MAX_DATAGROUP_INDEX
+            MAX_DATAGROUP_LEN
         );
 
         let registry = DataGroupRegistry::get_global_registry().read();

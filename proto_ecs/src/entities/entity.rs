@@ -39,7 +39,7 @@ pub type DataGroupIndexingType = u16;
 pub const INVALID_DATAGROUP_INDEX: DataGroupIndexingType = DataGroupIndexingType::MAX;
 
 /// Max number of datagroups that can be in an entity
-pub const MAX_DATAGROUP_INDEX: DataGroupIndexingType = INVALID_DATAGROUP_INDEX - 1;
+pub const MAX_DATAGROUP_LEN: DataGroupIndexingType = INVALID_DATAGROUP_INDEX;
 
 /// Map type used by entities to store what local systems it has
 pub type LocalSystemMap = IntSet<SystemClassID>;
@@ -72,7 +72,7 @@ pub struct Entity {
     global_systems: IntSet<GlobalSystemID>,
 
     // Index of the transform datagroup in the `datagroups` vector
-    transform_index: usize
+    transform_index: DataGroupIndexingType
 }
 
 impl Entity {
@@ -109,17 +109,18 @@ impl Entity {
 
             transform_requested = transform_requested || id == Transform::get_id();
         }
+        assert!(datagroups.len() <= MAX_DATAGROUP_LEN as usize);
 
         // Sort them to be able to use binary search
         datagroups.sort_by_key(|dg| dg.get_id());
-        let mut transform_index = usize::MAX;
+        let mut transform_index = INVALID_DATAGROUP_INDEX;
         if transform_requested
         {
             transform_index = datagroups
                 .binary_search_by_key(
                     &Transform::get_id(), 
                     |dg|{dg.get_id()}
-                ).unwrap();
+                ).unwrap() as DataGroupIndexingType;
         }
 
         // Build temp map for their positions (for Local Systems lookup)
@@ -265,25 +266,25 @@ impl Entity {
         // the transform can't actually be deleted, 
         // we just set its index to an invalid value so that all
         // `get_transform` operations return `None`
-        self.transform_index = usize::MAX;
+        self.transform_index = INVALID_DATAGROUP_INDEX;
     }
 
     #[inline(always)]
     pub fn get_transform(&self) -> Option<&Transform>
     {
-        if self.transform_index == usize::MAX
+        if self.transform_index == INVALID_DATAGROUP_INDEX
         { None }
         else
-        { Some(cast(&self.datagroups[self.transform_index])) }
+        { Some(cast(&self.datagroups[self.transform_index as usize])) }
     }
 
     #[inline(always)]
     pub fn get_transform_mut(&mut self) -> Option<&mut Transform>
     {
-        if self.transform_index == usize::MAX
+        if self.transform_index == INVALID_DATAGROUP_INDEX
         { None }
         else
-        { Some(cast_mut(&mut self.datagroups[self.transform_index])) }
+        { Some(cast_mut(&mut self.datagroups[self.transform_index as usize])) }
     }
 
     #[inline(always)]

@@ -329,11 +329,11 @@ pub fn register_local_system(input: proc_macro::TokenStream) -> proc_macro::Toke
                             #( func_map[#stage_indices] = Some(#glue_function_ids);)*
 
                             assert!(
-                                dependencies.len() <= proto_ecs::entities::entity::MAX_DATAGROUP_INDEX as usize,
+                                dependencies.len() <= proto_ecs::entities::entity::MAX_DATAGROUP_LEN as usize,
                                 "Local System '{}' has more datagroups dependencies than what the indexing type can support: {} (limit {})",
                                 #struct_id_str,
                                 dependencies.len(),
-                                proto_ecs::entities::entity::MAX_DATAGROUP_INDEX
+                                proto_ecs::entities::entity::MAX_DATAGROUP_LEN
                             );
 
                             registry.register(
