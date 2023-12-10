@@ -356,7 +356,7 @@ impl World {
             .entities
             .get(&parent_id)
             .expect("Entity should be created by now!");
-        let entity_ptr = self
+        let child_ptr = self
             .entities
             .get(&entity_id)
             .expect("Entity should be created by now!");
@@ -369,7 +369,27 @@ impl World {
             }
         }
 
-        entity_ptr.write().set_parent(*parent_ptr);
+        {
+            let mut child_entity = child_ptr.write();
+
+            if child_entity.is_root() {
+                // Remove child from execution lists
+                for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+                    if child_entity.should_run_in_stage(stage_id as StageID) {
+                        let mut stage = stage_vec.write();
+
+                        for i in 0..stage.len() {
+                            if stage[i] == *child_ptr {
+                                stage.swap_remove(i);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            child_entity.set_parent(*parent_ptr);
+        }
 
         // Now check if we have to update the internal local system running list
         let mut root = *parent_ptr;
@@ -389,7 +409,6 @@ impl World {
             root = parent;
         }
 
-        // TODO if the entity didn't had a parent, it might be a root that should be removed from the per-stage run list
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             if root.read().should_run_in_stage(stage_id as StageID) && !old_stages_to_run[stage_id]
             {
