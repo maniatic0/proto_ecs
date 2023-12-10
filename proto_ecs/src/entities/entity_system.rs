@@ -71,9 +71,10 @@ pub type WorldID = u16;
 /// Know which global systems should be ran per stage
 pub type GlobalSystemIDVec = RwLock<Vec<GlobalSystemID>>;
 
-// A map from global system to the set of entities it has to run
+/// A map from global system to the set of entities it has to run
 pub type GSEntitiesMap = RwLock<Vec<EntitiesVec>>;
 
+/// Queue for reparenting operations that'll be executed in a World
 type ReparentingQueue = scc::Queue<ReparentingOps>;
 
 /// Possible re-parenting operations
