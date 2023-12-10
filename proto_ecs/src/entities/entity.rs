@@ -89,6 +89,7 @@ impl Entity {
         let dg_registry = DataGroupRegistry::get_global_registry().read();
         let mut datagroups = DataGroupVec::new();
 
+        let transform_dg_id = Transform::get_id();
         let mut transform_requested = false;
         for (id, init_params) in data_groups {
             let entry = dg_registry.get_entry_by_id(id);
@@ -107,7 +108,7 @@ impl Entity {
 
             datagroups.push(new_dg);
 
-            transform_requested = transform_requested || id == Transform::get_id();
+            transform_requested = transform_requested || id == transform_dg_id;
         }
         assert!(datagroups.len() <= MAX_DATAGROUP_LEN as usize);
 
