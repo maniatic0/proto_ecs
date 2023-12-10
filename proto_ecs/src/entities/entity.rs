@@ -613,7 +613,7 @@ impl Entity {
                 for i in 0..STAGE_COUNT {
                     parent_transform.stage_count[i].fetch_sub(
                         transform.stage_count[i].load(Ordering::Acquire),
-                        Ordering::Acquire,
+                        Ordering::Release,
                     );
                 }
 
