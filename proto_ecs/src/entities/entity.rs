@@ -56,9 +56,10 @@ pub type StageMap = VecMap<StageID, Vec<(DataGroupIndexingType, SystemFn)>>;
 /// Map type used by entities to store the reference to its children
 pub type ChildrenMap = VecSet<EntityID>;
 
-#[derive(Default)]
+
 pub struct Entity {
     id: EntityID,
+    self_ptr: EntityPtr,
     name: String,
     debug_info: String,
 
@@ -76,7 +77,7 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub(super) fn init(id: EntityID, spawn_desc: EntitySpawnDescription) -> Self {
+    pub(super) fn init(id: EntityID, self_ptr: EntityPtr, spawn_desc: EntitySpawnDescription) -> Self {
         let EntitySpawnDescription {
             name,
             debug_info,
@@ -186,6 +187,7 @@ impl Entity {
 
         let mut entity = Self {
             id,
+            self_ptr,
             name,
             debug_info,
             datagroups,
@@ -495,7 +497,7 @@ impl Entity {
         
         // Clear current parent. Note that you have to sub a few counters from the old parent before 
         // reparenting
-        Entity::clear_parent(entity_ptr);
+        entity_ptr.write().clear_parent();
 
         let mut entity = entity_ptr.write();        
         let entity_transform = unsafe { entity.get_transform_mut_unsafe() };
@@ -543,11 +545,10 @@ impl Entity {
     /// Users should enqueue its reparenting requests.
     /// # Panics
     /// if this is not a spatial entity
-    pub(super) fn clear_parent(entity_ptr : EntityPtr)
+    pub(super) fn clear_parent(&mut self)
     {
-        debug_assert!(entity_ptr.read().is_spatial_entity(), "Can't clear parent of a non-spatial entity");
-        let mut entity = entity_ptr.write();
-        let transform = unsafe { entity.get_transform_mut_unsafe() };
+        debug_assert!(self.is_spatial_entity(), "Can't clear parent of a non-spatial entity");
+        let transform = unsafe { self.get_transform_unsafe() };
         let mut parent = transform.parent;
 
         // Return if nothing to do
@@ -581,13 +582,14 @@ impl Entity {
 
         // Remove `entity_ptr` from the child list of `parent_ptr`
         {
-            let mut parent = transform.parent.as_mut().unwrap().write();
+            let parent_ptr = transform.parent.unwrap();
+            let mut parent = parent_ptr.write();
             let parent_transform = unsafe { parent.get_transform_mut_unsafe() };
 
             for i in 0..parent_transform.children.len()
             {
-                let child = parent_transform.children[i];
-                if child == entity_ptr
+                let child = &parent_transform.children[i];
+                if child == &self.self_ptr
                 {
                     parent_transform.children.swap_remove(i);
                     break;

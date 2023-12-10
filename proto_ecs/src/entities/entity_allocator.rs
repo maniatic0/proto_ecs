@@ -193,7 +193,7 @@ impl EntityPtr {
     /// as the entity struct
     pub fn init(&mut self, id: EntityID, spawn_desc: EntitySpawnDescription) {
         let entry = unsafe { EntityEntry::from_ptr(self.ptr) };
-        entry.mem.write(RwLock::new(Entity::init(id, spawn_desc)));
+        entry.mem.write(RwLock::new(Entity::init(id, self.clone(), spawn_desc)));
         entry.header.is_initialized = true;
     }
 

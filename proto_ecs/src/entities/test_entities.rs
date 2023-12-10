@@ -11,7 +11,7 @@ mod test {
         entities::{
             entity::Entity,
             entity_spawn_desc::EntitySpawnDescription,
-            entity_system::{EntitySystem, World}, transform_datagroup::Transform, 
+            entity_system::{EntitySystem, World}, transform_datagroup::Transform, entity_allocator::EntityAllocator, 
         },
         tests::{
             shared_datagroups::sdg::{
@@ -44,7 +44,11 @@ mod test {
 
         spawn_desc.set_name("Test Name".to_owned());
 
-        let entity = Entity::init(1, spawn_desc);
+        let global_allocator = EntityAllocator::get_global();
+        let mut entity_ptr = global_allocator.write().allocate();
+        entity_ptr.init(1, spawn_desc);
+
+        let entity = entity_ptr.read();
         assert_eq!(entity.get_id(), 1);
         assert_eq!(entity.get_name(), "Test Name");
 
@@ -81,7 +85,11 @@ mod test {
 
         spawn_desc.set_name("Test Name".to_owned());
 
-        let mut entity = Entity::init(1, spawn_desc);
+        let global_allocator = EntityAllocator::get_global();
+        let mut entity_ptr = global_allocator.write().allocate();
+        entity_ptr.init(1, spawn_desc);
+        
+        let mut entity = entity_ptr.write();
 
         entity.run_stage(&world, 0);
         assert_eq!(

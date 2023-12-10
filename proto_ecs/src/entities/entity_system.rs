@@ -247,7 +247,7 @@ impl World {
             // about their transform state since it doesn't matter after deletion.
             // ? Can this be a problem if we want entities to have a `on_delete` callback? do we want one?
 
-            Entity::clear_parent(entity_ptr);
+            entity_ptr.write().clear_parent();
             let mut entity_stack = Vec::with_capacity(100);
             let mut ids_to_delete = Vec::with_capacity(100);
             entity_stack.push(entity_ptr);
