@@ -315,13 +315,7 @@ impl World {
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             let stage_id = stage_id as StageID;
             if entity_ptr.read().should_run_in_stage(stage_id) {
-                let mut stage_vec = stage_vec.write();
-                for (index, &vec_ref) in stage_vec.iter().enumerate() {
-                    if vec_ref == entity_ptr {
-                        stage_vec.swap_remove(index);
-                        break;
-                    }
-                }
+                World::remove_entity_from_stage_vec(stage_vec, &entity_ptr);
             }
         }
 
@@ -376,14 +370,7 @@ impl World {
                 // Remove child from execution lists
                 for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
                     if child_entity.should_run_in_stage(stage_id as StageID) {
-                        let mut stage = stage_vec.write();
-
-                        for i in 0..stage.len() {
-                            if stage[i] == *child_ptr {
-                                stage.swap_remove(i);
-                                break;
-                            }
-                        }
+                        World::remove_entity_from_stage_vec(&stage_vec, &*child_ptr);
                     }
                 }
             }
@@ -400,14 +387,7 @@ impl World {
 
                 for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
                     if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
-                        let mut stage = stage_vec.write();
-
-                        for i in 0..stage.len() {
-                            if stage[i] == prev_parent_ptr {
-                                stage.swap_remove(i);
-                                break;
-                            }
-                        }
+                        World::remove_entity_from_stage_vec(&stage_vec, &prev_parent_ptr);
                     }
                 }
             }
@@ -681,6 +661,19 @@ impl World {
     #[allow(unused)]
     pub(super) fn get_global_systems(&self) -> &GlobalSystemMap {
         &self.global_systems
+    }
+
+    /// Helper to remove an entity from a stage vec
+    #[inline(always)]
+    fn remove_entity_from_stage_vec(stage_vec: &EntitiesVec, entity_ptr: &EntityPtr) {
+        let mut stage = stage_vec.write();
+
+        for i in 0..stage.len() {
+            if stage[i] == *entity_ptr {
+                stage.swap_remove(i);
+                break;
+            }
+        }
     }
 }
 
