@@ -494,6 +494,28 @@ impl Entity {
         transform.as_ref().unwrap().is_root()
     }
 
+    /// Get the hierarchy root for this entity
+    ///
+    /// Will panic if not a spatial entity.
+    #[inline(always)]
+    pub(super) fn get_root(&self) -> EntityPtr {
+        let mut root = self.self_ptr;
+
+        loop {
+            let parent = {
+                let root_entity = root.read();
+
+                if root_entity.is_root() {
+                    return root;
+                }
+
+                let root_transform = unsafe { root_entity.get_transform_unsafe() };
+                root_transform.parent.unwrap()
+            };
+            root = parent;
+        }
+    }
+
     /// Sets `parent_ptr` as the parent of `entity_ptr`
     ///
     /// Used internally by the engine to re-parent an entity.

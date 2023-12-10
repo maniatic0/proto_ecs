@@ -388,26 +388,34 @@ impl World {
                 }
             }
 
+            let maybe_prev_parent_ptr = unsafe { child_entity.get_transform_unsafe() }.parent;
+
             child_entity.set_parent(*parent_ptr);
+
+            if let Some(prev_parent_ptr) = maybe_prev_parent_ptr {
+                // Remove prev root from execution lists it no longer needs to be in
+                let prev_root = prev_parent_ptr.read().get_root();
+                let prev_root_entity = prev_root.read();
+                let prev_stages = &unsafe { prev_root_entity.get_transform_unsafe() }.stage_count;
+
+                for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+                    if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
+                        let mut stage = stage_vec.write();
+
+                        for i in 0..stage.len() {
+                            if stage[i] == prev_parent_ptr {
+                                stage.swap_remove(i);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Now check if we have to update the internal local system running list
-        let mut root = *parent_ptr;
-
         // Get hierarchy root
-        loop {
-            let parent = {
-                let root_entity = root.read();
-
-                if root_entity.is_root() {
-                    break;
-                }
-
-                let root_transform = unsafe { root_entity.get_transform_unsafe() };
-                root_transform.parent.unwrap()
-            };
-            root = parent;
-        }
+        let root = parent_ptr.read().get_root();
 
         let root_entity = root.read();
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
