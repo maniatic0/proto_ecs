@@ -239,19 +239,50 @@ impl World {
         // TODO I'm not sure this implementation is the best option for recursive deletion.
 
         // Delete all your children bellow you if you're a spatial entity
-        if entity_ptr.is_live() && entity_ptr.read().is_spatial_entity()
-        // might be deleted
-        {
+        if entity_ptr.read().is_spatial_entity() {
             // Note that the only parent that should be deleted with `clear_parent`
             // is the first entity to be deleted in the hierarchy, for the rest we can just forget
             // about their transform state since it doesn't matter after deletion.
             // ? Can this be a problem if we want entities to have a `on_delete` callback? do we want one?
 
-            entity_ptr.write().clear_parent();
+            let mut entity = entity_ptr.write();
+            if entity.is_root() {
+                // Remove root from stage lists
+                for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+                    if entity.should_run_in_stage(stage_id as StageID) {
+                        World::remove_entity_from_stage_vec(stage_vec, &entity_ptr);
+                    }
+                }
+            } else {
+                // Remove prev root from stage lists it no longer needs to be in
+                let prev_parent_ptr = unsafe { entity.get_transform_unsafe() }.parent.unwrap();
+
+                entity.clear_parent();
+
+                let prev_root = prev_parent_ptr.read().get_root();
+                let prev_root_entity = prev_root.read();
+                let prev_stages = &unsafe { prev_root_entity.get_transform_unsafe() }.stage_count;
+
+                for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+                    if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
+                        World::remove_entity_from_stage_vec(stage_vec, &prev_parent_ptr);
+                    }
+                }
+            }
+
             const RECURSIVE_DELETION_EXPECTED_STACK_LEN: usize = 100;
             let mut entity_stack = Vec::with_capacity(RECURSIVE_DELETION_EXPECTED_STACK_LEN);
             let mut ids_to_delete = Vec::with_capacity(RECURSIVE_DELETION_EXPECTED_STACK_LEN);
-            entity_stack.push(entity_ptr);
+
+            // Add all the children of this entity to be processed
+            {
+                let entity_transform = entity.get_transform().unwrap();
+                for entity_ptr in entity_transform.children.iter() {
+                    entity_stack.push(*entity_ptr);
+                }
+
+                entity.delete_transform();
+            }
 
             // Collect all entities in the hierarchy and delete their transform
             while let Some(next_entity_ptr) = entity_stack.pop() {
@@ -270,8 +301,14 @@ impl World {
             ids_to_delete.into_par_iter().for_each(|id| {
                 self.destroy_entity_internal(id);
             });
-
-            // TODO we have to update the list of entities to run per stage after all children were deleted
+        } else {
+            // Easy case, just remove from stage lists
+            for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+                let stage_id = stage_id as StageID;
+                if entity_ptr.read().should_run_in_stage(stage_id) {
+                    World::remove_entity_from_stage_vec(stage_vec, &entity_ptr);
+                }
+            }
         }
 
         // Destroy entity from iteration lists
@@ -307,13 +344,6 @@ impl World {
                         gs_entities.swap_remove(i);
                     }
                 }
-            }
-        }
-
-        for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
-            let stage_id = stage_id as StageID;
-            if entity_ptr.read().should_run_in_stage(stage_id) {
-                World::remove_entity_from_stage_vec(stage_vec, &entity_ptr);
             }
         }
 
