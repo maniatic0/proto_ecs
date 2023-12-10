@@ -78,11 +78,14 @@ unsafe impl Sync for EntityAllocator{}
 
 impl EntityAllocator
 {
+    /// Initial capacity of the [EntityAllocator]
+    const INITIAL_CAPACITY : usize = 10_000;
+
     /// Create a new empty allocator
     pub fn new() -> Self
     {
         Self{
-            entries: RwLock::new(Vec::with_capacity(10_000)),
+            entries: RwLock::new(Vec::with_capacity(EntityAllocator::INITIAL_CAPACITY)),
             free: FreeQueue::default()
         }
     }
