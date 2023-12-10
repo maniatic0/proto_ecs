@@ -409,8 +409,9 @@ impl World {
             root = parent;
         }
 
+        let root_entity = root.read();
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
-            if root.read().should_run_in_stage(stage_id as StageID) && !old_stages_to_run[stage_id]
+            if root_entity.should_run_in_stage(stage_id as StageID) && !old_stages_to_run[stage_id]
             {
                 stage_vec.write().push(root);
             }
