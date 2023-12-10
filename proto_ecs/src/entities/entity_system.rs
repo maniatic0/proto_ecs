@@ -411,7 +411,39 @@ impl World {
         //  Actually clear the parent
         //  remove the root of this entity from the per-stage entity list
         //  add this entity to the per-stage entity list
-        todo!("Implement this like the re-parent")
+
+        let entity_ptr = self
+            .entities
+            .get(&entity_id)
+            .expect("Entity should be created by now!");
+
+        let mut entity = entity_ptr.write();
+
+        if entity.is_root() {
+            // Nothing to do, no parent
+            return;
+        }
+
+        let prev_parent_ptr = unsafe { entity.get_transform_unsafe() }.parent.unwrap();
+
+        entity.clear_parent();
+
+        // Remove prev root from execution lists it no longer needs to be in
+        let prev_root = prev_parent_ptr.read().get_root();
+        let prev_root_entity = prev_root.read();
+        let prev_stages = &unsafe { prev_root_entity.get_transform_unsafe() }.stage_count;
+
+        // And add this entity to execution lists
+
+        for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
+            if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
+                World::remove_entity_from_stage_vec(&stage_vec, &prev_parent_ptr);
+            }
+
+            if entity.should_run_in_stage(stage_id as StageID) {
+                stage_vec.write().push(*entity_ptr);
+            }
+        }
     }
 
     // Update the delta times in this world
