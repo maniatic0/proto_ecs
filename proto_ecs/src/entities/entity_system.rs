@@ -8,7 +8,6 @@ use atomic_float::AtomicF64;
 
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
-use super::entity::{self, Entity};
 use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
 use crate::entities::entity_allocator::EntityAllocator;
@@ -255,13 +254,12 @@ impl World {
             entity_stack.push(entity_ptr);
 
             // Collect all entities in the hierarchy and delete their transform
-            while !entity_stack.is_empty() {
-                let next_entity_ptr = entity_stack.pop().unwrap();
+            while let Some(next_entity_ptr) = entity_stack.pop() {
                 let mut entity = next_entity_ptr.write();
 
                 let entity_transform = entity.get_transform().unwrap();
                 for entity_ptr in entity_transform.children.iter() {
-                    entity_stack.push(entity_ptr.clone());
+                    entity_stack.push(*entity_ptr);
                 }
 
                 entity.delete_transform();
@@ -357,9 +355,8 @@ impl World {
 
         {
             let parent_entity = parent_ptr.read();
-            for stage_id in 0..STAGE_COUNT {
-                old_stages_to_run[stage_id] =
-                    parent_entity.should_run_in_stage(stage_id as StageID);
+            for (stage_id, old_stage_to_run) in old_stages_to_run.iter_mut().enumerate() {
+                *old_stage_to_run = parent_entity.should_run_in_stage(stage_id as StageID);
             }
         }
 
@@ -370,7 +367,7 @@ impl World {
                 // Remove child from execution lists
                 for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
                     if child_entity.should_run_in_stage(stage_id as StageID) {
-                        World::remove_entity_from_stage_vec(&stage_vec, &*child_ptr);
+                        World::remove_entity_from_stage_vec(stage_vec, &child_ptr);
                     }
                 }
             }
@@ -387,7 +384,7 @@ impl World {
 
                 for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
                     if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
-                        World::remove_entity_from_stage_vec(&stage_vec, &prev_parent_ptr);
+                        World::remove_entity_from_stage_vec(stage_vec, &prev_parent_ptr);
                     }
                 }
             }
@@ -437,7 +434,7 @@ impl World {
 
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
-                World::remove_entity_from_stage_vec(&stage_vec, &prev_parent_ptr);
+                World::remove_entity_from_stage_vec(stage_vec, &prev_parent_ptr);
             }
 
             if entity.should_run_in_stage(stage_id as StageID) {
@@ -597,7 +594,7 @@ impl World {
                 let mut stage_entities = self.gs_entity_map.write();
                 let current_stage_entities = &mut stage_entities[gs_id as usize];
 
-                (current_fn)(&mut storage, self, &self.entities, &current_stage_entities);
+                (current_fn)(&mut storage, self, &self.entities, current_stage_entities);
             }
         }
 
@@ -973,7 +970,7 @@ impl EntitySystem {
     #[inline(always)]
     #[allow(unused)]
     pub(super) fn get_worlds(&self) -> &WorldMap {
-        return &self.worlds;
+        &self.worlds
     }
 
     /// Get a reference to an entity from the specified world.

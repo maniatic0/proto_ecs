@@ -277,6 +277,10 @@ impl Entity {
         self.transform_index = INVALID_DATAGROUP_INDEX;
     }
 
+    /// Get the transform datagroup for this entity
+    ///
+    /// # Safety
+    /// Panics if it's not a spatial entity
     #[inline(always)]
     pub unsafe fn get_transform_unsafe(&self) -> &Transform {
         debug_assert!(
@@ -295,6 +299,10 @@ impl Entity {
         }
     }
 
+    /// Get the mutable transform datagroup for this entity
+    ///
+    /// # Safety
+    /// Panics if it's not a spatial entity
     #[inline(always)]
     pub unsafe fn get_transform_mut_unsafe(&mut self) -> &mut Transform {
         debug_assert!(
@@ -385,7 +393,7 @@ impl Entity {
 
         // Check that we need to run at this stage
         let count_for_stage = hierarchy.stage_count[stage_id as usize].load(Ordering::Acquire);
-        return count_for_stage > 0;
+        count_for_stage > 0
     }
 
     /// Runs a stage. Note that it panics if the stage is not enabled
@@ -456,7 +464,7 @@ impl Entity {
         }
 
         for child in self.get_transform().as_ref().unwrap().children.iter() {
-            recursion_stack.push(child.clone());
+            recursion_stack.push(*child);
         }
 
         // Perform a dfs traversal over the children of this node.
@@ -469,7 +477,7 @@ impl Entity {
             }
 
             for child in entity.get_transform().as_ref().unwrap().children.iter() {
-                recursion_stack.push(child.clone());
+                recursion_stack.push(*child);
             }
         }
     }
@@ -541,7 +549,7 @@ impl Entity {
         // reparenting
         self.clear_parent();
 
-        let self_ptr = self.self_ptr.clone();
+        let self_ptr = self.self_ptr;
         let entity_transform = unsafe { self.get_transform_mut_unsafe() };
         entity_transform.parent = Some(parent_ptr);
 

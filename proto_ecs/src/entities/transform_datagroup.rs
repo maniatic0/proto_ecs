@@ -15,8 +15,6 @@ use crate::{
     systems::common::STAGE_COUNT,
 };
 
-use super::entity::EntityID;
-
 /// A spatial hierarchy for entities. Entities that provide this
 /// datagroup can define spatial relationships to other entities.
 #[derive(Debug, CanCast)]
@@ -54,7 +52,7 @@ impl Transform {
 }
 
 fn factory() -> Box<dyn DataGroup> {
-    Box::new(Transform::default())
+    Box::<Transform>::default()
 }
 
 impl Default for Transform {

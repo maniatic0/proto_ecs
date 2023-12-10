@@ -16,6 +16,7 @@ use super::entity_spawn_desc::EntitySpawnDescription;
 /// accessible with `EntityAllocator::get_global()`
 #[derive(Debug, Default)]
 pub struct EntityAllocator {
+    #[allow(clippy::vec_box)] // Entities are big and non-memcpy'ed
     entries: RwLock<Vec<Box<EntityEntry>>>,
     free: FreeQueue,
 }
@@ -111,10 +112,10 @@ impl EntityAllocator {
         let ptr = self.free.pop().unwrap().cast();
         let entry = unsafe { EntityEntry::from_ptr(ptr) };
 
-        return EntityPtr {
+        EntityPtr {
             ptr,
             generation: entry.header.generation.load(Ordering::Acquire),
-        };
+        }
     }
 
     /// Free an entity.
@@ -186,7 +187,7 @@ impl EntityPtr {
     #[inline(always)]
     pub fn is_live(&self) -> bool {
         let entry = unsafe { EntityEntry::from_ptr(self.ptr) };
-        return entry.header.generation.load(Ordering::Acquire) == self.generation;
+        entry.header.generation.load(Ordering::Acquire) == self.generation
     }
 
     /// Initializes this entity using the same init function
@@ -195,7 +196,7 @@ impl EntityPtr {
         let entry = unsafe { EntityEntry::from_ptr(self.ptr) };
         entry
             .mem
-            .write(RwLock::new(Entity::init(id, self.clone(), spawn_desc)));
+            .write(RwLock::new(Entity::init(id, *self, spawn_desc)));
         entry.header.is_initialized = true;
     }
 
