@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
 
-use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
+use crate::entities::entity::{EntityID, INVALID_ENTITY_ID, self, Entity};
 
 use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
@@ -205,6 +205,7 @@ impl World {
 
         // Initialize every global system that is not currently loaded
         for &gs_id in entity_ref.get_global_systems() {
+            let entity_name = entity_ref.get_name();
             {
                 let gs_count = &self.global_systems_count;
                 gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
@@ -461,7 +462,6 @@ impl World {
         let prev_stages = &unsafe { prev_root_entity.get_transform_unsafe() }.stage_count;
 
         // And add this entity to execution lists
-
         for (stage_id, stage_vec) in self.entities_stages.iter().enumerate() {
             if prev_stages[stage_id].load(Ordering::Acquire) == 0 {
                 World::remove_entity_from_stage_vec(stage_vec, &prev_parent_ptr);
@@ -576,10 +576,13 @@ impl World {
         {
             // Run Stage in all entities
             let entities_stage = self.entities_stages[stage_id as usize].read();
-            if entities_stage.is_empty() {
-                // Nothing to do, no more commands can be created
-                // TODO: Check this for Global Systems. They might need to execute?
-                return;
+            {
+                let gs_stage = self.global_system_stages[stage_id as usize].read();
+                if entities_stage.is_empty() && gs_stage.is_empty(){
+                    // Nothing to do, no more commands can be created
+                    // TODO: Check this for Global Systems. They might need to execute?
+                    return;
+                }
             }
 
             entities_stage
@@ -892,7 +895,10 @@ impl EntitySystem {
         self.pool.install(|| {
             self.worlds.par_iter().for_each(|world| {
                 world
-                    .update_delta_time_internal(self.get_delta_time(), self.get_fixed_delta_time());
+                    .update_delta_time_internal(
+                        self.get_delta_time(), 
+                        self.get_fixed_delta_time()
+                    );
             });
         });
 

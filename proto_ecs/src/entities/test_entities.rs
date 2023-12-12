@@ -109,8 +109,7 @@ mod test {
 
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
-        // We can't reset bc it will delete worlds for other tests
-        // es.reset(); // In case other tests happened.
+    
         es.step_world(0.0, 0.0, new_world_id); // Process reset
 
         for _ in 0..100 {
