@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
 
-use crate::entities::entity::{EntityID, INVALID_ENTITY_ID, self, Entity};
+use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
 use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
@@ -205,7 +205,6 @@ impl World {
 
         // Initialize every global system that is not currently loaded
         for &gs_id in entity_ref.get_global_systems() {
-            let entity_name = entity_ref.get_name();
             {
                 let gs_count = &self.global_systems_count;
                 gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
@@ -269,6 +268,8 @@ impl World {
                         World::remove_entity_from_stage_vec(stage_vec, &prev_parent_ptr);
                     }
                 }
+
+                // TODO Remove global systems as well if necessary
             }
 
             const RECURSIVE_DELETION_EXPECTED_STACK_LEN: usize = 100;
@@ -325,6 +326,7 @@ impl World {
         }
 
         // Decrease counters for global systems in this entity
+        // TODO this should be done in the entity-level version of entity destruction
         {
             let gs_counts = &self.global_systems_count;
             for &gs_id in entity_ptr.read().get_global_systems() {
@@ -339,11 +341,18 @@ impl World {
                 let gs_entities_map = self.gs_entity_map.read();
                 let gs_entities = &mut gs_entities_map[gs_id as usize].write();
 
-                for i in 0..gs_entities.len() {
+                let mut i = 0;
+                let mut entities_len = gs_entities.len();
+                while i < entities_len
+                {
                     let other_entity_ptr = gs_entities[i];
                     if other_entity_ptr == entity_ptr {
                         gs_entities.swap_remove(i);
+                        entities_len -= 1;
+                        continue;
                     }
+
+                    i += 1;
                 }
             }
         }

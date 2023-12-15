@@ -21,7 +21,7 @@ mod test {
                 AnimationDataGroup, MeshDataGroup, TestNumberDataGroup, TestNumberDataGroupArg,
             },
             shared_global_systems::sgs::Test as gs_Test,
-            shared_global_systems::sgs::{GSFlowDG, GSFlowTester, TestBefore},
+            shared_global_systems::sgs::{GSFlowDG, GSFlowTester, TestBefore, AllLive},
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
         },
     };
@@ -182,6 +182,7 @@ mod test {
         let get_spawn_desc = || {
             let mut desc = EntitySpawnDescription::default();
             Transform::prepare_spawn(&mut desc, Box::new(Transform::default()));
+            AllLive::simple_prepare(&mut desc);
             desc
         };
 
@@ -263,6 +264,8 @@ mod test {
             assert!(root_transform.children.is_empty());
         }
 
+        // Check that all entities passed to global systems are live
+        es.step_world(0.0, 0.0, new_world_id);
         es.destroy_world(new_world_id);
     }
 
@@ -330,6 +333,7 @@ mod test {
             assert_eq!(number_dg.num, 4);
         }
 
+        // Check that all entities passed to the global systems are live after deletion
         es.destroy_world(new_world_id);
     }
 }

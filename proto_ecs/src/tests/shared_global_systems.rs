@@ -170,4 +170,34 @@ pub mod sgs {
             }
         }
     }
+
+    // The following global system is used to check that global systems
+    // Will always have live entities, never invalid pointers as arguments
+    #[derive(Debug, CanCast)]
+    pub struct AllLive;
+    fn all_live_gs_factory() -> Box<dyn GlobalSystem> 
+    {
+        return Box::new(AllLive);
+    }
+
+    register_global_system!{
+        AllLive, 
+        factory = all_live_gs_factory,
+        stages = (0)
+    }
+
+    impl AllLiveGlobalSystem for AllLive
+    {
+        fn stage_0(&mut self, _world: &crate::entities::entity_system::World, _entity_map: &crate::entities::entity_system::EntityMap, registered_entities: &Vec<crate::entities::entity_system::EntityPtr>) {
+            for entity in registered_entities.iter()
+            {
+                assert!(entity.is_live(), "Entities should all be live when passed as argument to a global system");
+            }
+
+            for entry in _entity_map.iter()
+            {
+                assert!(entry.value().is_live(), "Entities in the entity map should all be live");
+            }
+        }
+    }
 }
