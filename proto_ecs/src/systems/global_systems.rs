@@ -256,6 +256,12 @@ impl GlobalSystemRegistry {
     pub fn get_global_system_count(&self) -> usize {
         self.entries.len()
     }
+
+    #[inline(always)]
+    pub fn get_entries(&self) -> &Vec<GlobalSystemRegistryEntry>
+    {
+        &self.entries
+    }
 }
 
 pub type TempRegistryLambda = Box<dyn FnOnce(&mut GlobalSystemRegistry) + Sync + Send + 'static>;

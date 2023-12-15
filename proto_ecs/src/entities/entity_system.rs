@@ -125,7 +125,7 @@ impl World {
             gs_map.push(None);
         }
 
-        Self {
+        let new_world = Self {
             id,
             delta_time: Default::default(),
             fixed_delta_time: Default::default(),
@@ -142,7 +142,20 @@ impl World {
             gs_creation_queue: Default::default(),
             gs_deletion_queue: Default::default(),
             gs_entity_map: RwLock::new(gs_entity_map),
+        };
+
+        // Add all global systems with `always alive` lifetime
+        let gs_registry = GlobalSystemRegistry::get_global_registry().read();
+        for gs_entry in gs_registry.get_entries().iter()
+        {
+            if gs_entry.lifetime == GSLifetime::AlwaysLive
+            {
+                new_world.load_global_system_by_id(gs_entry.id);
+            }
         }
+
+        new_world
+
     }
 
     #[inline(always)]
@@ -205,14 +218,25 @@ impl World {
         }
 
         // Initialize every global system that is not currently loaded
+        let gs_registry = GlobalSystemRegistry::get_global_registry().read();
         for &gs_id in entity_ref.get_global_systems() {
+            let entry = gs_registry.get_entry_by_id(gs_id);
             {
                 let gs_count = &self.global_systems_count;
                 gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
             }
 
-            if !self.global_system_is_loaded(gs_id) {
+            let global_system_is_loaded = self.global_system_is_loaded(gs_id);
+            if !global_system_is_loaded && entry.lifetime == GSLifetime::WhenRequired {
                 self.load_global_system_by_id(gs_id);
+            }
+            else if !global_system_is_loaded && entry.lifetime != GSLifetime::WhenRequired {
+                // TODO We have to check here that entities can't be created when their corresponding global
+                // systems are not created. This if clause can fix this but it doesn't takes in account 
+                // global systems that are about to be created, which might be an usability problem
+
+                panic!("Entity requires a global system that is not yet loaded and its lifetime is not `WhenRequired`!\
+                        You can fix this by ensuring that `{}` is loaded before creating an entity that requires it", entry.name);
             }
 
             // Add this entity to the entity vector for each GS it requires
@@ -332,8 +356,14 @@ impl World {
                 let result = gs_counts[gs_id as usize].fetch_sub(1, Ordering::Relaxed);
 
                 if result == 1 {
-                    // this was the last entity requiring this GS
-                    self.unload_global_system_by_id(gs_id);
+                    let gs_registry = GlobalSystemRegistry::get_global_registry().read();
+                    let entry = gs_registry.get_entry_by_id(gs_id);
+
+                    // Only unload this global system if the global system has a `WhenRequired` Lifetime. 
+                    if entry.lifetime == GSLifetime::WhenRequired
+                    {
+                        self.unload_global_system_by_id(gs_id);
+                    }
                 }
 
                 // Delete this entity from the GS entity vec

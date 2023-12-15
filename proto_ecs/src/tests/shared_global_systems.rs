@@ -201,4 +201,7 @@ pub mod sgs {
             }
         }
     }
+
+    // The following global systems are used to test global system lifetimes
+    
 }
