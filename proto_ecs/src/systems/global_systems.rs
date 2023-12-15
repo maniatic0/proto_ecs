@@ -53,6 +53,22 @@ pub trait GlobalSystem: ids::HasID + CanCast + std::fmt::Debug + Send + Sync {
     );
 }
 
+/// The type of lifetime of this global system. Controls when a global system should load 
+/// or onload based on multiple conditions.
+#[derive(Debug, PartialEq)]
+pub enum GSLifetime
+{
+    /// Will be automatically loaded by the application on world loading. 
+    /// Can be unloaded manually if requested so.
+    AlwaysLive,
+
+    /// Will be alive only as long there's at the least one entity requiring this [GlobalSystem]. 
+    WhenRequired,
+
+    /// The lifetime of this global system is manually managed with load and unload requests
+    Manual
+}
+
 #[derive(Debug)]
 pub struct GlobalSystemRegistryEntry {
     pub id: GlobalSystemID,
@@ -64,6 +80,7 @@ pub struct GlobalSystemRegistryEntry {
     pub after: Vec<GlobalSystemID>,
     pub factory: GSFactoryFn,
     pub init_desc: InitDesc,
+    pub lifetime: GSLifetime,
     pub set_id_fn: fn(GlobalSystemID), // Only used for init, don't use it manually
 }
 

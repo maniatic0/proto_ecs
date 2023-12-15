@@ -13,6 +13,7 @@ use quote::quote;
 /// * `after` : A list of other global systems that should run before this system (this global system runs AFTER...)
 /// * `factory` : a function that takes no input and returns a Box<dyn GlobalSystem> returning an instance of this GlobalSystem
 /// * `init_style` : The style of the input argument for the initialization functions. Optional? Required? None?
+/// * `lifetime` : The lifetime of this global system. Default value is GSLifetime::WhenRequired 
 struct GlobalSystemArgs {
     struct_id: syn::Ident,
     dependencies: Dependencies,
@@ -21,6 +22,7 @@ struct GlobalSystemArgs {
     after: DependencyList,
     factory: syn::Ident,
     init_style: InitArgStyle,
+    lifetime: syn::Expr
 }
 
 pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -32,6 +34,7 @@ pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::Toke
         after,
         factory,
         init_style,
+        lifetime
     } = syn::parse_macro_input!(args as GlobalSystemArgs);
     let before = before.0;
     let after = after.0;
@@ -247,7 +250,8 @@ pub fn register_global_system(args: proc_macro::TokenStream) -> proc_macro::Toke
                                     ],
                                     factory : #factory,
                                     init_desc : <#struct_id as proto_ecs::systems::global_systems::GlobalSystemInitDescTrait>::INIT_DESC,
-                                    set_id_fn : __set_global_system_id__
+                                    set_id_fn : __set_global_system_id__,
+                                    lifetime : #lifetime
                                 }
                             );
                         }
@@ -285,6 +289,7 @@ impl syn::parse::Parse for GlobalSystemArgs {
         let mut after: Option<DependencyList> = None;
         let mut factory: Option<syn::Ident> = None;
         let mut init_style: Option<InitArgStyle> = None;
+        let mut lifetime: Option<syn::Expr> = None;
 
         // Use this loop to parse a list of keyword arguments:
         // A = ...,
@@ -360,6 +365,16 @@ impl syn::parse::Parse for GlobalSystemArgs {
                         ));
                     }
                     factory = Some(input.parse::<syn::Ident>()?);
+                },
+                "lifetime" => {
+                    if lifetime.is_some() {
+                        return Err(syn::Error::new(
+                            keyword_arg.span(),
+                            "Duplicated keyword argument: lifetime",
+                        ));
+                    }
+
+                    lifetime = Some(input.parse::<syn::Expr>()?);
                 }
                 _ => {
                     return Err(syn::Error::new(
@@ -398,6 +413,10 @@ impl syn::parse::Parse for GlobalSystemArgs {
             after: after.unwrap_or(DependencyList(vec![])),
             init_style: init_style.unwrap_or(InitArgStyle::NoInit),
             factory: factory.unwrap(),
+            lifetime: lifetime.unwrap_or({
+                let expr = quote!(proto_ecs::systems::global_systems::GSLifetime::WhenRequired);
+                syn::parse::<syn::Expr>(expr.into()).unwrap()
+            })
         })
     }
 }

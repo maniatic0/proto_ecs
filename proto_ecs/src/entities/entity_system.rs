@@ -269,7 +269,6 @@ impl World {
                     }
                 }
 
-                // TODO Remove global systems as well if necessary
             }
 
             const RECURSIVE_DELETION_EXPECTED_STACK_LEN: usize = 100;
@@ -326,7 +325,6 @@ impl World {
         }
 
         // Decrease counters for global systems in this entity
-        // TODO this should be done in the entity-level version of entity destruction
         {
             let gs_counts = &self.global_systems_count;
             for &gs_id in entity_ptr.read().get_global_systems() {
