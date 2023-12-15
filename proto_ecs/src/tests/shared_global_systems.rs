@@ -183,7 +183,8 @@ pub mod sgs {
     register_global_system!{
         AllLive, 
         factory = all_live_gs_factory,
-        stages = (0)
+        stages = (0),
+        lifetime = GSLifetime::AlwaysLive
     }
 
     impl AllLiveGlobalSystem for AllLive

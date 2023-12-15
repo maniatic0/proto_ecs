@@ -6,13 +6,14 @@ use lazy_static::lazy_static;
 
 use atomic_float::AtomicF64;
 
+use crate::core::ids::IDLocator;
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 
 use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
 use crate::entities::entity_allocator::EntityAllocator;
 use crate::systems::common::{StageID, STAGE_COUNT};
-use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry};
+use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry, GSLifetime};
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 
@@ -211,7 +212,7 @@ impl World {
             }
 
             if !self.global_system_is_loaded(gs_id) {
-                self.gs_creation_queue.push(gs_id);
+                self.load_global_system_by_id(gs_id);
             }
 
             // Add this entity to the entity vector for each GS it requires
@@ -332,7 +333,7 @@ impl World {
 
                 if result == 1 {
                     // this was the last entity requiring this GS
-                    self.gs_deletion_queue.push(gs_id);
+                    self.unload_global_system_by_id(gs_id);
                 }
 
                 // Delete this entity from the GS entity vec
@@ -508,7 +509,7 @@ impl World {
 
             // If just deleted skip deletion
             if !self.global_system_is_loaded(gs_to_delete) {
-                self.unload_global_system(gs_to_delete);
+                self.unload_global_system_internal(gs_to_delete);
                 changed = true;
             }
         }
@@ -519,7 +520,7 @@ impl World {
 
             // If already created just skip creation
             if !self.global_system_is_loaded(gs_to_create) {
-                self.load_global_system(gs_to_create);
+                self.load_global_system_internal(gs_to_create);
                 changed = true;
             }
         }
@@ -630,6 +631,7 @@ impl World {
             }
         }
 
+        // TODO move entity and global systems commands to frame start and frame end functions
         // Process all the entity commands created in the stage
         self.process_entity_commands();
         self.process_global_systems_commands();
@@ -639,12 +641,68 @@ impl World {
         self.global_systems.read()[global_system_id as usize].is_some()
     }
 
+    /// Requests a Global system load. It will be done by the start of the next frame.
+    fn load_global_system_by_id(&self, global_system_id: GlobalSystemID)
+    {
+        self.gs_creation_queue.push(global_system_id);
+    }
+
+    /// Requests a Global system load. It will be done by the start of the next frame.
+    pub fn load_global_system<GS : IDLocator>(&self)
+    {   
+        // This function is public bc it's user facing, it's intended to be used by users 
+        // inside global system functions. We also check assertions here for that reason
+        if !World::global_system_can_be_loaded_by_user(GS::get_id())
+        {
+            panic!("You can't load this global system due to its lifetime type");
+        }
+            
+        self.load_global_system_by_id(GS::get_id());
+    }
+
+    /// Requests a Global system unload. It will be done by the start of the next frame.
+    /// 
+    /// This function is intended to be used by the engine, since the engine usually 
+    /// works with ids instead of types.
+    fn unload_global_system_by_id(&self, global_system_id: GlobalSystemID)
+    {
+        self.gs_deletion_queue.push(global_system_id);
+    }
+
+    /// Requests a Global system unload. It will be done by the start of the next frame.
+    pub fn unload_global_system<GS : IDLocator>(&self)
+    {
+        // This function is public bc it's user facing, it's intended to be used by users 
+        // inside global system functions. We also check assertions here for that reason
+        if !World::global_system_can_be_unloaded_by_user(GS::get_id())
+        {
+            panic!("You can't unload this global system due to its lifetime type");
+        }
+
+        self.unload_global_system_by_id(GS::get_id());
+    }
+
+    /// Helper function to check if a global system could be loaded by an user
+    fn global_system_can_be_loaded_by_user(gs_id : GlobalSystemID) -> bool
+    {
+        let gs_registry = GlobalSystemRegistry::get_global_registry().read();
+        let entry = gs_registry.get_entry_by_id(gs_id);
+        entry.lifetime == GSLifetime::Manual
+    }
+
+    fn global_system_can_be_unloaded_by_user(gs_id : GlobalSystemID) -> bool
+    {
+        let gs_registry = GlobalSystemRegistry::get_global_registry().read();
+        let entry = gs_registry.get_entry_by_id(gs_id);
+        entry.lifetime == GSLifetime::Manual || entry.lifetime == GSLifetime::AlwaysLive
+    }
+
     /// Creates and initializes a new global system.
     /// After adding a new global systems the list of global systems to
     /// run per stage will be out of order. You should sort those lists after
     /// adding more global systems.
-    fn load_global_system(&self, global_system_id: GlobalSystemID) {
-        debug_assert!(
+    fn load_global_system_internal(&self, global_system_id: GlobalSystemID) {
+        assert!(
             self.global_systems.read()[global_system_id as usize].is_none(),
             "Global system was already loaded"
         );
@@ -670,7 +728,7 @@ impl World {
     /// After deleting a global system the list of global systems to
     /// run per stage will be out of order. You should sort those lists after
     /// unloading global systems.
-    fn unload_global_system(&self, global_system_id: GlobalSystemID) {
+    fn unload_global_system_internal(&self, global_system_id: GlobalSystemID) {
         debug_assert!(
             self.global_systems.read()[global_system_id as usize].is_some(),
             "Global system was already unloaded"
