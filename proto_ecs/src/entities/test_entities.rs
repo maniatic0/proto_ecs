@@ -383,4 +383,59 @@ mod test {
         // Check that the WhenRequired global system is loaded by now
         assert!(new_world.global_system_is_loaded::<WhenRequiredGS>(), "WhenRequired Global system should be loaded when an entity requires it");
     }
+
+    #[test]
+    #[should_panic]
+    fn test_load_of_non_manual_fails()
+    {
+        // Test that local systems are created and live as long as they should.
+        let es = EntitySystem::get();
+        let new_world_id = es.create_world();
+        es.step_world(0.0, 0.0, new_world_id); // Process world creation
+
+        // Global systems that are `AlwaysLive` should be active by now
+        let worlds = es.get_worlds();
+        let new_world = worlds.get(&new_world_id).unwrap();
+
+        new_world.load_global_system::<WhenRequiredGS>();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_entity_creation_with_missing_gs_should_panic()
+    {
+        // Test that local systems are created and live as long as they should.
+        let es = EntitySystem::get();
+        let new_world_id = es.create_world();
+        es.step_world(0.0, 0.0, new_world_id); // Process world creation
+
+        // Global systems that are `AlwaysLive` should be active by now
+        let mut spawn = EntitySpawnDescription::new();
+        ManualLifetimeGS::simple_prepare(&mut spawn);
+        let _ = es.create_entity(new_world_id, spawn);
+
+        // Should panic here
+        es.step_world(0.0, 0.0, new_world_id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_unload_when_required_fails_if_entity_exists()
+    {
+        let es = EntitySystem::get();
+        let new_world_id = es.create_world();
+        es.step_world(0.0, 0.0, new_world_id); // Process world creation
+        
+        let mut spawn = EntitySpawnDescription::new();
+        WhenRequiredGS::simple_prepare(&mut spawn);
+        let _ = es.create_entity(new_world_id, spawn);
+        es.step_world(0.0, 0.0, new_world_id);
+
+        let worlds = es.get_worlds();
+        let world = worlds.get(&new_world_id).unwrap();
+
+        world.unload_global_system::<WhenRequiredGS>();
+        // Should panic here
+        es.step_world(0.0, 0.0, new_world_id);
+    }   
 }
