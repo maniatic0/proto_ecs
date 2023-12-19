@@ -22,7 +22,7 @@ mod test {
             },
             shared_global_systems::sgs::Test as gs_Test,
             shared_global_systems::sgs::{
-                AllLive, AlwaysLive, AlwaysLiveGlobalSystem, GSFlowDG, GSFlowTester,
+                AllLive, AlwaysLive, GSFlowDG, GSFlowTester,
                 ManualLifetimeGS, TestBefore, WhenRequiredGS,
             },
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
