@@ -5,6 +5,7 @@ use syn;
 /// The style of argument for an init function.
 /// If it has one, it can specify if it doesn't take an argument,
 /// if the argument is required, or if the argument is optional
+#[derive(Clone)]
 pub enum InitArgStyle
 {
     /// No Init

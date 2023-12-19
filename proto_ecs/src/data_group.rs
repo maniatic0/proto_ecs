@@ -10,7 +10,7 @@
 // use static dispatching. To access this information, user-defined datagroups
 // can use their datagroup id as key with the global registry to get its own data
 
-pub use ecs_macros::{register_datagroup, register_datagroup_init};
+pub use ecs_macros::register_datagroup;
 use lazy_static::lazy_static;
 use proto_ecs::core::casting::CanCast;
 use proto_ecs::core::{ids, locking::RwLock};

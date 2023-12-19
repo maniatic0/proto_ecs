@@ -2,25 +2,10 @@ use crate::core_macros::ids;
 use crc32fast;
 use proc_macro;
 use quote::quote;
-use syn::{self, parse::Parse, parse_macro_input, token};
+use syn::{self, parse::Parse, parse_macro_input};
 use crate::common::*;
 
 // -- < Datagroups > -----------------------------------
-
-struct DataGroupInitParseDesc {
-    pub datagroup_name: syn::Ident,
-    pub init_type: InitArgStyle,
-}
-
-impl Parse for DataGroupInitParseDesc {
-    fn parse(input: syn::parse::ParseStream) -> Result<Self, syn::Error> {
-        let datagroup_name: syn::Ident = input.parse()?;
-        let _: token::Comma = input.parse()?; // comma token
-        let init_type: InitArgStyle = input.parse()?;
-
-        return Ok(DataGroupInitParseDesc{ datagroup_name : datagroup_name.clone(), init_type});
-    }
-}
 
 #[inline]
 fn get_datagroup_desc_trait(datagroup: &syn::Ident) -> syn::Ident {
@@ -29,14 +14,12 @@ fn get_datagroup_desc_trait(datagroup: &syn::Ident) -> syn::Ident {
 }
 
 /// Register the way a datagroup struct initializes
-pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let info: DataGroupInitParseDesc = parse_macro_input!(args as DataGroupInitParseDesc);
-    let datagroup = &info.datagroup_name;
-    let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
+fn register_datagroup_init(args: &DatagroupInput, result : &mut proc_macro2::TokenStream) {
+    let datagroup_desc_trait = get_datagroup_desc_trait(&args.datagroup);
 
-    let init_fn_trait = info.init_type.to_signature();
+    let init_fn_trait = args.init_style.to_signature();
 
-    let init_fn_arg_trait_check = match &info.init_type {
+    let init_fn_arg_trait_check = match &args.init_style {
         InitArgStyle::NoInit => quote! {},
         InitArgStyle::NoArg => quote! {},
         InitArgStyle::Arg(arg) => {
@@ -63,7 +46,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         }
     };
 
-    let init_fn_internal = match &info.init_type {
+    let init_fn_internal = match &args.init_style {
         InitArgStyle::NoInit => quote! {
             fn __init__(&mut self, _init_data: std::option::Option<proto_ecs::data_group::GenericDataGroupInitArg>)
             {
@@ -94,11 +77,12 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         },
     };
 
-    let init_arg_type_desc = info.init_type.to_type_param();
+    let init_arg_type_desc = args.init_style.to_type_param();
 
-    let init_const_desc = info.init_type.to_init_const_desc();
+    let init_const_desc = args.init_style.to_init_const_desc();
 
-    let prepare_fn = match &info.init_type {
+    let datagroup = &args.datagroup;
+    let prepare_fn = match &args.init_style {
         InitArgStyle::NoInit => {
             let msg = format!(
                 "Add data group {} to an entity being prepared to spawn",
@@ -150,7 +134,7 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         }
     };
 
-    let result = quote! {
+    result.extend(quote! {
         #init_fn_arg_trait_check
         trait #datagroup_desc_trait {
             #init_fn_trait
@@ -174,38 +158,83 @@ pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::Tok
         {
             #prepare_fn
         }
-    };
+    });
 
-    return result.into();
+
 }
 
+#[derive(Clone)]
 struct DatagroupInput {
     datagroup: syn::Ident,
     factory: syn::Ident,
+    init_style: InitArgStyle,
 }
 
 impl Parse for DatagroupInput {
     fn parse(input: syn::parse::ParseStream) -> Result<Self, syn::Error> {
-        let result =
-            syn::punctuated::Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated(input)?;
+        let datagroup = input.parse::<syn::Ident>().or_else(|_| 
+        {
+            return Err(syn::Error::new(input.span(), "Missing Datagroup Struct Identifier"));
+        })?;
 
-        if result.len() < 2 {
-            return Err(syn::Error::new(
-                input.span(),
-                "Expected at the least two identifiers: DataGroup struct and factory function",
-            ));
+        let _ = input.parse::<syn::token::Comma>()?;
+
+        let factory = input.parse::<syn::Ident>().or_else(|_|
+        {
+            return Err(syn::Error::new(input.span(), "Missing factory function argument"));
+        })?;
+
+        let _ = input.parse::<syn::token::Comma>()?;
+
+        let mut init_style = None;
+
+        loop {
+            let keyword_arg = input.parse::<syn::Ident>();
+            // Return if already parsed all keyword arguments
+            let keyword_arg = match keyword_arg {
+                Err(_) => break,
+                Ok(val) => val
+            };
+
+            let keyword_arg_str = keyword_arg.to_string();
+            let _ = input.parse::<syn::Token![=]>();
+
+            match keyword_arg_str.as_str()
+            {
+                "init_style" => {
+
+                    if init_style.is_some()
+                    {
+                        return Err(syn::Error::new(
+                            keyword_arg.span(),
+                            "Duplicated keyword argument: init_style",
+                        ));
+                    }
+
+                    init_style = Some(input.parse::<InitArgStyle>()?);
+                },
+
+                _ => {
+                    return Err(syn::Error::new(
+                        keyword_arg.span(),
+                        "Unexpected keyword. Available keywords = {init_style}")
+                    )
+                }
+            }
         }
 
-        let datagroup = result[0].clone();
-        let factory = result[1].clone();
-
-        return Ok(DatagroupInput { datagroup, factory });
+        return Ok(
+            DatagroupInput { 
+                datagroup, factory, 
+                init_style: init_style.unwrap_or(InitArgStyle::NoInit) 
+            });
     }
 }
 
 /// Register a datagroup struct as a new datagroup class in the global registry
 pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let DatagroupInput { datagroup, factory } = parse_macro_input!(args as DatagroupInput);
+    let args = parse_macro_input!(args as DatagroupInput);
+    let DatagroupInput { datagroup, factory , ..} = args.clone();
     let datagroup_str = datagroup.to_string();
     let name_crc = crc32fast::hash(datagroup_str.as_bytes());
     let datagroup_desc_trait = get_datagroup_desc_trait(&datagroup);
@@ -255,5 +284,6 @@ pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStr
         };
     });
 
+    register_datagroup_init(&args, &mut result);
     return result.into();
 }

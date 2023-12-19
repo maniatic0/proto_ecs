@@ -4,7 +4,7 @@ pub mod sgs {
     use crate::entities::entity_system::*;
     use crate::systems::global_systems::*;
     use crate::tests::shared_datagroups::sdg::{AnimationDataGroup, MeshDataGroup};
-    use ecs_macros::{register_datagroup, register_datagroup_init, CanCast};
+    use ecs_macros::{register_datagroup, CanCast};
 
     // -- < First global system > ------------------------------
     #[derive(Debug, CanCast)]
@@ -129,15 +129,13 @@ pub mod sgs {
         return Box::new(GSFlowDG { id: 0 });
     }
 
-    register_datagroup_init!(GSFlowDG, NoArg);
+    register_datagroup!(GSFlowDG, gs_flow_factory, init_style = NoArg);
 
     impl GSFlowDGDesc for GSFlowDG {
         fn init(&mut self) {
             self.id = 0;
         }
     }
-
-    register_datagroup!(GSFlowDG, gs_flow_factory);
 
     #[derive(Debug, CanCast)]
     pub struct GSFlowTester {

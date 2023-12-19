@@ -10,6 +10,12 @@ pub mod sdg {
         pub duration: f64,
     }
 
+    register_datagroup!(
+        AnimationDataGroup, 
+        animation_factory, 
+        init_style = Arg(AnimationDataGroup)
+    );
+
     impl GenericDataGroupInitArgTrait for AnimationDataGroup {}
 
     fn animation_factory() -> Box<dyn DataGroup> {
@@ -19,8 +25,6 @@ pub mod sdg {
         });
     }
 
-    register_datagroup_init!(AnimationDataGroup, Arg(AnimationDataGroup));
-
     impl AnimationDataGroupDesc for AnimationDataGroup {
         fn init(&mut self, init_data: Box<AnimationDataGroup>) {
             self.clip_name = init_data.clip_name;
@@ -28,7 +32,6 @@ pub mod sdg {
         }
     }
 
-    register_datagroup!(AnimationDataGroup, animation_factory);
 
     // -- Second example datagroup
 
@@ -39,13 +42,16 @@ pub mod sdg {
         return Box::new(MeshDataGroup {});
     }
 
-    register_datagroup_init!(MeshDataGroup, NoArg);
+    register_datagroup!(
+        MeshDataGroup, 
+        mesh_factory, 
+        init_style = NoArg
+    );
 
     impl MeshDataGroupDesc for MeshDataGroup {
         fn init(&mut self) {}
     }
 
-    register_datagroup!(MeshDataGroup, mesh_factory);
 
     #[derive(CanCast, Default, Debug)]
     pub struct TestNumberDataGroup {
@@ -63,7 +69,7 @@ pub mod sdg {
         return Box::new(TestNumberDataGroup::default());
     }
 
-    register_datagroup_init!(TestNumberDataGroup, Arg(TestNumberDataGroupArg));
+    register_datagroup!(TestNumberDataGroup, test_num_factory, init_style = Arg(TestNumberDataGroupArg));
 
     impl TestNumberDataGroupDesc for TestNumberDataGroup {
         fn init(&mut self, init_data: std::boxed::Box<TestNumberDataGroupArg>) {
@@ -71,5 +77,4 @@ pub mod sdg {
         }
     }
 
-    register_datagroup!(TestNumberDataGroup, test_num_factory);
 }

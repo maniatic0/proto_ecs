@@ -1,4 +1,4 @@
-use ecs_macros::{register_datagroup, register_datagroup_init};
+use ecs_macros::register_datagroup;
 use proto_ecs::{
     core::casting::CanCast,
     data_group::{DataGroup, GenericDataGroupInitArgTrait},
@@ -20,12 +20,10 @@ fn test_num_factory() -> Box<dyn DataGroup> {
     return Box::new(TestNumberDataGroup::default());
 }
 
-register_datagroup_init!(TestNumberDataGroup, Arg(TestNumberDataGroupArg));
-
 impl TestNumberDataGroupDesc for TestNumberDataGroup {
     fn init(&mut self, init_data: std::boxed::Box<TestNumberDataGroupArg>) {
         self.num = init_data.num;
     }
 }
 
-register_datagroup!(TestNumberDataGroup, test_num_factory);
+register_datagroup!(TestNumberDataGroup, test_num_factory, init_style=Arg(TestNumberDataGroupArg));

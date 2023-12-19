@@ -11,12 +11,6 @@ mod common;
 // -- < Datagroups > -----------------------------------
 mod datagroup_macros;
 
-/// Register the way a datagroup struct initializes
-#[proc_macro]
-pub fn register_datagroup_init(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    datagroup_macros::register_datagroup_init(args)
-}
-
 /// Register a datagroup struct as a new datagroup class in the global registry
 #[proc_macro]
 pub fn register_datagroup(args: proc_macro::TokenStream) -> proc_macro::TokenStream {

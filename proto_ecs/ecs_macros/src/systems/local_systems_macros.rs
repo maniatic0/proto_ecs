@@ -29,11 +29,8 @@ impl syn::parse::Parse for LocalSystemArgs {
         loop {
             let keyword_arg = input.parse::<syn::Ident>();
 
-            // Return if already parsed all keyword arguments
-            match keyword_arg {
-                Err(_) => break,
-                _ => {}
-            };
+                        
+
 
             let _ = input.parse::<syn::Token![=]>();
 

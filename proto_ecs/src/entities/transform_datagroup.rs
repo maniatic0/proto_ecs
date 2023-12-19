@@ -1,5 +1,5 @@
 use bitvec::view::BitViewSized;
-use ecs_macros::{register_datagroup, register_datagroup_init, CanCast};
+use ecs_macros::{register_datagroup, CanCast};
 /// A Transform datagroup that represents the spatial information about an entity and
 /// its spatial relationships to other entities.
 ///
@@ -31,8 +31,11 @@ pub struct Transform {
 }
 
 impl GenericDataGroupInitArgTrait for Transform {}
-register_datagroup!(Transform, factory);
-register_datagroup_init!(Transform, Arg(Transform));
+register_datagroup!(
+    Transform, 
+    factory, 
+    init_style = Arg(Transform)
+);
 
 impl TransformDesc for Transform {
     fn init(&mut self, init_data: Box<Transform>) {
