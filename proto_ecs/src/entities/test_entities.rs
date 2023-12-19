@@ -21,7 +21,10 @@ mod test {
                 AnimationDataGroup, MeshDataGroup, TestNumberDataGroup, TestNumberDataGroupArg,
             },
             shared_global_systems::sgs::Test as gs_Test,
-            shared_global_systems::sgs::{GSFlowDG, GSFlowTester, TestBefore, AllLive},
+            shared_global_systems::sgs::{
+                AllLive, AlwaysLive, AlwaysLiveGlobalSystem, GSFlowDG, GSFlowTester,
+                ManualLifetimeGS, TestBefore, WhenRequiredGS,
+            },
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
         },
     };
@@ -109,7 +112,7 @@ mod test {
 
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
-    
+
         es.step_world(0.0, 0.0, new_world_id); // Process reset
 
         for _ in 0..100 {
@@ -275,6 +278,7 @@ mod test {
             App::initialize();
         }
 
+        // Test hierarchical updates
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
         es.step_world(0.0, 0.0, new_world_id); // Process world creation
@@ -335,5 +339,48 @@ mod test {
 
         // Check that all entities passed to the global systems are live after deletion
         es.destroy_world(new_world_id);
+    }
+
+    #[test]
+    fn testing_global_system_lifetimes() {
+        // Test that local systems are created and live as long as they should.
+        let es = EntitySystem::get();
+        let new_world_id = es.create_world();
+        es.step_world(0.0, 0.0, new_world_id); // Process world creation
+
+        // Global systems that are `AlwaysLive` should be active by now
+        let worlds = es.get_worlds();
+        let new_world = worlds.get(&new_world_id).unwrap();
+        assert!(
+            new_world.global_system_is_loaded::<AlwaysLive>(),
+            "An AlwaysLive global system should be loaded by now"
+        );
+
+        // `WhenRequired` global system and `Manual` Global system shouldn't be live by now
+        assert!(
+            !new_world.global_system_is_loaded::<WhenRequiredGS>(),
+            "WhenRequired global system should not be loaded by if not required"
+        );
+        assert!(
+            !new_world.global_system_is_loaded::<ManualLifetimeGS>(),
+            "A Manual Lifetime global system should not be loaded by if not requested"
+        );
+
+        // Request a GS creation
+        new_world.load_global_system::<ManualLifetimeGS>();
+        es.step_world(0.0, 0.0, new_world_id); // Process GS creation
+        assert!(
+            new_world.global_system_is_loaded::<ManualLifetimeGS>(),
+            "ManualLifetimeGS should be loaded by now"
+        );
+
+        // Create an entity that requires the `WhenRequiredGS`
+        let mut spawn = EntitySpawnDescription::new();
+        WhenRequiredGS::simple_prepare(&mut spawn);
+        let _ = es.create_entity(new_world_id, spawn).expect("Should be able to create entity");
+        es.step_world(0.0, 0.0, new_world_id); // Process Entity creation
+        
+        // Check that the WhenRequired global system is loaded by now
+        assert!(new_world.global_system_is_loaded::<WhenRequiredGS>(), "WhenRequired Global system should be loaded when an entity requires it");
     }
 }

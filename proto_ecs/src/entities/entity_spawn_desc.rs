@@ -18,6 +18,13 @@ pub struct EntitySpawnDescription {
 }
 
 impl EntitySpawnDescription {
+
+    #[inline(always)]
+    pub fn new() -> Self
+    {
+        Self::default()
+    }
+
     #[inline]
     /// Set the name for this entity
     pub fn set_name(&mut self, new_name: String) {

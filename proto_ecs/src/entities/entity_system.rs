@@ -8,12 +8,13 @@ use atomic_float::AtomicF64;
 
 use crate::core::ids::IDLocator;
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
+use crate::get_id;
 
 use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
 use crate::entities::entity_allocator::EntityAllocator;
 use crate::systems::common::{StageID, STAGE_COUNT};
-use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry, GSLifetime};
+use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry, GSLifetime, GlobalSystemDesc};
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 
@@ -226,7 +227,7 @@ impl World {
                 gs_count[gs_id as usize].fetch_add(1, Ordering::Relaxed);
             }
 
-            let global_system_is_loaded = self.global_system_is_loaded(gs_id);
+            let global_system_is_loaded = self.global_system_is_loaded_by_id(gs_id);
             if !global_system_is_loaded && entry.lifetime == GSLifetime::WhenRequired {
                 self.load_global_system_by_id(gs_id);
             }
@@ -538,7 +539,7 @@ impl World {
             let gs_to_delete = **val;
 
             // If just deleted skip deletion
-            if !self.global_system_is_loaded(gs_to_delete) {
+            if !self.global_system_is_loaded_by_id(gs_to_delete) {
                 self.unload_global_system_internal(gs_to_delete);
                 changed = true;
             }
@@ -549,7 +550,7 @@ impl World {
             let gs_to_create = **val;
 
             // If already created just skip creation
-            if !self.global_system_is_loaded(gs_to_create) {
+            if !self.global_system_is_loaded_by_id(gs_to_create) {
                 self.load_global_system_internal(gs_to_create);
                 changed = true;
             }
@@ -667,8 +668,13 @@ impl World {
         self.process_global_systems_commands();
     }
 
-    fn global_system_is_loaded(&self, global_system_id: GlobalSystemID) -> bool {
+    fn global_system_is_loaded_by_id(&self, global_system_id: GlobalSystemID) -> bool {
         self.global_systems.read()[global_system_id as usize].is_some()
+    }
+
+    pub fn global_system_is_loaded< GS : GlobalSystem + IDLocator > (&self) -> bool
+    {
+        self.global_system_is_loaded_by_id(get_id!(GS))
     }
 
     /// Requests a Global system load. It will be done by the start of the next frame.
@@ -678,16 +684,16 @@ impl World {
     }
 
     /// Requests a Global system load. It will be done by the start of the next frame.
-    pub fn load_global_system<GS : IDLocator>(&self)
+    pub fn load_global_system<GS : GlobalSystem + GlobalSystemDesc + IDLocator>(&self)
     {   
         // This function is public bc it's user facing, it's intended to be used by users 
         // inside global system functions. We also check assertions here for that reason
-        if !World::global_system_can_be_loaded_by_user(GS::get_id())
+        if !World::global_system_can_be_loaded_by_user(get_id!(GS))
         {
-            panic!("You can't load this global system due to its lifetime type");
+            panic!("You can't load the global system '{}' due to its lifetime type", GS::NAME);
         }
             
-        self.load_global_system_by_id(GS::get_id());
+        self.load_global_system_by_id(get_id!(GS));
     }
 
     /// Requests a Global system unload. It will be done by the start of the next frame.
@@ -700,16 +706,16 @@ impl World {
     }
 
     /// Requests a Global system unload. It will be done by the start of the next frame.
-    pub fn unload_global_system<GS : IDLocator>(&self)
+    pub fn unload_global_system<GS : IDLocator + GlobalSystem + GlobalSystemDesc>(&self)
     {
         // This function is public bc it's user facing, it's intended to be used by users 
         // inside global system functions. We also check assertions here for that reason
-        if !World::global_system_can_be_unloaded_by_user(GS::get_id())
+        if !World::global_system_can_be_unloaded_by_user(get_id!(GS))
         {
             panic!("You can't unload this global system due to its lifetime type");
         }
 
-        self.unload_global_system_by_id(GS::get_id());
+        self.unload_global_system_by_id(get_id!(GS));
     }
 
     /// Helper function to check if a global system could be loaded by an user
@@ -951,14 +957,13 @@ impl EntitySystem {
         }
 
         // First process all destroy commands
-        while !self.destroy_world_queue.is_empty() {
-            let world_id = **self.destroy_world_queue.pop().unwrap();
-            self.destroy_world_internal(world_id);
+        while let Some(world_id) = self.destroy_world_queue.pop() {
+            self.destroy_world_internal(**world_id);
         }
 
         // Second process all the merge commands
-        while !self.merge_worlds_queue.is_empty() {
-            let (source, target) = **self.merge_worlds_queue.pop().unwrap();
+        while let Some(value) = self.merge_worlds_queue.pop() {
+            let (source, target) = **value;
             self.merge_worlds_internal(source, target);
         }
     }

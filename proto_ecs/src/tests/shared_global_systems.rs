@@ -203,5 +203,56 @@ pub mod sgs {
     }
 
     // The following global systems are used to test global system lifetimes
+    #[derive(Debug, CanCast)]
+    pub struct AlwaysLive;
+
+    fn always_live_factory() -> Box<dyn GlobalSystem>
+    {
+        return Box::new(AlwaysLive{});
+    }
+
+    register_global_system!(
+        AlwaysLive,
+        factory = always_live_factory,
+        lifetime = GSLifetime::AlwaysLive
+    );
+
+    impl AlwaysLiveGlobalSystem for AlwaysLive
+    {}
+
+    // ---
+    #[derive(Debug, CanCast)]
+    pub struct WhenRequiredGS;
+
+    fn when_required_factory() -> Box<dyn GlobalSystem>
+    {
+        return Box::new(WhenRequiredGS{});
+    }
+
+    register_global_system!(
+        WhenRequiredGS,
+        factory = when_required_factory,
+        lifetime = GSLifetime::WhenRequired
+    );
+
+    impl WhenRequiredGSGlobalSystem for WhenRequiredGS
+    {}
     
+    // ---
+    #[derive(Debug, CanCast)]
+    pub struct ManualLifetimeGS;
+
+    fn manual_lifetime_factory() -> Box<dyn GlobalSystem>
+    {
+        return Box::new(ManualLifetimeGS{});
+    }
+
+    register_global_system!(
+        ManualLifetimeGS,
+        factory = manual_lifetime_factory,
+        lifetime = GSLifetime::Manual
+    );
+
+    impl ManualLifetimeGSGlobalSystem for ManualLifetimeGS
+    {}
 }
