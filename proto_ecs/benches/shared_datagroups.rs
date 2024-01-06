@@ -26,4 +26,8 @@ impl TestNumberDataGroupDesc for TestNumberDataGroup {
     }
 }
 
-register_datagroup!(TestNumberDataGroup, test_num_factory, init_style=Arg(TestNumberDataGroupArg));
+register_datagroup!(
+    TestNumberDataGroup,
+    test_num_factory,
+    init_style = Arg(TestNumberDataGroupArg)
+);

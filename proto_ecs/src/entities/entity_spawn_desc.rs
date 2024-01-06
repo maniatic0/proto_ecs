@@ -18,10 +18,8 @@ pub struct EntitySpawnDescription {
 }
 
 impl EntitySpawnDescription {
-
     #[inline(always)]
-    pub fn new() -> Self
-    {
+    pub fn new() -> Self {
         Self::default()
     }
 

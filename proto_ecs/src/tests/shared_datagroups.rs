@@ -11,8 +11,8 @@ pub mod sdg {
     }
 
     register_datagroup!(
-        AnimationDataGroup, 
-        animation_factory, 
+        AnimationDataGroup,
+        animation_factory,
         init_style = Arg(AnimationDataGroup)
     );
 
@@ -32,7 +32,6 @@ pub mod sdg {
         }
     }
 
-
     // -- Second example datagroup
 
     #[derive(CanCast, Debug)]
@@ -42,16 +41,11 @@ pub mod sdg {
         return Box::new(MeshDataGroup {});
     }
 
-    register_datagroup!(
-        MeshDataGroup, 
-        mesh_factory, 
-        init_style = NoArg
-    );
+    register_datagroup!(MeshDataGroup, mesh_factory, init_style = NoArg);
 
     impl MeshDataGroupDesc for MeshDataGroup {
         fn init(&mut self) {}
     }
-
 
     #[derive(CanCast, Default, Debug)]
     pub struct TestNumberDataGroup {
@@ -69,12 +63,15 @@ pub mod sdg {
         return Box::new(TestNumberDataGroup::default());
     }
 
-    register_datagroup!(TestNumberDataGroup, test_num_factory, init_style = Arg(TestNumberDataGroupArg));
+    register_datagroup!(
+        TestNumberDataGroup,
+        test_num_factory,
+        init_style = Arg(TestNumberDataGroupArg)
+    );
 
     impl TestNumberDataGroupDesc for TestNumberDataGroup {
         fn init(&mut self, init_data: std::boxed::Box<TestNumberDataGroupArg>) {
             self.num = init_data.num;
         }
     }
-
 }

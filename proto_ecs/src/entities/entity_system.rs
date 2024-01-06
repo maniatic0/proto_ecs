@@ -14,7 +14,9 @@ use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
 use crate::entities::entity_allocator::EntityAllocator;
 use crate::systems::common::{StageID, STAGE_COUNT};
-use crate::systems::global_systems::{GlobalSystem, GlobalSystemID, GlobalSystemRegistry, GSLifetime, GlobalSystemDesc};
+use crate::systems::global_systems::{
+    GSLifetime, GlobalSystem, GlobalSystemDesc, GlobalSystemID, GlobalSystemRegistry,
+};
 
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 
@@ -147,16 +149,13 @@ impl World {
 
         // Add all global systems with `always alive` lifetime
         let gs_registry = GlobalSystemRegistry::get_global_registry().read();
-        for gs_entry in gs_registry.get_entries().iter()
-        {
-            if gs_entry.lifetime == GSLifetime::AlwaysLive
-            {
+        for gs_entry in gs_registry.get_entries().iter() {
+            if gs_entry.lifetime == GSLifetime::AlwaysLive {
                 new_world.load_global_system_by_id(gs_entry.id);
             }
         }
 
         new_world
-
     }
 
     #[inline(always)]
@@ -230,10 +229,9 @@ impl World {
             let global_system_is_loaded = self.global_system_is_loaded_by_id(gs_id);
             if !global_system_is_loaded && entry.lifetime == GSLifetime::WhenRequired {
                 self.load_global_system_by_id(gs_id);
-            }
-            else if !global_system_is_loaded && entry.lifetime != GSLifetime::WhenRequired {
+            } else if !global_system_is_loaded && entry.lifetime != GSLifetime::WhenRequired {
                 // TODO We have to check here that entities can't be created when their corresponding global
-                // systems are not created. This if clause can fix this but it doesn't takes in account 
+                // systems are not created. This if clause can fix this but it doesn't takes in account
                 // global systems that are about to be created, which might be an usability problem
 
                 panic!("Entity requires a global system that is not yet loaded and its lifetime is not `WhenRequired`!\
@@ -294,7 +292,6 @@ impl World {
                         World::remove_entity_from_stage_vec(stage_vec, &prev_parent_ptr);
                     }
                 }
-
             }
 
             const RECURSIVE_DELETION_EXPECTED_STACK_LEN: usize = 100;
@@ -360,9 +357,8 @@ impl World {
                     let gs_registry = GlobalSystemRegistry::get_global_registry().read();
                     let entry = gs_registry.get_entry_by_id(gs_id);
 
-                    // Only unload this global system if the global system has a `WhenRequired` Lifetime. 
-                    if entry.lifetime == GSLifetime::WhenRequired
-                    {
+                    // Only unload this global system if the global system has a `WhenRequired` Lifetime.
+                    if entry.lifetime == GSLifetime::WhenRequired {
                         self.unload_global_system_by_id(gs_id);
                     }
                 }
@@ -373,8 +369,7 @@ impl World {
 
                 let mut i = 0;
                 let mut entities_len = gs_entities.len();
-                while i < entities_len
-                {
+                while i < entities_len {
                     let other_entity_ptr = gs_entities[i];
                     if other_entity_ptr == entity_ptr {
                         gs_entities.swap_remove(i);
@@ -617,7 +612,7 @@ impl World {
             let entities_stage = self.entities_stages[stage_id as usize].read();
             {
                 let gs_stage = self.global_system_stages[stage_id as usize].read();
-                if entities_stage.is_empty() && gs_stage.is_empty(){
+                if entities_stage.is_empty() && gs_stage.is_empty() {
                     // Nothing to do, no more commands can be created
                     // TODO: Check this for Global Systems. They might need to execute?
                     return;
@@ -672,46 +667,42 @@ impl World {
         self.global_systems.read()[global_system_id as usize].is_some()
     }
 
-    pub fn global_system_is_loaded< GS : GlobalSystem + IDLocator > (&self) -> bool
-    {
+    pub fn global_system_is_loaded<GS: GlobalSystem + IDLocator>(&self) -> bool {
         self.global_system_is_loaded_by_id(get_id!(GS))
     }
 
     /// Requests a Global system load. It will be done by the start of the next frame.
-    fn load_global_system_by_id(&self, global_system_id: GlobalSystemID)
-    {
+    fn load_global_system_by_id(&self, global_system_id: GlobalSystemID) {
         self.gs_creation_queue.push(global_system_id);
     }
 
     /// Requests a Global system load. It will be done by the start of the next frame.
-    pub fn load_global_system<GS : GlobalSystem + GlobalSystemDesc + IDLocator>(&self)
-    {   
-        // This function is public bc it's user facing, it's intended to be used by users 
+    pub fn load_global_system<GS: GlobalSystem + GlobalSystemDesc + IDLocator>(&self) {
+        // This function is public bc it's user facing, it's intended to be used by users
         // inside global system functions. We also check assertions here for that reason
-        if !World::global_system_can_be_loaded_by_user(get_id!(GS))
-        {
-            panic!("You can't load the global system '{}' due to its lifetime type", GS::NAME);
+        if !World::global_system_can_be_loaded_by_user(get_id!(GS)) {
+            panic!(
+                "You can't load the global system '{}' due to its lifetime type",
+                GS::NAME
+            );
         }
-            
+
         self.load_global_system_by_id(get_id!(GS));
     }
 
     /// Requests a Global system unload. It will be done by the start of the next frame.
-    /// 
-    /// This function is intended to be used by the engine, since the engine usually 
+    ///
+    /// This function is intended to be used by the engine, since the engine usually
     /// works with ids instead of types.
-    fn unload_global_system_by_id(&self, global_system_id: GlobalSystemID)
-    {
+    fn unload_global_system_by_id(&self, global_system_id: GlobalSystemID) {
         self.gs_deletion_queue.push(global_system_id);
     }
 
     /// Requests a Global system unload. It will be done by the start of the next frame.
-    pub fn unload_global_system<GS : IDLocator + GlobalSystem + GlobalSystemDesc>(&self)
-    {
-        // This function is public bc it's user facing, it's intended to be used by users 
+    pub fn unload_global_system<GS: IDLocator + GlobalSystem + GlobalSystemDesc>(&self) {
+        // This function is public bc it's user facing, it's intended to be used by users
         // inside global system functions. We also check assertions here for that reason
-        if !World::global_system_can_be_unloaded_by_user(get_id!(GS))
-        {
+        if !World::global_system_can_be_unloaded_by_user(get_id!(GS)) {
             panic!("You can't unload this global system due to its lifetime type");
         }
 
@@ -719,15 +710,13 @@ impl World {
     }
 
     /// Helper function to check if a global system could be loaded by an user
-    fn global_system_can_be_loaded_by_user(gs_id : GlobalSystemID) -> bool
-    {
+    fn global_system_can_be_loaded_by_user(gs_id: GlobalSystemID) -> bool {
         let gs_registry = GlobalSystemRegistry::get_global_registry().read();
         let entry = gs_registry.get_entry_by_id(gs_id);
         entry.lifetime == GSLifetime::Manual
     }
 
-    fn global_system_can_be_unloaded_by_user(gs_id : GlobalSystemID) -> bool
-    {
+    fn global_system_can_be_unloaded_by_user(gs_id: GlobalSystemID) -> bool {
         let gs_registry = GlobalSystemRegistry::get_global_registry().read();
         let entry = gs_registry.get_entry_by_id(gs_id);
         entry.lifetime == GSLifetime::Manual || entry.lifetime == GSLifetime::AlwaysLive
@@ -995,10 +984,7 @@ impl EntitySystem {
         self.pool.install(|| {
             self.worlds.par_iter().for_each(|world| {
                 world
-                    .update_delta_time_internal(
-                        self.get_delta_time(), 
-                        self.get_fixed_delta_time()
-                    );
+                    .update_delta_time_internal(self.get_delta_time(), self.get_fixed_delta_time());
             });
         });
 

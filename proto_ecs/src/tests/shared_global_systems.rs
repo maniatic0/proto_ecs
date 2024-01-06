@@ -173,29 +173,36 @@ pub mod sgs {
     // Will always have live entities, never invalid pointers as arguments
     #[derive(Debug, CanCast)]
     pub struct AllLive;
-    fn all_live_gs_factory() -> Box<dyn GlobalSystem> 
-    {
+    fn all_live_gs_factory() -> Box<dyn GlobalSystem> {
         return Box::new(AllLive);
     }
 
-    register_global_system!{
-        AllLive, 
+    register_global_system! {
+        AllLive,
         factory = all_live_gs_factory,
         stages = (0),
         lifetime = GSLifetime::AlwaysLive
     }
 
-    impl AllLiveGlobalSystem for AllLive
-    {
-        fn stage_0(&mut self, _world: &crate::entities::entity_system::World, _entity_map: &crate::entities::entity_system::EntityMap, registered_entities: &Vec<crate::entities::entity_system::EntityPtr>) {
-            for entity in registered_entities.iter()
-            {
-                assert!(entity.is_live(), "Entities should all be live when passed as argument to a global system");
+    impl AllLiveGlobalSystem for AllLive {
+        fn stage_0(
+            &mut self,
+            _world: &crate::entities::entity_system::World,
+            _entity_map: &crate::entities::entity_system::EntityMap,
+            registered_entities: &Vec<crate::entities::entity_system::EntityPtr>,
+        ) {
+            for entity in registered_entities.iter() {
+                assert!(
+                    entity.is_live(),
+                    "Entities should all be live when passed as argument to a global system"
+                );
             }
 
-            for entry in _entity_map.iter()
-            {
-                assert!(entry.value().is_live(), "Entities in the entity map should all be live");
+            for entry in _entity_map.iter() {
+                assert!(
+                    entry.value().is_live(),
+                    "Entities in the entity map should all be live"
+                );
             }
         }
     }
@@ -204,9 +211,8 @@ pub mod sgs {
     #[derive(Debug, CanCast)]
     pub struct AlwaysLive;
 
-    fn always_live_factory() -> Box<dyn GlobalSystem>
-    {
-        return Box::new(AlwaysLive{});
+    fn always_live_factory() -> Box<dyn GlobalSystem> {
+        return Box::new(AlwaysLive {});
     }
 
     register_global_system!(
@@ -215,16 +221,14 @@ pub mod sgs {
         lifetime = GSLifetime::AlwaysLive
     );
 
-    impl AlwaysLiveGlobalSystem for AlwaysLive
-    {}
+    impl AlwaysLiveGlobalSystem for AlwaysLive {}
 
     // ---
     #[derive(Debug, CanCast)]
     pub struct WhenRequiredGS;
 
-    fn when_required_factory() -> Box<dyn GlobalSystem>
-    {
-        return Box::new(WhenRequiredGS{});
+    fn when_required_factory() -> Box<dyn GlobalSystem> {
+        return Box::new(WhenRequiredGS {});
     }
 
     register_global_system!(
@@ -233,16 +237,14 @@ pub mod sgs {
         lifetime = GSLifetime::WhenRequired
     );
 
-    impl WhenRequiredGSGlobalSystem for WhenRequiredGS
-    {}
-    
+    impl WhenRequiredGSGlobalSystem for WhenRequiredGS {}
+
     // ---
     #[derive(Debug, CanCast)]
     pub struct ManualLifetimeGS;
 
-    fn manual_lifetime_factory() -> Box<dyn GlobalSystem>
-    {
-        return Box::new(ManualLifetimeGS{});
+    fn manual_lifetime_factory() -> Box<dyn GlobalSystem> {
+        return Box::new(ManualLifetimeGS {});
     }
 
     register_global_system!(
@@ -251,6 +253,5 @@ pub mod sgs {
         lifetime = GSLifetime::Manual
     );
 
-    impl ManualLifetimeGSGlobalSystem for ManualLifetimeGS
-    {}
+    impl ManualLifetimeGSGlobalSystem for ManualLifetimeGS {}
 }

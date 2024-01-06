@@ -22,8 +22,8 @@ mod test {
             },
             shared_global_systems::sgs::Test as gs_Test,
             shared_global_systems::sgs::{
-                AllLive, AlwaysLive, GSFlowDG, GSFlowTester,
-                ManualLifetimeGS, TestBefore, WhenRequiredGS,
+                AllLive, AlwaysLive, GSFlowDG, GSFlowTester, ManualLifetimeGS, TestBefore,
+                WhenRequiredGS,
             },
             shared_local_systems::sls::{Test, TestAdder, TestAssertNumber4, TestMultiplier},
         },
@@ -377,17 +377,21 @@ mod test {
         // Create an entity that requires the `WhenRequiredGS`
         let mut spawn = EntitySpawnDescription::new();
         WhenRequiredGS::simple_prepare(&mut spawn);
-        let _ = es.create_entity(new_world_id, spawn).expect("Should be able to create entity");
+        let _ = es
+            .create_entity(new_world_id, spawn)
+            .expect("Should be able to create entity");
         es.step_world(0.0, 0.0, new_world_id); // Process Entity creation
-        
+
         // Check that the WhenRequired global system is loaded by now
-        assert!(new_world.global_system_is_loaded::<WhenRequiredGS>(), "WhenRequired Global system should be loaded when an entity requires it");
+        assert!(
+            new_world.global_system_is_loaded::<WhenRequiredGS>(),
+            "WhenRequired Global system should be loaded when an entity requires it"
+        );
     }
 
     #[test]
     #[should_panic]
-    fn test_load_of_non_manual_fails()
-    {
+    fn test_load_of_non_manual_fails() {
         // Test that local systems are created and live as long as they should.
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
@@ -402,8 +406,7 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_entity_creation_with_missing_gs_should_panic()
-    {
+    fn test_entity_creation_with_missing_gs_should_panic() {
         // Test that local systems are created and live as long as they should.
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
@@ -420,12 +423,11 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_unload_when_required_fails_if_entity_exists()
-    {
+    fn test_unload_when_required_fails_if_entity_exists() {
         let es = EntitySystem::get();
         let new_world_id = es.create_world();
         es.step_world(0.0, 0.0, new_world_id); // Process world creation
-        
+
         let mut spawn = EntitySpawnDescription::new();
         WhenRequiredGS::simple_prepare(&mut spawn);
         let _ = es.create_entity(new_world_id, spawn);
@@ -437,5 +439,5 @@ mod test {
         world.unload_global_system::<WhenRequiredGS>();
         // Should panic here
         es.step_world(0.0, 0.0, new_world_id);
-    }   
+    }
 }

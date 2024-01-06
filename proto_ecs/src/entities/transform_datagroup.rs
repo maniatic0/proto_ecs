@@ -31,11 +31,7 @@ pub struct Transform {
 }
 
 impl GenericDataGroupInitArgTrait for Transform {}
-register_datagroup!(
-    Transform, 
-    factory, 
-    init_style = Arg(Transform)
-);
+register_datagroup!(Transform, factory, init_style = Arg(Transform));
 
 impl TransformDesc for Transform {
     fn init(&mut self, init_data: Box<Transform>) {
