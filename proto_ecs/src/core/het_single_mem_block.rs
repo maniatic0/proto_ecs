@@ -112,6 +112,10 @@ mod tests {
         pub c: bool,
     }
 
+    lazy_static! {
+        static ref A_COUNTER: AtomicI32 = AtomicI32::new(0);
+    }
+
     impl Default for A {
         fn default() -> Self {
             A_COUNTER.fetch_add(1, Ordering::AcqRel);
@@ -130,11 +134,6 @@ mod tests {
             assert!(!self.c);
         }
     }
-
-    lazy_static! {
-        static ref A_COUNTER: AtomicI32 = AtomicI32::new(0);
-    }
-
     impl Drop for A {
         fn drop(&mut self) {
             let res = A_COUNTER.fetch_add(-1, Ordering::AcqRel);
@@ -148,6 +147,10 @@ mod tests {
         pub a: bool,
         pub b: u32,
         pub c: u64,
+    }
+
+    lazy_static! {
+        static ref B_COUNTER: AtomicI32 = AtomicI32::new(0);
     }
 
     impl Default for B {
@@ -167,10 +170,6 @@ mod tests {
             assert_eq!(self.b, 123456789);
             assert_eq!(self.c, 987654321);
         }
-    }
-
-    lazy_static! {
-        static ref B_COUNTER: AtomicI32 = AtomicI32::new(0);
     }
 
     impl Drop for B {
