@@ -8,6 +8,7 @@ use ecs_macros::{register_datagroup, CanCast};
 ///
 /// Users should not have access to this datagroup.
 use std::sync::atomic::AtomicUsize;
+use macaw::Affine3A;
 
 use crate::{
     data_group::{DataGroup, GenericDataGroupInitArgTrait},
@@ -28,6 +29,12 @@ pub struct Transform {
     /// Amount of entities to run per stage in this hierarchy,
     /// including the current node
     pub(super) stage_count: [AtomicUsize; STAGE_COUNT],
+
+    /// Cached Parent World Transform
+    pub(super) cached_parent_world_transform: Affine3A,
+
+    /// Local transform (to get world position use with cached_parent_world_transform)
+    pub(super) local_transform: Affine3A,
 }
 
 impl GenericDataGroupInitArgTrait for Transform {}
@@ -61,6 +68,8 @@ impl Default for Transform {
             parent: None,
             children: vec![],
             stage_count: std::array::from_fn(|_| AtomicUsize::ZERO),
+            cached_parent_world_transform: Affine3A::IDENTITY,
+            local_transform: Affine3A::IDENTITY,
         }
     }
 }

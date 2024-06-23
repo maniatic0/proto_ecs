@@ -22,6 +22,7 @@ scc = "2.0.2"
 sync-unsafe-cell = "0.1.1"
 topological-sort = "0.2.2"
 vector-map = "1.0.1"
+macaw = "0.19.1"
 
 [[bench]]
 name = "entity_sytem_benchmark"
