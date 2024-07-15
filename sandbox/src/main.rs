@@ -15,7 +15,7 @@ impl  Layer for MyLayer {
         println!("Updating updating")
     }
 
-    fn on_event(&mut self, event: &Event) {
+    fn on_event(&mut self, event: &mut Event) {
         println!("Handling event")
     }
 }
