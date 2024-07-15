@@ -19,7 +19,7 @@ pub trait Layer : Send + Sync{
 
     fn update(&mut self, delta_time: f32);
 
-    fn on_event(&mut self, event: &Event);
+    fn on_event(&mut self, event: &mut Event);
 }
 
 pub struct LayerContainer {

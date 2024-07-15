@@ -4,6 +4,8 @@ use std::time::Instant;
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
 use crate::core::time::Time;
+use crate::core::events::Event;
+use crate::core::window::{WindowBuilder, WindowPtr};
 use crate::data_group::DataGroupRegistry;
 use crate::systems::global_systems::GlobalSystemRegistry;
 use crate::systems::local_systems::LocalSystemRegistry;
@@ -17,7 +19,8 @@ pub struct App {
     is_initialized: bool,
     time : Time,
     running : bool,
-    layer_manager : LayerManager
+    layer_manager : LayerManager,
+    window_ptr : Option<WindowPtr>
 }
 
 lazy_static! {
@@ -30,7 +33,8 @@ impl App {
             is_initialized: false,
             time : Time::new(Instant::now()),
             running: false,
-            layer_manager : Default::default()
+            layer_manager : Default::default(),
+            window_ptr : None
         }
     }
 
@@ -69,6 +73,11 @@ impl App {
         global_app.init();
     }
 
+    pub fn initialize_window(window_builder : WindowBuilder) {
+        let mut global_app = APP.write();
+        global_app.window_ptr = Some(window_builder.build());
+    }
+
     pub fn is_initialized() -> bool {
         App::get().read().is_initialized
     }
@@ -101,13 +110,24 @@ impl App {
         self.time = Time::new(Instant::now());
     }
 
+    fn get_window(&mut self) -> &mut WindowPtr {
+        self.window_ptr.as_mut().unwrap()
+    }
     fn run(&mut self) {
         
         while self.running {
+
+            // Time update
             self.time.step(Instant::now());
             let delta_time = self.time.delta_seconds();
+            
+            // Event polling
+            let mut events = self.get_window().poll_events();
+            for event in events.iter_mut() {
+                self.on_event(event);
+            }
 
-            // If layers were requested in runtime, add them just before the next frame.
+             // If layers were requested in runtime, add them just before the next frame.
             // Must of the time this returns immediately
             self.layer_manager.attach_pending_layers();
             self.layer_manager.attach_pending_overlays();
@@ -127,6 +147,17 @@ impl App {
 
         for layer in self.layer_manager.overlays_iter_mut() {
             layer.layer.on_attach();
+        }
+    }
+
+    fn on_event(&mut self, event : &mut Event) {
+
+        for layer in self.layer_manager.layers_iter_mut() {
+            layer.layer.on_event(event);
+        }
+
+        for layer in self.layer_manager.layers_iter_mut() {
+            layer.layer.on_event(event);
         }
     }
 }

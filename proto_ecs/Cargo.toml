@@ -23,6 +23,16 @@ sync-unsafe-cell = "0.1.1"
 topological-sort = "0.2.2"
 vector-map = "1.0.1"
 macaw = "0.19.1"
+glutin = "0.31.0"
+glutin-winit = "0.4.2"
+imgui = "0.12.0"
+imgui-glow-renderer = "0.12.0"
+imgui-winit-support = "0.12.0"
+winit = "0.29.3"
+copypasta = "0.10.1"
+glam = {version = "0.28.0", features = ["serde"]}
+glow = "0.13.1"
+raw-window-handle = "0.5.2"
 
 [[bench]]
 name = "entity_sytem_benchmark"
