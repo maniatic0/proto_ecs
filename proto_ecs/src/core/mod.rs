@@ -7,3 +7,4 @@ pub mod layer;
 pub mod events;
 pub mod time;
 pub mod window;
+pub mod platform;

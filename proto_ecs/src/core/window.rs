@@ -24,11 +24,13 @@ pub trait Window : Send + Sync {
 
     fn set_vsync(&mut self, is_vsync_active : bool);
 
-    fn get_vsync(&self);
+    fn get_vsync(&self) -> bool;
 
     fn get_native_window(&self) -> Rc<dyn Any>;
 
     fn poll_events(&mut self) -> Vec<Event>;
+
+    fn on_update(&mut self);
 }
 
 impl WindowBuilder {

@@ -1,4 +1,4 @@
-use proto_ecs::prelude::*;
+use proto_ecs::{core::window::WindowBuilder, prelude::*};
 
 struct MyLayer;
 
@@ -22,6 +22,7 @@ impl  Layer for MyLayer {
 
 fn main() {
     App::initialize();
+    App::initialize_window(WindowBuilder::new());
 
     App::add_layer(Box::new(MyLayer));
 
