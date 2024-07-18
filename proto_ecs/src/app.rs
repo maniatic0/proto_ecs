@@ -7,6 +7,7 @@ use crate::core::time::Time;
 use crate::core::events::Event;
 use crate::core::window::{WindowBuilder, WindowPtr};
 use crate::data_group::DataGroupRegistry;
+use crate::prelude::WindowManager;
 use crate::systems::global_systems::GlobalSystemRegistry;
 use crate::systems::local_systems::LocalSystemRegistry;
 /// This module implements the entire Application workflow.
@@ -20,7 +21,6 @@ pub struct App {
     time : Time,
     running : bool,
     layer_manager : LayerManager,
-    window_ptr : Option<WindowPtr>
 }
 
 lazy_static! {
@@ -34,7 +34,6 @@ impl App {
             time : Time::new(Instant::now()),
             running: false,
             layer_manager : Default::default(),
-            window_ptr : None
         }
     }
 
@@ -73,11 +72,6 @@ impl App {
         global_app.init();
     }
 
-    pub fn initialize_window(window_builder : WindowBuilder) {
-        let mut global_app = APP.write();
-        global_app.window_ptr = Some(window_builder.build());
-    }
-
     pub fn is_initialized() -> bool {
         App::get().read().is_initialized
     }
@@ -110,9 +104,6 @@ impl App {
         self.time = Time::new(Instant::now());
     }
 
-    fn get_window(&mut self) -> &mut WindowPtr {
-        self.window_ptr.as_mut().unwrap()
-    }
     fn run(&mut self) {
         
         while self.running {
@@ -122,10 +113,11 @@ impl App {
             let delta_time = self.time.delta_seconds();
             
             // Event polling
-            let mut events = self.get_window().poll_events();
-            for event in events.iter_mut() {
-                self.on_event(event);
-            }
+            // TODO añadir aqui manejo de eventos con el window manager
+            // let mut events = self.get_window().poll_events();
+            // for event in events.iter_mut() {
+            //     self.on_event(event);
+            // }
 
              // If layers were requested in runtime, add them just before the next frame.
             // Must of the time this returns immediately
@@ -150,7 +142,7 @@ impl App {
         }
     }
 
-    fn on_event(&mut self, event : &mut Event) {
+    pub fn on_event(&mut self, event : &mut Event) {
 
         for layer in self.layer_manager.layers_iter_mut() {
             layer.layer.on_event(event);
