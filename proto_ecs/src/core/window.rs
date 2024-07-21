@@ -31,7 +31,7 @@ pub trait WindowDyn : Send + Sync {
 
     fn get_native_window(&self) -> Rc<dyn Any>;
 
-    fn handle_events(&mut self, app : &mut App);
+    fn handle_window_events(&mut self, app : &mut App);
 
     fn on_update(&mut self);
 }

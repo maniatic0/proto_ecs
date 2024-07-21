@@ -45,7 +45,7 @@ impl WindowDyn for WinitWindow {
         self.width
     }
 
-    fn handle_events(&mut self, app: &mut App) {
+    fn handle_window_events(&mut self, app: &mut App) {
         self.event_loop
             .pump_events(Some(Duration::ZERO), |event, event_loop| {
                 app.on_event(&mut Event::from(event));
@@ -61,6 +61,7 @@ impl WindowDyn for WinitWindow {
             return;
         }
 
+        // TODO Actually turn on/off vsync
         self.use_vsync = is_vsync_active;
     }
 

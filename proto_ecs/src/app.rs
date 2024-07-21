@@ -115,7 +115,7 @@ impl App {
             // Event polling
             // TODO añadir aqui manejo de eventos con el window manager
             let mut window_manager = WindowManager::get().write();
-            window_manager.get_window_mut().handle_events(self);
+            window_manager.get_window_mut().handle_window_events(self);
 
             // If layers were requested in runtime, add them just before the next frame.
             // Must of the time this returns immediately
