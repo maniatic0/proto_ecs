@@ -5,7 +5,6 @@
 /// Note that there no implementation nor storage in this file. For window instances management, see [window_manager]
 use std::rc::Rc;
 use std::any::Any;
-use proto_ecs::core::events::Event;
 
 use crate::prelude::App;
 

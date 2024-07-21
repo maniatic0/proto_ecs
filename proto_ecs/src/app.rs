@@ -4,8 +4,8 @@ use std::time::Instant;
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
 use crate::core::time::Time;
-use crate::core::events::Event;
-use crate::core::window::{WindowBuilder, WindowPtr};
+use crate::core::events::{Event, Type};
+use crate::core::window::{self, WindowBuilder, WindowPtr};
 use crate::data_group::DataGroupRegistry;
 use crate::prelude::WindowManager;
 use crate::systems::global_systems::GlobalSystemRegistry;
@@ -114,12 +114,10 @@ impl App {
             
             // Event polling
             // TODO añadir aqui manejo de eventos con el window manager
-            // let mut events = self.get_window().poll_events();
-            // for event in events.iter_mut() {
-            //     self.on_event(event);
-            // }
+            let mut window_manager = WindowManager::get().write();
+            window_manager.get_window_mut().handle_events(self);
 
-             // If layers were requested in runtime, add them just before the next frame.
+            // If layers were requested in runtime, add them just before the next frame.
             // Must of the time this returns immediately
             self.layer_manager.attach_pending_layers();
             self.layer_manager.attach_pending_overlays();
@@ -144,12 +142,26 @@ impl App {
 
     pub fn on_event(&mut self, event : &mut Event) {
 
+        // Event is handled, ignore it.
+        // Handled events are no propagated later in the event stack
+        if event.is_handled() {
+            return;
+        }
+
+        self.handle_event(event);
         for layer in self.layer_manager.layers_iter_mut() {
             layer.layer.on_event(event);
         }
 
         for layer in self.layer_manager.layers_iter_mut() {
             layer.layer.on_event(event);
+        }
+    }
+
+    fn handle_event(&mut self, event : &mut Event) {
+        match event.get_type() {
+            Type::WindowClose => self.running = false,
+            _ => ()
         }
     }
 }

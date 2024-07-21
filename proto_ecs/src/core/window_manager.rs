@@ -33,6 +33,14 @@ impl WindowManager {
             }
         }
     }
+
+    pub fn get_window(&self) -> &WindowPtr {
+        self.window.as_ref().unwrap()
+    }
+
+    pub fn get_window_mut(&mut self) -> &mut WindowPtr {
+        self.window.as_mut().unwrap()
+    }
 }
 
 lazy_static!{
