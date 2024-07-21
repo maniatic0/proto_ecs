@@ -13,7 +13,7 @@ use raw_window_handle::HasRawWindowHandle;
 use winit::dpi::LogicalSize;
 use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::EventLoop;
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::NamedKey;
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::platform::pump_events::EventLoopExtPumpEvents;
 use winit::window::{Window as winit_Window, WindowBuilder};
@@ -48,7 +48,7 @@ impl WindowDyn for WinitWindow {
 
     fn handle_window_events(&mut self, app: &mut App) {
         self.event_loop
-            .pump_events(Some(Duration::ZERO), |event, event_loop| {
+            .pump_events(Some(Duration::ZERO), |event, _event_loop| {
                 app.on_event(&mut Event::from(event));
             });
     }
@@ -242,80 +242,147 @@ impl From<winit::keyboard::Key> for Keycode {
                 NamedKey::Backspace => Keycode::Backspace,
                 NamedKey::Space => Keycode::Space,
                 NamedKey::Tab => Keycode::Tab,
-                _ => Keycode::Unknown
+                _ => Keycode::Unknown,
             },
             winit::keyboard::Key::Character(c) => {
-                if c == "a" {Keycode::A}
-                else if c == "b" {Keycode::B}
-                else if c == "c" {Keycode::C}
-                else if c == "d" {Keycode::D}
-                else if c == "e" {Keycode::E}
-                else if c == "f" {Keycode::F}
-                else if c == "g" {Keycode::G}
-                else if c == "h" {Keycode::H}
-                else if c == "i" {Keycode::I}
-                else if c == "j" {Keycode::J}
-                else if c == "k" {Keycode::K}
-                else if c == "l" {Keycode::L}
-                else if c == "m" {Keycode::M}
-                else if c == "n" {Keycode::N}
-                else if c == "o" {Keycode::O}
-                else if c == "p" {Keycode::P}
-                else if c == "q" {Keycode::Q}
-                else if c == "r" {Keycode::R}
-                else if c == "s" {Keycode::S}
-                else if c == "t" {Keycode::T}
-                else if c == "u" {Keycode::U}
-                else if c == "v" {Keycode::V}
-                else if c == "w" {Keycode::W}
-                else if c == "x" {Keycode::X}
-                else if c == "y" {Keycode::Y}
-                else if c == "z" {Keycode::Z}
-                else if c == "0" {Keycode::Num0}
-                else if c == "1" {Keycode::Num1}
-                else if c == "2" {Keycode::Num2}
-                else if c == "3" {Keycode::Num3}
-                else if c == "4" {Keycode::Num4}
-                else if c == "5" {Keycode::Num5}
-                else if c == "6" {Keycode::Num6}
-                else if c == "7" {Keycode::Num7}
-                else if c == "8" {Keycode::Num8}
-                else if c == "9" {Keycode::Num9}
-                else if c == "_" {Keycode::Underscore}
-                else if c == "-" {Keycode::Minus}
-                else if c == "+" {Keycode::Plus}
-                else if c == "=" {Keycode::Equals}
-                else if c == "<" {Keycode::Less}
-                else if c == ">" {Keycode::Greater}
-                else if c == "." {Keycode::Period}
-                else if c == "," {Keycode::Comma}
-                else if c == ":" {Keycode::Colon}
-                else if c == ";" {Keycode::Semicolon}
-                else if c == "[" {Keycode::LeftBracket}
-                else if c == "]" {Keycode::RightBracke}
-                else if c == "(" {Keycode::LeftParen}
-                else if c == ")" {Keycode::RightParen}
-                else if c == "{" {Keycode::KpLeftBrace}
-                else if c == "}" {Keycode::KpRightBrace}
-                else if c == "`" {Keycode::Backquote}
-                else if c == "'" {Keycode::Quote}
-                else if c == "\"" {Keycode::QuoteDouble}
-                else if c == "/" {Keycode::Slash}
-                else if c == "\\" {Keycode::Backslash}
-                else if c == "?" {Keycode::Question}
-                else if c == "!" {Keycode::Exclaim}
-                else if c == "&" {Keycode::Ampersand}
-                else if c == "%" {Keycode::Percent}
-                else if c == "$" {Keycode::Dollar}
-                else if c == "#" {Keycode::Hash}
-                else if c == "@" {Keycode::At}
-                else if c == "*" {Keycode::Asterisk}
-                else if c == "^" {Keycode::Power}
-
-                else {Keycode::Unknown}
+                if c == "a" {
+                    Keycode::A
+                } else if c == "b" {
+                    Keycode::B
+                } else if c == "c" {
+                    Keycode::C
+                } else if c == "d" {
+                    Keycode::D
+                } else if c == "e" {
+                    Keycode::E
+                } else if c == "f" {
+                    Keycode::F
+                } else if c == "g" {
+                    Keycode::G
+                } else if c == "h" {
+                    Keycode::H
+                } else if c == "i" {
+                    Keycode::I
+                } else if c == "j" {
+                    Keycode::J
+                } else if c == "k" {
+                    Keycode::K
+                } else if c == "l" {
+                    Keycode::L
+                } else if c == "m" {
+                    Keycode::M
+                } else if c == "n" {
+                    Keycode::N
+                } else if c == "o" {
+                    Keycode::O
+                } else if c == "p" {
+                    Keycode::P
+                } else if c == "q" {
+                    Keycode::Q
+                } else if c == "r" {
+                    Keycode::R
+                } else if c == "s" {
+                    Keycode::S
+                } else if c == "t" {
+                    Keycode::T
+                } else if c == "u" {
+                    Keycode::U
+                } else if c == "v" {
+                    Keycode::V
+                } else if c == "w" {
+                    Keycode::W
+                } else if c == "x" {
+                    Keycode::X
+                } else if c == "y" {
+                    Keycode::Y
+                } else if c == "z" {
+                    Keycode::Z
+                } else if c == "0" {
+                    Keycode::Num0
+                } else if c == "1" {
+                    Keycode::Num1
+                } else if c == "2" {
+                    Keycode::Num2
+                } else if c == "3" {
+                    Keycode::Num3
+                } else if c == "4" {
+                    Keycode::Num4
+                } else if c == "5" {
+                    Keycode::Num5
+                } else if c == "6" {
+                    Keycode::Num6
+                } else if c == "7" {
+                    Keycode::Num7
+                } else if c == "8" {
+                    Keycode::Num8
+                } else if c == "9" {
+                    Keycode::Num9
+                } else if c == "_" {
+                    Keycode::Underscore
+                } else if c == "-" {
+                    Keycode::Minus
+                } else if c == "+" {
+                    Keycode::Plus
+                } else if c == "=" {
+                    Keycode::Equals
+                } else if c == "<" {
+                    Keycode::Less
+                } else if c == ">" {
+                    Keycode::Greater
+                } else if c == "." {
+                    Keycode::Period
+                } else if c == "," {
+                    Keycode::Comma
+                } else if c == ":" {
+                    Keycode::Colon
+                } else if c == ";" {
+                    Keycode::Semicolon
+                } else if c == "[" {
+                    Keycode::LeftBracket
+                } else if c == "]" {
+                    Keycode::RightBracke
+                } else if c == "(" {
+                    Keycode::LeftParen
+                } else if c == ")" {
+                    Keycode::RightParen
+                } else if c == "{" {
+                    Keycode::KpLeftBrace
+                } else if c == "}" {
+                    Keycode::KpRightBrace
+                } else if c == "`" {
+                    Keycode::Backquote
+                } else if c == "'" {
+                    Keycode::Quote
+                } else if c == "\"" {
+                    Keycode::QuoteDouble
+                } else if c == "/" {
+                    Keycode::Slash
+                } else if c == "\\" {
+                    Keycode::Backslash
+                } else if c == "?" {
+                    Keycode::Question
+                } else if c == "!" {
+                    Keycode::Exclaim
+                } else if c == "&" {
+                    Keycode::Ampersand
+                } else if c == "%" {
+                    Keycode::Percent
+                } else if c == "$" {
+                    Keycode::Dollar
+                } else if c == "#" {
+                    Keycode::Hash
+                } else if c == "@" {
+                    Keycode::At
+                } else if c == "*" {
+                    Keycode::Asterisk
+                } else if c == "^" {
+                    Keycode::Power
+                } else {
+                    Keycode::Unknown
+                }
             }
 
-            _ => Keycode::Unknown
+            _ => Keycode::Unknown,
         }
     }
 }
