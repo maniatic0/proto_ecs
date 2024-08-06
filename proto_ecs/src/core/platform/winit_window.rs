@@ -4,10 +4,10 @@ use std::time::Duration;
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext};
 use glutin::display::{GetGlDisplay, GlDisplay};
+use glutin::prelude::PossiblyCurrentGlContext;
 use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface};
 use proto_ecs::core::events;
 use proto_ecs::core::events::Event;
-/// Winit implementation of the window trait object.
 use proto_ecs::core::window::{Window, WindowDyn, WindowPtr};
 use raw_window_handle::HasRawWindowHandle;
 use winit::dpi::LogicalSize;
@@ -18,9 +18,11 @@ use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::platform::pump_events::EventLoopExtPumpEvents;
 use winit::window::{Window as winit_Window, WindowBuilder};
 
+use crate::core::casting::CanCast;
 use crate::core::keys::Keycode;
 use crate::prelude::App;
 
+#[derive(CanCast)]
 pub struct WinitWindow {
     width: u32,
     height: u32,
@@ -49,6 +51,17 @@ impl WindowDyn for WinitWindow {
     fn handle_window_events(&mut self, app: &mut App) {
         self.event_loop
             .pump_events(Some(Duration::ZERO), |event, _event_loop| {
+                match event {
+                    winit::event::Event::WindowEvent { event: winit::event::WindowEvent::RedrawRequested,..} =>  {
+                        if !self.context.is_current() {
+                            self.context.make_current(&self.surface).expect("Could not make this the current context");
+                        }
+                        self.surface
+                            .swap_buffers(&self.context)
+                            .expect("Error swaping buffers in winit window");
+                    },
+                    _ => ()
+                };
                 app.on_event(&mut Event::from(event));
             });
     }
@@ -62,8 +75,16 @@ impl WindowDyn for WinitWindow {
             return;
         }
 
-        // TODO Actually turn on/off vsync
+        // TODO Check that this changes vsync state properly
         self.use_vsync = is_vsync_active;
+        if self.use_vsync {
+            // Waits for the next event, most likely a "RedrawRequested" from the OS
+            self.event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait)
+        }
+        else {
+            // Runs another loop regardless of whether there's a new event or not
+            self.event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+        }
     }
 
     fn get_native_window(&self) -> std::rc::Rc<dyn std::any::Any> {
@@ -72,9 +93,12 @@ impl WindowDyn for WinitWindow {
 
     fn on_update(&mut self) {
         self.window.request_redraw();
-        self.surface
-            .swap_buffers(&self.context)
-            .expect("Error swaping buffers");
+    }
+}
+
+impl WinitWindow {
+    pub fn get_glow_context(&self) -> glow::Context {
+        glow_context(&self.context)
     }
 }
 
@@ -126,8 +150,7 @@ impl Window for WinitWindow {
             .expect("Error making OpenGL context the current context");
 
         let gl_context = glow_context(&context);
-
-        Box::new(WinitWindow {
+        let mut result = Box::new(WinitWindow {
             width: props.width,
             height: props.height,
             title: props.title,
@@ -136,8 +159,11 @@ impl Window for WinitWindow {
             context,
             gl_context,
             event_loop,
-            use_vsync: true,
-        })
+            use_vsync: false,
+        });
+
+        result.set_vsync(true);
+        result
     }
 }
 

@@ -1,10 +1,9 @@
 use std::time::Instant;
 
-
+use crate::core::events::{Event, Type};
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
 use crate::core::time::Time;
-use crate::core::events::{Event, Type};
 use crate::core::window::{self, WindowBuilder, WindowPtr};
 use crate::data_group::DataGroupRegistry;
 use crate::prelude::WindowManager;
@@ -18,9 +17,9 @@ pub type LayerID = u32;
 
 pub struct App {
     is_initialized: bool,
-    time : Time,
-    running : bool,
-    layer_manager : LayerManager,
+    time: Time,
+    running: bool,
+    layer_manager: LayerManager,
 }
 
 lazy_static! {
@@ -31,9 +30,9 @@ impl App {
     fn new() -> Self {
         App {
             is_initialized: false,
-            time : Time::new(Instant::now()),
+            time: Time::new(Instant::now()),
             running: false,
-            layer_manager : Default::default(),
+            layer_manager: Default::default(),
         }
     }
 
@@ -82,18 +81,18 @@ impl App {
 
     pub fn run_application() {
         // TODO Ask Chris
-        // Will we leave this lock on during the entire application? 
+        // Will we leave this lock on during the entire application?
         let mut global_app = APP.write();
         println!("Starting to run application!");
         global_app.run();
     }
 
-    pub fn add_layer(layer : LayerPtr) -> LayerID {
+    pub fn add_layer(layer: LayerPtr) -> LayerID {
         let mut global_app = APP.write();
         global_app.layer_manager.attach_layer(layer)
     }
 
-    pub fn add_overlay(overlay : LayerPtr) -> LayerID {
+    pub fn add_overlay(overlay: LayerPtr) -> LayerID {
         let mut global_app = APP.write();
         global_app.layer_manager.attach_overlays(overlay)
     }
@@ -105,17 +104,16 @@ impl App {
     }
 
     fn run(&mut self) {
-        
         while self.running {
-
             // Time update
             self.time.step(Instant::now());
             let delta_time = self.time.delta_seconds();
-            
-            // Event polling
-            // TODO añadir aqui manejo de eventos con el window manager
-            let mut window_manager = WindowManager::get().write();
-            window_manager.get_window_mut().handle_window_events(self);
+
+            // Event polling 
+            {
+                let mut window_manager = WindowManager::get().write();
+                window_manager.get_window_mut().handle_window_events(self);
+            }
 
             // If layers were requested in runtime, add them just before the next frame.
             // Must of the time this returns immediately
@@ -128,6 +126,11 @@ impl App {
 
             self.layer_manager.detach_pending_layers();
             self.layer_manager.detach_pending_overlays();
+
+            {
+                let mut window_manager = WindowManager::get().write();
+                window_manager.get_window_mut().on_update();
+            }
         }
 
         // Closing the application, detach all layers
@@ -140,8 +143,7 @@ impl App {
         }
     }
 
-    pub fn on_event(&mut self, event : &mut Event) {
-
+    pub fn on_event(&mut self, event: &mut Event) {
         // Event is handled, ignore it.
         // Handled events are no propagated later in the event stack
         if event.is_handled() {
@@ -158,10 +160,10 @@ impl App {
         }
     }
 
-    fn handle_event(&mut self, event : &mut Event) {
+    fn handle_event(&mut self, event: &mut Event) {
         match event.get_type() {
             Type::WindowClose => self.running = false,
-            _ => ()
+            _ => (),
         }
     }
 }

@@ -8,19 +8,17 @@ use std::any::Any;
 
 use crate::prelude::App;
 
+use super::casting::CanCast;
+
 pub struct WindowBuilder {
     pub width : u32,
     pub height : u32,
     pub title : String,
 }
 
-pub enum Platforms {
-    Windows
-}
-
 pub type WindowPtr = Box<dyn WindowDyn>;
 
-pub trait WindowDyn : Send + Sync {
+pub trait WindowDyn : Send + Sync + CanCast {
     fn get_width(&self) -> u32;
 
     fn get_heigth(&self) -> u32;

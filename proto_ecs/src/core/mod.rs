@@ -10,3 +10,5 @@ pub mod window;
 pub mod window_manager;
 pub mod platform;
 pub mod keys;
+pub mod render;
+pub mod math;

@@ -2,18 +2,20 @@
 /// This module implements management of the window instance 
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
-use proto_ecs::core::platform::winit_window;
+use proto_ecs::core::platform::{winit_window, Platforms};
 
-use super::window::{Platforms, Window, WindowBuilder, WindowPtr};
+use super::window::{Window, WindowBuilder, WindowPtr};
 
 pub struct WindowManager {
-    window : Option<WindowPtr>
+    window : Option<WindowPtr>,
+    platform : Platforms
 }
 
 impl WindowManager {
     fn new() -> Self {
         WindowManager{
-            window: None
+            window: None,
+            platform: Platforms::None
         }
     }
 
@@ -26,11 +28,17 @@ impl WindowManager {
         &WINDOW_MANAGER
     }
 
+    pub fn get_platform() -> Platforms {
+        Self::get().read().platform
+    }
+
     fn init_instance(&mut self, window_builder : WindowBuilder, platform : Platforms) {
         match platform {
             Platforms::Windows => {
-                self.window = Some(winit_window::WinitWindow::create(window_builder))
+                self.window = Some(winit_window::WinitWindow::create(window_builder));
+                self.platform = platform;
             }
+            _ => panic!("Unimplemented platform")
         }
     }
 
