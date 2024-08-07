@@ -135,11 +135,11 @@ impl App {
 
         // Closing the application, detach all layers
         for layer in self.layer_manager.layers_iter_mut() {
-            layer.layer.on_attach();
+            layer.layer.on_detach();
         }
 
         for layer in self.layer_manager.overlays_iter_mut() {
-            layer.layer.on_attach();
+            layer.layer.on_detach();
         }
     }
 

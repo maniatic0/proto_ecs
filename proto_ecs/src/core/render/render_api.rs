@@ -64,6 +64,7 @@ impl RenderCommand {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
 
+        vertex_array.bind();
         backend.draw_indexed(vertex_array);
     }
 

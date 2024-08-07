@@ -55,14 +55,17 @@ impl LayerManager {
 
     pub fn attach_pending_layers(&mut self) {
         while let Some(mut entry) = self.layers_to_attach.pop() {
-            let (id, layer)= unsafe {entry.get_mut().unwrap().take_inner()};
+            let (id, mut layer)= unsafe {entry.get_mut().unwrap().take_inner()};
+            layer.on_attach();
             self.layers.push(LayerContainer{layer, id});
+            
         }
     }
 
     pub fn attach_pending_overlays(&mut self) {
         while let Some(mut entry) = self.overlays_to_attach.pop() {
-            let (id, layer)= unsafe {entry.get_mut().unwrap().take_inner()};
+            let (id, mut layer)= unsafe {entry.get_mut().unwrap().take_inner()};
+            layer.on_attach();
             self.overlays.push(LayerContainer{layer, id});
         }
     }
@@ -100,7 +103,8 @@ impl LayerManager {
             
             for layer in self.layers.iter_mut() {
                 if layer.id == layer_id {
-                    layer.layer.on_attach();
+                    layer.layer.on_detach();
+                    break
                 }
             }
         }
