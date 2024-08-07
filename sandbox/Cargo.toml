@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 proto_ecs = { version = "0.1.0", path = "../proto_ecs" }
+glam = {version = "0.28.0", features = ["serde"]}

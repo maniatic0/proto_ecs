@@ -1,14 +1,16 @@
 use glam;
 use proto_ecs::core::locking::RwLock;
 use proto_ecs::core::render::buffer::{
-    create_index_buffer, create_vertex_array, create_vertex_buffer, BufferElement, BufferLayout, VertexBuffer
+    create_index_buffer, create_vertex_buffer, BufferElement, BufferLayout,
 };
 use proto_ecs::core::render::render_api::RenderCommand;
 use proto_ecs::core::render::shader::{create_shader, ShaderDataType, ShaderPtr};
+use proto_ecs::core::render::vertex_array::{create_vertex_array, VertexArrayPtr};
 use proto_ecs::prelude::*;
 
 struct MyLayer {
     triangle_shader: Option<RwLock<ShaderPtr>>,
+    triangle_data: Option<RwLock<VertexArrayPtr>>,
 }
 
 // TODO Look for something to do in these cases
@@ -77,7 +79,7 @@ impl Layer for MyLayer {
         ];
 
         // Create a buffer for this triangle data
-        let mut vbo = create_vertex_buffer(unsafe{any_as_f32_slice(&VERTEX_DATA)});
+        let mut vbo = create_vertex_buffer(unsafe { any_as_f32_slice(&VERTEX_DATA) });
         vbo.set_layout(BufferLayout::from_elements(vec![
             BufferElement::new("a_Position".into(), ShaderDataType::Float2, false),
             BufferElement::new("a_Color".into(), ShaderDataType::Float3, false),
@@ -86,6 +88,9 @@ impl Layer for MyLayer {
         let mut vao = create_vertex_array();
         vao.set_vertex_buffer(vbo);
         vao.set_index_buffer(index_buffer);
+
+        self.triangle_data = Some(RwLock::new(vao));
+        println!("Triangle data intialized!");
     }
 
     fn on_detach(&mut self) {}
@@ -93,6 +98,18 @@ impl Layer for MyLayer {
     fn update(&mut self, delta_time: f32) {
         RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
         RenderCommand::clear();
+        let vertex_array = self
+            .triangle_data
+            .as_ref()
+            .expect("Should have vertex array by now")
+            .read();
+        let triangle_shader = self
+            .triangle_shader
+            .as_ref()
+            .expect("Should have shader by now")
+            .read();
+        triangle_shader.bind();
+        RenderCommand::draw_indexed(&vertex_array);
     }
 
     fn on_event(&mut self, event: &mut Event) {}
@@ -111,6 +128,7 @@ fn main() {
 
     App::add_layer(Box::new(MyLayer {
         triangle_shader: None,
+        triangle_data: None,
     }));
 
     App::run_application();
