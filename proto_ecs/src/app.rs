@@ -4,7 +4,7 @@ use crate::core::events::{Event, Type};
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
 use crate::core::time::Time;
-use crate::core::window::{self, WindowBuilder, WindowPtr};
+use crate::core::window::HasImguiContext;
 use crate::data_group::DataGroupRegistry;
 use crate::prelude::WindowManager;
 use crate::systems::global_systems::GlobalSystemRegistry;
@@ -122,6 +122,17 @@ impl App {
 
             for layer in self.layer_manager.layers_iter_mut() {
                 layer.layer.update(delta_time);
+            }
+            for layer in self.layer_manager.overlays_iter_mut() {
+                layer.layer.update(delta_time);
+            }
+            for layer in self.layer_manager.layers_iter_mut() {
+                let window_manager = WindowManager::get().read();
+                layer.layer.imgui_update(delta_time, window_manager.get_window().get_imgui_context());
+            }
+            for layer in self.layer_manager.overlays_iter_mut() {
+                let window_manager = WindowManager::get().read();
+                layer.layer.imgui_update(delta_time, window_manager.get_window().get_imgui_context());
             }
 
             self.layer_manager.detach_pending_layers();

@@ -6,6 +6,9 @@ use glutin::context::{ContextAttributesBuilder, NotCurrentGlContext, PossiblyCur
 use glutin::display::{GetGlDisplay, GlDisplay};
 use glutin::prelude::PossiblyCurrentGlContext;
 use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface};
+use imgui;
+use imgui_glow_renderer::AutoRenderer;
+use imgui_winit_support::WinitPlatform;
 use proto_ecs::core::events;
 use proto_ecs::core::events::Event;
 use proto_ecs::core::window::{Window, WindowDyn, WindowPtr};
@@ -20,6 +23,7 @@ use winit::window::{Window as winit_Window, WindowBuilder};
 
 use crate::core::casting::CanCast;
 use crate::core::keys::Keycode;
+use crate::core::window::HasImguiContext;
 use crate::prelude::App;
 
 #[derive(CanCast)]
@@ -33,6 +37,13 @@ pub struct WinitWindow {
     gl_context: glow::Context,
     event_loop: EventLoop<()>,
     use_vsync: bool,
+    imgui_state: ImguiState,
+}
+
+pub(super) struct ImguiState {
+    imgui_renderer: AutoRenderer,
+    imgui_context: imgui::Context,
+    platform: WinitPlatform,
 }
 
 // TODO work on a safe implementation for these traits
@@ -52,15 +63,20 @@ impl WindowDyn for WinitWindow {
         self.event_loop
             .pump_events(Some(Duration::ZERO), |event, _event_loop| {
                 match event {
-                    winit::event::Event::WindowEvent { event: winit::event::WindowEvent::RedrawRequested,..} =>  {
+                    winit::event::Event::WindowEvent {
+                        event: winit::event::WindowEvent::RedrawRequested,
+                        ..
+                    } => {
                         if !self.context.is_current() {
-                            self.context.make_current(&self.surface).expect("Could not make this the current context");
+                            self.context
+                                .make_current(&self.surface)
+                                .expect("Could not make this the current context");
                         }
                         self.surface
                             .swap_buffers(&self.context)
                             .expect("Error swaping buffers in winit window");
-                    },
-                    _ => ()
+                    }
+                    _ => (),
                 };
                 app.on_event(&mut Event::from(event));
             });
@@ -79,11 +95,12 @@ impl WindowDyn for WinitWindow {
         self.use_vsync = is_vsync_active;
         if self.use_vsync {
             // Waits for the next event, most likely a "RedrawRequested" from the OS
-            self.event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait)
-        }
-        else {
+            self.event_loop
+                .set_control_flow(winit::event_loop::ControlFlow::Wait)
+        } else {
             // Runs another loop regardless of whether there's a new event or not
-            self.event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+            self.event_loop
+                .set_control_flow(winit::event_loop::ControlFlow::Poll);
         }
     }
 
@@ -99,6 +116,12 @@ impl WindowDyn for WinitWindow {
 impl WinitWindow {
     pub fn get_glow_context(&self) -> glow::Context {
         glow_context(&self.context)
+    }
+}
+
+impl HasImguiContext for WinitWindow {
+    fn get_imgui_context(&self) -> &imgui::Context {
+        &self.imgui_state.imgui_context
     }
 }
 
@@ -150,6 +173,7 @@ impl Window for WinitWindow {
             .expect("Error making OpenGL context the current context");
 
         let gl_context = glow_context(&context);
+        let imgui_state = initialize_imgui(&window, glow_context(&context));
         let mut result = Box::new(WinitWindow {
             width: props.width,
             height: props.height,
@@ -160,10 +184,39 @@ impl Window for WinitWindow {
             gl_context,
             event_loop,
             use_vsync: false,
+            imgui_state
         });
 
         result.set_vsync(true);
         result
+    }
+}
+
+
+fn initialize_imgui(window: &winit::window::Window, gl_context: glow::Context) -> ImguiState {
+    let mut context = imgui::Context::create();
+    context.set_ini_filename(None);
+    let mut platform = WinitPlatform::init(&mut context);
+    platform.attach_window(
+        context.io_mut(),
+        window,
+        imgui_winit_support::HiDpiMode::Rounded,
+    );
+
+    context
+        .fonts()
+        .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+    context.io_mut().font_global_scale = (1.0 / platform.hidpi_factor()) as f32;
+
+    let imgui_renderer = AutoRenderer::initialize(
+        gl_context, 
+        &mut context)
+        .expect("Unable to initialize imgui");
+
+    ImguiState {
+        platform,
+        imgui_context: context,
+        imgui_renderer,
     }
 }
 
