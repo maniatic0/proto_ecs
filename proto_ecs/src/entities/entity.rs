@@ -452,7 +452,12 @@ impl Entity {
                 entity.run_stage(world, stage_id);
             }
 
-            unsafe { entity.get_transform_unsafe() }
+            let transform_dg = unsafe { entity.get_transform_unsafe() };
+
+            // Get latest position to update children
+            let new_parent_transform_mat = transform_dg.get_world_transform_mat();
+
+            transform_dg
                 .children
                 .par_chunks(World::PAR_CHUNKS_NUM)
                 .for_each(|children_chunk| {
@@ -461,12 +466,14 @@ impl Entity {
                         // and because an entity has at most 1 parent
                         let child = unsafe { &mut *child_ptr.data_ptr() };
 
-                        let transform = unsafe { child.get_transform_unsafe() };
+                        let transform = unsafe { child.get_transform_mut_unsafe() };
                         if transform.stage_count[stage_id as usize].load(Ordering::Acquire) == 0 {
                             // Nothing else to do, this child branch doesn't need updating
                             continue;
                         }
 
+                        // Update parent position to calculate current position
+                        transform.set_parent_transform_mat(new_parent_transform_mat);
                         recurse(child, world, stage_id);
                     }
                 });
