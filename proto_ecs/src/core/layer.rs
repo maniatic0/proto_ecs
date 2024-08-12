@@ -21,7 +21,7 @@ pub trait Layer : Send + Sync{
 
     fn on_event(&mut self, event: &mut Event);
 
-    fn imgui_update(&mut self, delta_time: f32, imgui_context : &imgui::Context){}
+    fn imgui_update(&mut self, delta_time: f32, ui: &mut imgui::Ui){}
 }
 
 pub struct LayerContainer {

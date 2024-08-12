@@ -18,7 +18,7 @@ pub struct WindowBuilder {
 
 pub type WindowPtr = Box<dyn WindowDyn>;
 
-pub trait WindowDyn : Send + Sync + CanCast + HasImguiContext{
+pub trait WindowDyn : Send + Sync + CanCast {
     fn get_width(&self) -> u32;
 
     fn get_heigth(&self) -> u32;
@@ -32,10 +32,6 @@ pub trait WindowDyn : Send + Sync + CanCast + HasImguiContext{
     fn handle_window_events(&mut self, app : &mut App);
 
     fn on_update(&mut self);
-}
-
-pub (crate) trait HasImguiContext {
-    fn get_imgui_context(&self) -> &imgui::Context;
 }
 
 /// Every platform-specific window implementation should implement this trait. 

@@ -80,7 +80,7 @@ impl ShaderDyn for OpenGLShader {
             gl.get_uniform_location(self.native_program, name.as_str())
                 .expect(
                     format!(
-                        "Could not get an attribute location for shader '{}'",
+                        "Could not get an attribute location for shader '{}'. Did you forget to USE the uniform in that shader?",
                         self.name
                     )
                     .as_str(),
@@ -114,7 +114,7 @@ impl ShaderDyn for OpenGLShader {
         }
     }
 
-    fn set_uniform_fmat3(&self, name: &String, value: glam::Mat3) {
+    fn set_uniform_fmat3(&self, name: &String, value: &glam::Mat3) {
         let uniform_data = self
             .uniforms
             .get(name)
@@ -132,7 +132,7 @@ impl ShaderDyn for OpenGLShader {
         }
     }
 
-    fn set_uniform_fmat4(&self, name: &String, value: glam::Mat4) {
+    fn set_uniform_fmat4(&self, name: &String, value: &glam::Mat4) {
         let uniform_data = self
             .uniforms
             .get(name)
@@ -150,7 +150,7 @@ impl ShaderDyn for OpenGLShader {
         }
     }
 
-    fn set_uniform_fvec2(&self, name: &String, value: glam::Vec2) {
+    fn set_uniform_fvec2(&self, name: &String, value: &glam::Vec2) {
         let uniform_data = self
             .uniforms
             .get(name)
@@ -168,7 +168,7 @@ impl ShaderDyn for OpenGLShader {
         }
     }
 
-    fn set_uniform_fvec3(&self, name: &String, value: glam::Vec3) {
+    fn set_uniform_fvec3(&self, name: &String, value: &glam::Vec3) {
         let uniform_data = self
             .uniforms
             .get(name)
@@ -186,7 +186,7 @@ impl ShaderDyn for OpenGLShader {
         }
     }
 
-    fn set_uniform_fvec4(&self, name: &String, value: glam::Vec4) {
+    fn set_uniform_fvec4(&self, name: &String, value: &glam::Vec4) {
         let uniform_data = self
             .uniforms
             .get(name)

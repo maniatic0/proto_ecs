@@ -36,11 +36,11 @@ pub trait ShaderDyn {
 
     fn set_uniform_f32(&self, name : &String, value : f32);
     fn set_uniform_i32(&self, name : &String, value : i32);
-    fn set_uniform_fvec2(&self, name : &String, value : glam::Vec2);
-    fn set_uniform_fvec3(&self, name : &String, value : glam::Vec3);
-    fn set_uniform_fvec4(&self, name : &String, value : glam::Vec4);
-    fn set_uniform_fmat3(&self, name : &String, value : glam::Mat3);
-    fn set_uniform_fmat4(&self, name : &String, value : glam::Mat4);
+    fn set_uniform_fvec2(&self, name : &String, value : &glam::Vec2);
+    fn set_uniform_fvec3(&self, name : &String, value : &glam::Vec3);
+    fn set_uniform_fvec4(&self, name : &String, value : &glam::Vec4);
+    fn set_uniform_fmat3(&self, name : &String, value : &glam::Mat3);
+    fn set_uniform_fmat4(&self, name : &String, value : &glam::Mat4);
 
     fn add_uniform(&mut self, name : &String, data_type : ShaderDataType) -> Result<(), ShaderError>;
 }

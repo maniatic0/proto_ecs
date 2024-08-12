@@ -23,7 +23,6 @@ use winit::window::{Window as winit_Window, WindowBuilder};
 
 use crate::core::casting::CanCast;
 use crate::core::keys::Keycode;
-use crate::core::window::HasImguiContext;
 use crate::prelude::App;
 
 #[derive(CanCast)]
@@ -72,12 +71,29 @@ impl WindowDyn for WinitWindow {
                                 .make_current(&self.surface)
                                 .expect("Could not make this the current context");
                         }
+                        // Render imgui Ui into the frame buffer
+                        let ui = self.imgui_state.imgui_context.frame();
+                        app.run_imgui(ui);
+                        self.imgui_state.platform.prepare_render(&ui, &self.window);
+                        let draw_data = self.imgui_state.imgui_context.render();
+                        self.imgui_state
+                            .imgui_renderer
+                            .render(draw_data)
+                            .expect("Error rendering imgui");
+                        // --------------------------------------------
                         self.surface
                             .swap_buffers(&self.context)
                             .expect("Error swaping buffers in winit window");
                     }
                     _ => (),
                 };
+
+                // Imgui might require to handle events
+                self.imgui_state.platform.handle_event(
+                    self.imgui_state.imgui_context.io_mut(),
+                    &self.window,
+                    &event,
+                );
                 app.on_event(&mut Event::from(event));
             });
     }
@@ -116,12 +132,6 @@ impl WindowDyn for WinitWindow {
 impl WinitWindow {
     pub fn get_glow_context(&self) -> glow::Context {
         glow_context(&self.context)
-    }
-}
-
-impl HasImguiContext for WinitWindow {
-    fn get_imgui_context(&self) -> &imgui::Context {
-        &self.imgui_state.imgui_context
     }
 }
 
@@ -184,14 +194,13 @@ impl Window for WinitWindow {
             gl_context,
             event_loop,
             use_vsync: false,
-            imgui_state
+            imgui_state,
         });
 
         result.set_vsync(true);
         result
     }
 }
-
 
 fn initialize_imgui(window: &winit::window::Window, gl_context: glow::Context) -> ImguiState {
     let mut context = imgui::Context::create();
@@ -208,10 +217,8 @@ fn initialize_imgui(window: &winit::window::Window, gl_context: glow::Context) -
         .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
     context.io_mut().font_global_scale = (1.0 / platform.hidpi_factor()) as f32;
 
-    let imgui_renderer = AutoRenderer::initialize(
-        gl_context, 
-        &mut context)
-        .expect("Unable to initialize imgui");
+    let imgui_renderer =
+        AutoRenderer::initialize(gl_context, &mut context).expect("Unable to initialize imgui");
 
     ImguiState {
         platform,
