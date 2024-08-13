@@ -9,9 +9,9 @@ use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurfac
 use imgui;
 use imgui_glow_renderer::AutoRenderer;
 use imgui_winit_support::WinitPlatform;
-use proto_ecs::core::window::events;
-use proto_ecs::core::window::events::Event;
-use proto_ecs::core::window::{Window, WindowDyn, WindowPtr};
+use proto_ecs::core::windowing::events;
+use proto_ecs::core::windowing::events::Event;
+use proto_ecs::core::windowing::{Window, WindowDyn, WindowPtr};
 use raw_window_handle::HasRawWindowHandle;
 use winit::dpi::LogicalSize;
 use winit::event::{MouseButton, MouseScrollDelta};
@@ -22,7 +22,7 @@ use winit::platform::pump_events::EventLoopExtPumpEvents;
 use winit::window::{Window as winit_Window, WindowBuilder};
 
 use crate::core::casting::CanCast;
-use crate::core::window::keys::Keycode;
+use crate::core::windowing::keys::Keycode;
 use crate::prelude::App;
 
 #[derive(CanCast)]
@@ -33,7 +33,6 @@ pub struct WinitWindow {
     window: winit_Window,
     surface: Surface<WindowSurface>,
     context: PossiblyCurrentContext,
-    gl_context: glow::Context,
     event_loop: EventLoop<()>,
     use_vsync: bool,
     imgui_state: ImguiState,
@@ -61,31 +60,29 @@ impl WindowDyn for WinitWindow {
     fn handle_window_events(&mut self, app: &mut App) {
         self.event_loop
             .pump_events(Some(Duration::ZERO), |event, _event_loop| {
-                match event {
-                    winit::event::Event::WindowEvent {
-                        event: winit::event::WindowEvent::RedrawRequested,
-                        ..
-                    } => {
-                        if !self.context.is_current() {
-                            self.context
-                                .make_current(&self.surface)
-                                .expect("Could not make this the current context");
-                        }
-                        // Render imgui Ui into the frame buffer
-                        let ui = self.imgui_state.imgui_context.frame();
-                        app.run_imgui(ui);
-                        self.imgui_state.platform.prepare_render(&ui, &self.window);
-                        let draw_data = self.imgui_state.imgui_context.render();
-                        self.imgui_state
-                            .imgui_renderer
-                            .render(draw_data)
-                            .expect("Error rendering imgui");
-                        // --------------------------------------------
-                        self.surface
-                            .swap_buffers(&self.context)
-                            .expect("Error swaping buffers in winit window");
+                if let winit::event::Event::WindowEvent {
+                    event: winit::event::WindowEvent::RedrawRequested,
+                    ..
+                } = event
+                {
+                    if !self.context.is_current() {
+                        self.context
+                            .make_current(&self.surface)
+                            .expect("Could not make this the current context");
                     }
-                    _ => (),
+                    // Render imgui Ui into the frame buffer
+                    let ui = self.imgui_state.imgui_context.frame();
+                    app.run_imgui(ui);
+                    self.imgui_state.platform.prepare_render(ui, &self.window);
+                    let draw_data = self.imgui_state.imgui_context.render();
+                    self.imgui_state
+                        .imgui_renderer
+                        .render(draw_data)
+                        .expect("Error rendering imgui");
+                    // --------------------------------------------
+                    self.surface
+                        .swap_buffers(&self.context)
+                        .expect("Error swaping buffers in winit window");
                 };
 
                 // Imgui might require to handle events
@@ -127,6 +124,10 @@ impl WindowDyn for WinitWindow {
     fn on_update(&mut self) {
         self.window.request_redraw();
     }
+
+    fn get_title(&self) -> &str {
+        &self.title
+    }
 }
 
 impl WinitWindow {
@@ -136,7 +137,7 @@ impl WinitWindow {
 }
 
 impl Window for WinitWindow {
-    fn create(window_builder: crate::core::window::WindowBuilder) -> WindowPtr {
+    fn create(window_builder: crate::core::windowing::WindowBuilder) -> WindowPtr {
         let props = window_builder;
         let window_builder = WindowBuilder::new()
             .with_title(props.title.clone())
@@ -182,7 +183,6 @@ impl Window for WinitWindow {
             .make_current(&surface)
             .expect("Error making OpenGL context the current context");
 
-        let gl_context = glow_context(&context);
         let imgui_state = initialize_imgui(&window, glow_context(&context));
         let mut result = Box::new(WinitWindow {
             width: props.width,
@@ -191,7 +191,6 @@ impl Window for WinitWindow {
             window,
             surface,
             context,
-            gl_context,
             event_loop,
             use_vsync: false,
             imgui_state,
@@ -236,7 +235,7 @@ fn glow_context(context: &PossiblyCurrentContext) -> glow::Context {
 impl From<winit::event::Event<()>> for Event {
     fn from(value: winit::event::Event<()>) -> Self {
         match value {
-            winit::event::Event::WindowEvent { event, .. } => return Event::from(event),
+            winit::event::Event::WindowEvent { event, .. } => Event::from(event),
             _ => Event::new(events::Type::Unknown),
         }
     }
@@ -252,9 +251,9 @@ impl From<winit::event::WindowEvent> for Event {
             winit::event::WindowEvent::CloseRequested => Event::new(events::Type::WindowClose),
             winit::event::WindowEvent::Focused(focused) => {
                 if focused {
-                    return Event::new(events::Type::WindowFocus);
+                    Event::new(events::Type::WindowFocus)
                 } else {
-                    return Event::new(events::Type::WindowLostFocus);
+                    Event::new(events::Type::WindowLostFocus)
                 }
             }
             winit::event::WindowEvent::Moved(new_pos) => Event::new(events::Type::WindowMoved {
@@ -263,25 +262,25 @@ impl From<winit::event::WindowEvent> for Event {
             }),
             winit::event::WindowEvent::MouseInput { state, button, .. } => {
                 let button = events::MouseButton::from(button);
-                return Event::new(events::Type::MouseButtonEvent {
+                Event::new(events::Type::MouseButtonEvent {
                     button,
                     state: events::KeyState::from(state),
-                });
+                })
             }
             winit::event::WindowEvent::MouseWheel { delta, .. } => {
                 let (x, y) = match delta {
                     MouseScrollDelta::PixelDelta(p) => (p.x as f32, p.y as f32),
                     MouseScrollDelta::LineDelta(x, y) => (x, y),
                 };
-                return Event::new(events::Type::MouseScrolled { x, y });
+                Event::new(events::Type::MouseScrolled { x, y })
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {
                 let (x, y) = (position.x as f32, position.y as f32);
                 // Note that x,y is the new position relative to the top left corner of the screen
-                return Event::new(events::Type::MouseMoved { x, y });
+                Event::new(events::Type::MouseMoved { x, y })
             }
             winit::event::WindowEvent::KeyboardInput { event, .. } => {
-                return Event::new(events::Type::KeyEvent {
+                Event::new(events::Type::KeyEvent {
                     key: Keycode::from(event.key_without_modifiers()),
                     state: events::KeyState::from(event.state),
                     repeat: event.repeat,

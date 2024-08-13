@@ -1,15 +1,15 @@
 use glow::{Context, HasContext};
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
-use proto_ecs::core::render::render_api::{
+use proto_ecs::core::rendering::render_api::{
     RenderAPIBackend, RenderAPIBackendDyn, RenderAPIBackendPtr,
 };
-use proto_ecs::core::render::vertex_array::VertexArrayPtr;
-use proto_ecs::core::window::window_manager;
+use proto_ecs::core::windowing::window_manager;
 
 use crate::core::math::Color;
 use crate::core::platform::winit_window::WinitWindow;
-use crate::core::render::render_api::API;
+use crate::core::rendering::render_api::API;
+use crate::core::rendering::vertex_array::VertexArrayDyn;
 
 pub(super) struct OpenGLContext {
     pub(super) gl: Context,
@@ -75,16 +75,16 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         };
     }
 
-    fn draw_indexed(&mut self, vertex_array: &VertexArrayPtr) {
+    fn draw_indexed(&mut self, vertex_array: &dyn VertexArrayDyn) {
         // Assume that vertex array is bound right now
         get_context!(context);
         vertex_array.bind();
         unsafe {
             let count = vertex_array
-                    .get_index_buffer()
-                    .as_ref()
-                    .expect("Should have index buffer by now")
-                    .get_count() as i32;
+                .get_index_buffer()
+                .as_ref()
+                .expect("Should have index buffer by now")
+                .get_count() as i32;
 
             context.gl.draw_arrays(glow::TRIANGLES, 0, count);
             // context.gl.draw_elements(

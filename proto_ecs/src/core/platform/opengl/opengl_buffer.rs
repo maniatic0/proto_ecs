@@ -1,16 +1,10 @@
 use ecs_macros::CanCast;
 use glow::HasContext;
 use glow::NativeBuffer;
-use glow::NativeVertexArray;
 use proto_ecs::core::platform::opengl::opengl_render_backend::get_context;
-use proto_ecs::core::render::buffer::{
+use proto_ecs::core::rendering::buffer::{
     BufferLayout, IndexBuffer, IndexBufferDyn, VertexBuffer, VertexBufferDyn,
 };
-
-use crate::core::render::buffer::IndexBufferPtr;
-use crate::core::render::buffer::VertexBufferPtr;
-use crate::core::render::vertex_array::{VertexArrayPtr, VertexArray, VertexArrayDyn};
-use crate::core::render::shader::ShaderDataType;
 
 #[derive(CanCast)]
 pub struct OpenGLIndexBuffer {
@@ -25,7 +19,7 @@ pub struct OpenGLVertexBuffer {
 }
 
 impl IndexBuffer for OpenGLIndexBuffer {
-    fn create(indices: &[u32]) -> crate::core::render::buffer::IndexBufferPtr {
+    fn create(indices: &[u32]) -> crate::core::rendering::buffer::IndexBufferPtr {
         get_context!(context);
         let gl = &context.gl;
         unsafe {
@@ -35,10 +29,10 @@ impl IndexBuffer for OpenGLIndexBuffer {
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(buffer_id));
             let u8_slice = std::mem::transmute(indices);
             gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, u8_slice, glow::STATIC_DRAW);
-            return Box::new(OpenGLIndexBuffer {
+            Box::new(OpenGLIndexBuffer {
                 native_buffer: buffer_id,
                 element_count: indices.len(),
-            });
+            })
         }
     }
 }
@@ -66,7 +60,7 @@ impl IndexBufferDyn for OpenGLIndexBuffer {
 }
 
 impl VertexBuffer for OpenGLVertexBuffer {
-    fn create(vertices: &[f32]) -> crate::core::render::buffer::VertexBufferPtr {
+    fn create(vertices: &[f32]) -> crate::core::rendering::buffer::VertexBufferPtr {
         get_context!(context);
         let gl = &context.gl;
 
@@ -75,12 +69,12 @@ impl VertexBuffer for OpenGLVertexBuffer {
             let native_buffer = gl.create_buffer().expect("Could not create vertex buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(native_buffer));
             let bytes: &[u8] = std::mem::transmute(vertices);
-            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, &bytes, glow::STATIC_DRAW);
+            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
-            return Box::new(OpenGLVertexBuffer {
+            Box::new(OpenGLVertexBuffer {
                 native_buffer,
                 buffer_layout: BufferLayout::default(),
-            });
+            })
         }
     }
 }
@@ -94,11 +88,11 @@ impl VertexBufferDyn for OpenGLVertexBuffer {
         }
     }
 
-    fn get_layout(&self) -> &crate::core::render::buffer::BufferLayout {
+    fn get_layout(&self) -> &crate::core::rendering::buffer::BufferLayout {
         &self.buffer_layout
     }
 
-    fn set_layout(&mut self, new_layout: crate::core::render::buffer::BufferLayout) {
+    fn set_layout(&mut self, new_layout: crate::core::rendering::buffer::BufferLayout) {
         self.buffer_layout = new_layout;
     }
 

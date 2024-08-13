@@ -1,18 +1,16 @@
 use std::time::Instant;
 
-use crate::core::window::events::{Event, Type};
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
 use crate::core::time::Time;
-use crate::core::window;
+use crate::core::windowing::events::{Event, Type};
+use crate::core::windowing::window_manager::WindowManager;
 use crate::data_group::DataGroupRegistry;
-use crate::core::window::window_manager::WindowManager;
 use crate::systems::global_systems::GlobalSystemRegistry;
 use crate::systems::local_systems::LocalSystemRegistry;
 /// This module implements the entire Application workflow.
 /// Put any glue code between parts of our application here
 use lazy_static::lazy_static;
-use winit::dpi::validate_scale_factor;
 
 pub type LayerID = u32;
 
@@ -21,7 +19,6 @@ pub struct App {
     time: Time,
     running: bool,
     pub(crate) layer_manager: LayerManager,
-    pub(crate) run_imgui: bool,
 }
 
 lazy_static! {
@@ -35,7 +32,6 @@ impl App {
             time: Time::new(Instant::now()),
             running: false,
             layer_manager: Default::default(),
-            run_imgui: true,
         }
     }
 
@@ -150,12 +146,11 @@ impl App {
 
     /// This function should be called by the window manager before swaping buffers.
     /// This is necessary because the window manager only has access to the `ui` object
-    /// when it is about to swap buffers. The ui object cannot be created in the 
+    /// when it is about to swap buffers. The ui object cannot be created in the
     /// main loop and get a reference to it later in the window manager, due to how
     /// imgui-rs works. Check [crate::core::platform::winit_window::WinitWindow]'s implementation
-    /// of the [crate::core::window::Window] trait, particularly `handle_window_events` 
-    pub(crate) fn run_imgui(&mut self, ui : &mut imgui::Ui) {
-
+    /// of the [crate::core::window::Window] trait, particularly `handle_window_events`
+    pub(crate) fn run_imgui(&mut self, ui: &mut imgui::Ui) {
         for layer in self.layer_manager.layers_iter_mut() {
             layer.layer.imgui_update(self.time.delta_seconds(), ui);
         }
@@ -182,9 +177,8 @@ impl App {
     }
 
     fn handle_event(&mut self, event: &mut Event) {
-        match event.get_type() {
-            Type::WindowClose => self.running = false,
-            _ => (),
+        if let Type::WindowClose = event.get_type() {
+            self.running = false;
         }
     }
 }

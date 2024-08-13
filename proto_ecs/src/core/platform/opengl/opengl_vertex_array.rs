@@ -1,12 +1,12 @@
+use glow::HasContext;
 use glow::NativeVertexArray;
-use proto_ecs::core::render::buffer::{VertexBufferPtr, IndexBufferPtr, VertexBufferDyn};
-use proto_ecs::core::render::vertex_array::{VertexArray, VertexArrayDyn};
 use proto_ecs::core::platform::opengl::opengl_buffer::OpenGLVertexBuffer;
 use proto_ecs::core::platform::opengl::opengl_render_backend::get_context;
-use glow::HasContext;
+use proto_ecs::core::rendering::buffer::{IndexBufferPtr, VertexBufferDyn, VertexBufferPtr};
+use proto_ecs::core::rendering::vertex_array::{VertexArray, VertexArrayDyn};
 
-use crate::core::render::shader::ShaderDataType;
-use crate::core::render::vertex_array::VertexArrayPtr;
+use crate::core::rendering::shader::ShaderDataType;
+use crate::core::rendering::vertex_array::VertexArrayPtr;
 
 pub struct OpenGLVertexArray {
     native_array: NativeVertexArray,
@@ -15,7 +15,10 @@ pub struct OpenGLVertexArray {
 }
 
 impl VertexArrayDyn for OpenGLVertexArray {
-    fn set_vertex_buffer(&mut self, vertex_buffer: crate::core::render::buffer::VertexBufferPtr) {
+    fn set_vertex_buffer(
+        &mut self,
+        vertex_buffer: crate::core::rendering::buffer::VertexBufferPtr,
+    ) {
         let opengl_buffer = vertex_buffer
             .into_any()
             .downcast::<OpenGLVertexBuffer>()
@@ -74,7 +77,7 @@ impl VertexArrayDyn for OpenGLVertexArray {
     fn get_vertex_buffer(&self) -> &Option<VertexBufferPtr> {
         &self.vertex_buffer
     }
-    fn set_index_buffer(&mut self, index_buffer: crate::core::render::buffer::IndexBufferPtr) {
+    fn set_index_buffer(&mut self, index_buffer: crate::core::rendering::buffer::IndexBufferPtr) {
         self.index_buffer = Some(index_buffer);
     }
 
@@ -84,8 +87,12 @@ impl VertexArrayDyn for OpenGLVertexArray {
         unsafe {
             gl.bind_vertex_array(Some(self.native_array));
         }
-        self.index_buffer.as_ref().map(|ib| ib.bind());
-        self.vertex_buffer.as_ref().map(|vb| vb.bind());
+        if let Some(ib) = self.index_buffer.as_ref() {
+            ib.bind();
+        }
+        if let Some(vb) = self.vertex_buffer.as_ref() {
+            vb.bind();
+        }
     }
 
     fn unbind(&self) {
@@ -98,7 +105,7 @@ impl VertexArrayDyn for OpenGLVertexArray {
 }
 
 impl VertexArray for OpenGLVertexArray {
-    fn create() -> VertexArrayPtr{
+    fn create() -> VertexArrayPtr {
         get_context!(context);
         let gl = &context.gl;
         let native_array = unsafe {

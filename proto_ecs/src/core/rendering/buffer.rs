@@ -1,27 +1,30 @@
+use proto_ecs::core::rendering::shader::ShaderDataType;
 use std::slice::{Iter, IterMut};
-use proto_ecs::core::render::shader::ShaderDataType;
 
-use crate::core::{casting::CanCast, platform::opengl::opengl_buffer::{OpenGLIndexBuffer, OpenGLVertexBuffer}};
+use crate::core::{
+    casting::CanCast,
+    platform::opengl::opengl_buffer::{OpenGLIndexBuffer, OpenGLVertexBuffer},
+};
 
 use super::{render_api::API, Render};
 
-pub trait VertexBufferDyn : CanCast{
+pub trait VertexBufferDyn: CanCast {
     fn bind(&self);
     fn unbind(&self);
-    fn get_layout(&self) -> &BufferLayout; 
-    fn set_layout(&mut self, new_layout : BufferLayout); 
+    fn get_layout(&self) -> &BufferLayout;
+    fn set_layout(&mut self, new_layout: BufferLayout);
 }
 
 /// Implement this trait to create a platform-specific Vertex Buffer
-pub trait VertexBuffer : VertexBufferDyn  {
-    fn create(vertices : &[f32]) -> VertexBufferPtr;
+pub trait VertexBuffer: VertexBufferDyn {
+    fn create(vertices: &[f32]) -> VertexBufferPtr;
 }
 
-pub fn create_vertex_buffer (vertices : &[f32]) -> VertexBufferPtr {
+pub fn create_vertex_buffer(vertices: &[f32]) -> VertexBufferPtr {
     let api = Render::get_current_api();
     match api {
         API::OpenGL => OpenGLVertexBuffer::create(vertices),
-        _ => unimplemented!("Vertex buffer not yet implemented for this graphics API")
+        _ => unimplemented!("Vertex buffer not yet implemented for this graphics API"),
     }
 }
 
@@ -34,30 +37,30 @@ pub trait IndexBufferDyn {
 }
 
 /// Implement this trait to create a platform-specific Index Buffer
-pub trait IndexBuffer : IndexBufferDyn {
-    fn create(indices : &[u32]) -> IndexBufferPtr;
+pub trait IndexBuffer: IndexBufferDyn {
+    fn create(indices: &[u32]) -> IndexBufferPtr;
 }
 
 pub type IndexBufferPtr = Box<dyn IndexBufferDyn>;
 
-pub fn create_index_buffer(indices : &[u32]) -> IndexBufferPtr {
+pub fn create_index_buffer(indices: &[u32]) -> IndexBufferPtr {
     match Render::get_current_api() {
         API::OpenGL => OpenGLIndexBuffer::create(indices),
-        _ => unimplemented!("Render API not yet implemented")
+        _ => unimplemented!("Render API not yet implemented"),
     }
 }
 
 #[derive(Default)]
 pub struct BufferLayout {
-    elements : Vec<BufferElement>,
-    stride : u32
+    elements: Vec<BufferElement>,
+    stride: u32,
 }
 
 impl BufferLayout {
-    pub fn from_elements(elements : Vec<BufferElement>) -> Self {
+    pub fn from_elements(elements: Vec<BufferElement>) -> Self {
         let mut layout = BufferLayout {
-            elements, 
-            stride : 0
+            elements,
+            stride: 0,
         };
 
         layout.compute_offset_and_stride();
@@ -97,21 +100,21 @@ impl BufferLayout {
 
 /// Describes a buffer element, part of the vertex data to send to a shader
 pub struct BufferElement {
-    name : String,
-    data_type : ShaderDataType,
-    size : u32, 
-    offset : u32,
-    normalized : bool
+    name: String,
+    data_type: ShaderDataType,
+    size: u32,
+    offset: u32,
+    normalized: bool,
 }
 
 impl BufferElement {
-    pub fn new(name : String, data_type : ShaderDataType, normalized : bool) -> Self {
+    pub fn new(name: String, data_type: ShaderDataType, normalized: bool) -> Self {
         BufferElement {
-            size : data_type.get_size(),
+            size: data_type.get_size(),
             name,
-            data_type, 
+            data_type,
             normalized,
-            offset : 0
+            offset: 0,
         }
     }
 
@@ -121,9 +124,9 @@ impl BufferElement {
             ShaderDataType::Float2 | ShaderDataType::Int2 => 2,
             ShaderDataType::Float3 | ShaderDataType::Int3 => 3,
             ShaderDataType::Float4 | ShaderDataType::Int4 => 4,
-            ShaderDataType::Mat3 => 3*3,
-            ShaderDataType::Mat4 => 4*4,
-            ShaderDataType::None => 0
+            ShaderDataType::Mat3 => 3 * 3,
+            ShaderDataType::Mat4 => 4 * 4,
+            ShaderDataType::None => 0,
         }
     }
 
@@ -137,5 +140,10 @@ impl BufferElement {
 
     pub fn get_offset(&self) -> u32 {
         self.offset
+    }
+
+    #[inline(always)]
+    pub fn get_name(&self) -> &str {
+        self.name.as_str()
     }
 }
