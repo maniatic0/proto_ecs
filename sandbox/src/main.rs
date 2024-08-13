@@ -6,6 +6,8 @@ use proto_ecs::core::render::buffer::{
 use proto_ecs::core::render::render_api::RenderCommand;
 use proto_ecs::core::render::shader::{create_shader, ShaderDataType, ShaderPtr};
 use proto_ecs::core::render::vertex_array::{create_vertex_array, VertexArrayPtr};
+use proto_ecs::core::window::window_manager::WindowManager;
+use proto_ecs::core::window::events::Event;
 use proto_ecs::prelude::*;
 use imgui;
 
@@ -125,11 +127,9 @@ impl Layer for MyLayer {
             .size([300.0, 300.0], imgui::Condition::FirstUseEver)
             .build(||{
                 ui.text("Primera ventana imgui en proto-ecs");
-                let mut triangle_color = [self.color.x, self.color.y, self.color.z];
+                let mut triangle_color = self.color.to_array();
                 ui.color_picker3("Triangle Color", &mut triangle_color);
-                self.color.x = triangle_color[0];
-                self.color.y = triangle_color[1];
-                self.color.z = triangle_color[2];
+                self.color = glam::Vec3::from_array(triangle_color);
             });
     }
 

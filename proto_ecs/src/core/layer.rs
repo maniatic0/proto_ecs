@@ -3,7 +3,7 @@
 /// is basically a collection of layers provided by the user.
 ///
 /// Layers take care of events and updates.
-use proto_ecs::core::events::Event;
+use proto_ecs::core::window::events::Event;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use core::slice::{Iter, IterMut};

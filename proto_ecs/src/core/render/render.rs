@@ -2,8 +2,7 @@
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
 use proto_ecs::core::render::render_api::{API, RenderCommand};
-
-use crate::prelude::{Platforms, WindowManager};
+use proto_ecs::core::window::window_manager::WindowManager;
 
 #[derive(Debug, Default)]
 pub struct SceneDescription {

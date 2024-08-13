@@ -1,12 +1,12 @@
 use std::time::Instant;
 
-use crate::core::events::{Event, Type};
+use crate::core::window::events::{Event, Type};
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
 use crate::core::time::Time;
 use crate::core::window;
 use crate::data_group::DataGroupRegistry;
-use crate::prelude::WindowManager;
+use crate::core::window::window_manager::WindowManager;
 use crate::systems::global_systems::GlobalSystemRegistry;
 use crate::systems::local_systems::LocalSystemRegistry;
 /// This module implements the entire Application workflow.

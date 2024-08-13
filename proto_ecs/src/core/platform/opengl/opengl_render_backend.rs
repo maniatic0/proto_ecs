@@ -5,7 +5,7 @@ use proto_ecs::core::render::render_api::{
     RenderAPIBackend, RenderAPIBackendDyn, RenderAPIBackendPtr,
 };
 use proto_ecs::core::render::vertex_array::VertexArrayPtr;
-use proto_ecs::core::window_manager;
+use proto_ecs::core::window::window_manager;
 
 use crate::core::math::Color;
 use crate::core::platform::winit_window::WinitWindow;

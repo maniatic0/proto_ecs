@@ -1,7 +1,7 @@
 /// Events are issued by the windowing system, usually in a platform specific manner 
 /// but translated to this canonical Event data types to abstract platform-specific APIs
 
-use proto_ecs::core::keys::Keycode;
+use proto_ecs::core::window::keys::Keycode;
 
 #[derive(Debug)]
 pub struct Event {

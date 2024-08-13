@@ -9,8 +9,8 @@ use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurfac
 use imgui;
 use imgui_glow_renderer::AutoRenderer;
 use imgui_winit_support::WinitPlatform;
-use proto_ecs::core::events;
-use proto_ecs::core::events::Event;
+use proto_ecs::core::window::events;
+use proto_ecs::core::window::events::Event;
 use proto_ecs::core::window::{Window, WindowDyn, WindowPtr};
 use raw_window_handle::HasRawWindowHandle;
 use winit::dpi::LogicalSize;
@@ -22,7 +22,7 @@ use winit::platform::pump_events::EventLoopExtPumpEvents;
 use winit::window::{Window as winit_Window, WindowBuilder};
 
 use crate::core::casting::CanCast;
-use crate::core::keys::Keycode;
+use crate::core::window::keys::Keycode;
 use crate::prelude::App;
 
 #[derive(CanCast)]

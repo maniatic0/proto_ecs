@@ -8,7 +8,7 @@ use std::any::Any;
 
 use crate::prelude::App;
 
-use super::casting::CanCast;
+use proto_ecs::core::casting::CanCast;
 
 pub struct WindowBuilder {
     pub width : u32,
