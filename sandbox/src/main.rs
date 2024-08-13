@@ -1,15 +1,13 @@
-use glam;
 use proto_ecs::core::locking::RwLock;
-use proto_ecs::core::render::buffer::{
+use proto_ecs::core::rendering::buffer::{
     create_index_buffer, create_vertex_buffer, BufferElement, BufferLayout,
 };
-use proto_ecs::core::render::render_api::RenderCommand;
-use proto_ecs::core::render::shader::{create_shader, ShaderDataType, ShaderPtr};
-use proto_ecs::core::render::vertex_array::{create_vertex_array, VertexArrayPtr};
-use proto_ecs::core::window::window_manager::WindowManager;
-use proto_ecs::core::window::events::Event;
+use proto_ecs::core::rendering::render_api::RenderCommand;
+use proto_ecs::core::rendering::shader::{create_shader, ShaderDataType, ShaderPtr};
+use proto_ecs::core::rendering::vertex_array::{create_vertex_array, VertexArrayPtr};
+use proto_ecs::core::windowing::window_manager::WindowManager;
+use proto_ecs::core::windowing::events::Event;
 use proto_ecs::prelude::*;
-use imgui;
 
 struct MyLayer {
     triangle_shader: Option<RwLock<ShaderPtr>>,
@@ -62,12 +60,12 @@ impl Layer for MyLayer {
     fn on_attach(&mut self) {
         self.triangle_shader = Some(RwLock::new({
             let mut shader = create_shader(
-                &"Example Triangle".to_string(),
-                &VERTEX_SRC.to_string(),
-                &FRAGMENT_SRC.to_string(),
+                "Example Triangle",
+                VERTEX_SRC,
+                FRAGMENT_SRC,
             )
             .expect("Could not create triangle shader");
-            shader.add_uniform(&"u_Color".into(), ShaderDataType::Float3).expect("Should be able to add this uniform");
+            shader.add_uniform("u_Color", ShaderDataType::Float3).expect("Should be able to add this uniform");
             shader
         }
         ));
@@ -104,7 +102,7 @@ impl Layer for MyLayer {
 
     fn on_detach(&mut self) {}
 
-    fn update(&mut self, delta_time: f32) {
+    fn update(&mut self, _delta_time: f32) {
         RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
         RenderCommand::clear();
         let vertex_array = self
@@ -118,11 +116,11 @@ impl Layer for MyLayer {
             .expect("Should have shader by now")
             .read();
         triangle_shader.bind();
-        triangle_shader.set_uniform_fvec3(&"u_Color".into(), &self.color);
-        RenderCommand::draw_indexed(&vertex_array);
+        triangle_shader.set_uniform_fvec3("u_Color", &self.color);
+        RenderCommand::draw_indexed(&**vertex_array);
     }
 
-    fn imgui_update(&mut self, delta_time: f32, ui : &mut imgui::Ui) {
+    fn imgui_update(&mut self, _delta_time: f32, ui : &mut imgui::Ui) {
         ui.window("Hello Triangle")
             .size([300.0, 300.0], imgui::Condition::FirstUseEver)
             .build(||{
@@ -133,7 +131,7 @@ impl Layer for MyLayer {
             });
     }
 
-    fn on_event(&mut self, event: &mut Event) {}
+    fn on_event(&mut self, _event: &mut Event) {}
 }
 
 fn main() {
