@@ -3,7 +3,6 @@ use std::mem::size_of;
 use ecs_macros::CanCast;
 use glow::HasContext;
 use glow::NativeBuffer;
-use glow::INVALID_INDEX;
 use proto_ecs::core::platform::opengl::opengl_render_backend::get_context;
 use proto_ecs::core::rendering::buffer::{
     BufferLayout, IndexBuffer, IndexBufferDyn, VertexBuffer, VertexBufferDyn,
