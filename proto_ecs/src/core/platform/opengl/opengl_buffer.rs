@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use ecs_macros::CanCast;
 use glow::HasContext;
 use glow::NativeBuffer;
@@ -27,8 +29,13 @@ impl IndexBuffer for OpenGLIndexBuffer {
             let buffer_id = gl.create_buffer().expect("Unable to create index buffer");
 
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(buffer_id));
-            let u8_slice = std::mem::transmute(indices);
+            let u8_slice = std::slice::from_raw_parts(
+                indices.as_ptr().cast::<u8>(),
+                // kind of unnecessary since u32 and u8 have 4 bytes and 1 byte by definition
+                indices.len() * (size_of::<u32>() / size_of::<u8>()), 
+            );
             gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, u8_slice, glow::STATIC_DRAW);
+
             Box::new(OpenGLIndexBuffer {
                 native_buffer: buffer_id,
                 element_count: indices.len(),

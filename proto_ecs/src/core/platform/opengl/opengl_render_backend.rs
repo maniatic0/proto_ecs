@@ -86,17 +86,13 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                 .expect("Should have index buffer by now")
                 .get_count() as i32;
 
-            context.gl.draw_arrays(glow::TRIANGLES, 0, count);
-            // context.gl.draw_elements(
-            //     glow::TRIANGLES,
-            //     vertex_array
-            //         .get_index_buffer()
-            //         .as_ref()
-            //         .expect("Should have index buffer by now")
-            //         .get_count() as i32,
-            //     glow::UNSIGNED_INT,
-            //     0,
-            // );
+            // context.gl.draw_arrays(glow::TRIANGLES, 0, count);
+            context.gl.draw_elements(
+                glow::TRIANGLES,
+                count, 
+                glow::UNSIGNED_INT,
+                0,
+            );
         }
     }
 

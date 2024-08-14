@@ -77,7 +77,7 @@ impl VertexArrayDyn for OpenGLVertexArray {
     fn get_vertex_buffer(&self) -> &Option<VertexBufferPtr> {
         &self.vertex_buffer
     }
-    fn set_index_buffer(&mut self, index_buffer: crate::core::rendering::buffer::IndexBufferPtr) {
+    fn set_index_buffer(&mut self, index_buffer: IndexBufferPtr) {
         self.index_buffer = Some(index_buffer);
     }
 
