@@ -3,6 +3,7 @@ use std::mem::size_of;
 use ecs_macros::CanCast;
 use glow::HasContext;
 use glow::NativeBuffer;
+use glow::INVALID_INDEX;
 use proto_ecs::core::platform::opengl::opengl_render_backend::get_context;
 use proto_ecs::core::rendering::buffer::{
     BufferLayout, IndexBuffer, IndexBufferDyn, VertexBuffer, VertexBufferDyn,
@@ -32,7 +33,7 @@ impl IndexBuffer for OpenGLIndexBuffer {
             let u8_slice = std::slice::from_raw_parts(
                 indices.as_ptr().cast::<u8>(),
                 // kind of unnecessary since u32 and u8 have 4 bytes and 1 byte by definition
-                indices.len() * (size_of::<u32>() / size_of::<u8>()), 
+                indices.len() * (size_of::<u32>() / size_of::<u8>()),
             );
             gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, u8_slice, glow::STATIC_DRAW);
 
@@ -75,7 +76,10 @@ impl VertexBuffer for OpenGLVertexBuffer {
             // TODO Better error handling
             let native_buffer = gl.create_buffer().expect("Could not create vertex buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(native_buffer));
-            let bytes: &[u8] = std::mem::transmute(vertices);
+            let bytes = std::slice::from_raw_parts(
+                vertices.as_ptr().cast::<u8>(),
+                vertices.len() * (size_of::<f32>() / size_of::<u8>()),
+            );
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
             Box::new(OpenGLVertexBuffer {
