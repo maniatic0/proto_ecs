@@ -86,7 +86,14 @@ lazy_static! {
     static ref RENDER_API: RwLock<RenderCommand> = RwLock::new(RenderCommand { backend: None });
 }
 
-/// RenderCommand is a class we use to interface with the currently used backend
+/// RenderCommand is a class we use to interface with the currently used backend.
+/// It stores the backend object and additional necessary metadata or state data.
+/// 
+/// There's usually a single instance of this class (a singleton) that you interact  
+/// with using static methods.
+/// 
+/// The point of this class is to control how the render api backend is accessed, including 
+/// locking methods 
 pub struct RenderCommand {
     backend: Option<RenderAPIBackendPtr>,
 }
@@ -106,11 +113,13 @@ impl RenderCommand {
         }
     }
 
+    #[inline(always)]
     fn get_backend(&self) -> &RenderAPIBackendPtr {
         debug_assert!(self.backend.is_some(), "render api not initialized!");
         self.backend.as_ref().unwrap()
     }
 
+    #[inline(always)]
     fn get_backend_mut(&mut self) -> &mut RenderAPIBackendPtr {
         debug_assert!(self.backend.is_some(), "render api not initialized!");
         self.backend.as_mut().unwrap()
@@ -146,5 +155,179 @@ impl RenderCommand {
         let api = RENDER_API.read();
         let backend = api.get_backend();
         backend.get_api()
+    }
+
+    // -- < Methods that come from the render api trait > -------------------------------------
+    // Resource creation and destruction
+    pub fn create_vertex_buffer(vertex_data : &[f32]) -> VertexBufferHandle {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.create_vertex_buffer(vertex_data)
+    }
+
+    pub fn destroy_vertex_buffer(handle : &VertexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.destroy_vertex_buffer(handle)
+    }
+    pub fn create_index_buffer(indices : &[u32]) -> IndexBufferHandle {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.create_index_buffer(indices)
+    }
+    pub fn destroy_index_buffer(handle : &IndexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.create_index_buffer(handle)
+    }
+    pub fn create_vertex_array() -> VertexArrayHandle {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.create_vertex_array()
+    }
+    pub fn destroy_vertex_array(handle : &VertexArrayHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.destroy_vertex_array(handle)
+    }
+    pub fn create_shader(name : &str, vertex_src : &str, fragment_src : &str) -> ShaderHandle {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.create_shader(name, vertex_src, fragment_src)
+    }
+    pub fn destroy_shader(handle : &ShaderHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.destroy_shader(handle)
+    }
+
+    // Bindings 
+    pub fn bind_vertex_buffer(handle : &VertexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.bind_vertex_buffer(handle)
+    }
+    pub fn unbind_vertex_buffer(handle : &VertexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.unbind_vertex_buffer(handle)
+    }
+    pub fn bind_vertex_array(handle : &VertexArrayHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.bind_vertex_array(handle)
+    }
+    pub fn unbind_vertex_array(handle : &VertexArrayHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.unbind_vertex_array(handle)
+    }
+    pub fn bind_index_buffer(handle : &IndexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.bind_index_buffer(handle)
+    }
+    pub fn unbind_index_buffer(handle : &IndexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.unbind_index_buffer(handle)
+    }
+    pub fn bind_shader(handle : &ShaderHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.bind_shader(handle)
+    }
+    pub fn unbind_shader(handle : &ShaderHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.unbind_shader(handle)
+    }
+
+    // Operations: Index buffer 
+    pub fn get_index_buffer_count( handle : &IndexBufferHandle) {
+        let api = RENDER_API.read();
+        let backend = api.get_backend();
+        backend.get_index_buffer_count(handle)
+    }
+
+    // Operations: Vertex Buffer
+    pub fn get_vertex_buffer_layout( handle : &VertexBufferHandle) -> &BufferLayout {
+        let api = RENDER_API.read();
+        let backend = api.get_backend();
+        backend.get_vertex_buffer_layout(handle)
+    }
+    pub fn set_vertex_buffer_layout( handle : &VertexBufferHandle, layout : BufferLayout) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_vertex_buffer_layout(handle, layout)
+    }
+      
+    // Operations: Vertex Array
+    pub fn set_vertex_array_vertex_buffer(va_handle : &VertexArrayHandle, vb_handle : &VertexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_vertex_array_vertex_buffer(va_handle, vb_handle)
+    }
+    pub fn set_vertex_array_index_buffer(va_handle : &VertexArrayHandle, ib_handle : &IndexBufferHandle) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_vertex_array_index_buffer(va_handle, ib_handle)
+    }
+    pub fn get_vertex_array_vertex_buffer( va_handle : &VertexArrayHandle) -> Option<VertexBufferHandle> {
+        let api = RENDER_API.read();
+        let backend = api.get_backend();
+        backend.get_vertex_array_vertex_buffer(va_handle)
+    }
+    pub fn get_vertex_array_index_buffer( va_handle : &VertexArrayHandle) -> Option<IndexBufferHandle> {
+        let api = RENDER_API.read();
+        let backend = api.get_backend();
+        backend.get_vertex_array_index_buffer(va_handle)
+    }
+
+    // Operations: Shaders
+    pub fn get_shader_name( handle : &ShaderHandle) -> &str {
+        let api = RENDER_API.read();
+        let backend = api.get_backend();
+        backend.get_shader_name(handle)
+    }
+    pub fn set_shader_uniform_f32(name : &str, value : f32) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_f32(name, value)
+    }
+    pub fn set_shader_uniform_i32(name : &str, value : i32) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_i32(name, value)
+    }
+    pub fn set_shader_uniform_fvec2(name: &str, value: &glam::Vec2) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_fvec2(name, value)
+    }
+    pub fn set_shader_uniform_fvec3(name: &str, value: &glam::Vec3) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_fvec2(name, value)
+    }
+    pub fn set_shader_uniform_fvec4(name: &str, value: &glam::Vec4) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_fvec4(name, value)
+    }
+    pub fn set_shader_uniform_fmat3(name: &str, value: &glam::Mat3) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_fmat3(name, value)
+    }
+    pub fn set_shader_uniform_fmat4(name: &str, value: &glam::Mat4) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.set_shader_uniform_fmat3(name, value)
+    }
+    pub fn add_shader_uniform(name : &str, data_type : ShaderDataType) {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.add_shader_uniform(name, data_type)
     }
 }
