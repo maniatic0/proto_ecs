@@ -85,14 +85,14 @@ impl<K : IsHandle + Debug, V> Default for GenerationalIndexAllocator<K,V> {
 impl<K : IsHandle, V> GenerationalIndexAllocator<K, V> {
     const INITIAL_SIZE : usize = 1_000;
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         GenerationalIndexAllocator {
             free: Stack::default(),
             entries: Vec::with_capacity(Self::INITIAL_SIZE)
         }
     }
 
-    fn allocate(&mut self, value : V) -> K {
+    pub fn allocate(&mut self, value : V) -> K {
         if self.free.is_empty() {
             let next_index = self.entries.len();
             // Allocate a new entry
@@ -115,12 +115,12 @@ impl<K : IsHandle, V> GenerationalIndexAllocator<K, V> {
     }
 
     #[inline(always)]
-    fn is_live(&self, key : K) -> bool {
+    pub fn is_live(&self, key : K) -> bool {
         let index : usize = key.array_index();
         self.entries[index].generation == key.generation()
     }
 
-    fn free(&mut self, key : K) {
+    pub fn free(&mut self, key : K) {
         debug_assert!(self.is_live(key), "Trying to access dead handle");
 
         // Reset the entry
@@ -134,10 +134,10 @@ impl<K : IsHandle, V> GenerationalIndexAllocator<K, V> {
         self.free.push(index);
     }
 
-    fn get(&self, key : K) -> &mut V {
+    pub fn get(&self, key : K) -> &mut V {
         debug_assert!(self.is_live(key), "Trying to access dead handle");
         let index : usize = key.array_index();
-        let entry = self.entries[index];
+        let entry = &self.entries[index];
         return unsafe {
             entry.value.borrow_mut().as_mut_ptr().as_mut().unwrap()
         }

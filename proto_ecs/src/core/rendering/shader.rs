@@ -1,7 +1,3 @@
-use super::{render_api::API, Render};
-use proto_ecs::core::math::glam;
-use proto_ecs::core::platform::opengl::opengl_shader::OpenGLShader;
-
 /// Possible uniform data types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShaderDataType {
@@ -32,45 +28,6 @@ impl ShaderDataType {
             ShaderDataType::Mat4 => 4 * 4 * 4,
             ShaderDataType::Bool => 1,
         }
-    }
-}
-pub trait ShaderDyn {
-    fn bind(&self);
-    fn unbind(&self);
-    fn get_name(&self) -> &String;
-
-    fn set_uniform_f32(&self, name: &str, value: f32);
-    fn set_uniform_i32(&self, name: &str, value: i32);
-    fn set_uniform_fvec2(&self, name: &str, value: &glam::Vec2);
-    fn set_uniform_fvec3(&self, name: &str, value: &glam::Vec3);
-    fn set_uniform_fvec4(&self, name: &str, value: &glam::Vec4);
-    fn set_uniform_fmat3(&self, name: &str, value: &glam::Mat3);
-    fn set_uniform_fmat4(&self, name: &str, value: &glam::Mat4);
-
-    fn add_uniform(&mut self, name: &str, data_type: ShaderDataType) -> Result<(), ShaderError>;
-}
-
-pub type ShaderPtr = Box<dyn ShaderDyn>;
-
-/// Implement this trait for a specific platform to provide support for it
-pub trait Shader: ShaderDyn {
-    fn create(
-        name: &str,
-        vertex_source: &str,
-        fragment_source: &str,
-    ) -> Result<ShaderPtr, ShaderError>;
-
-    fn create_from_file(name: &str) -> Result<ShaderPtr, ShaderError>;
-}
-
-pub fn create_shader(
-    name: &str,
-    vertex_source: &str,
-    fragment_source: &str,
-) -> Result<ShaderPtr, ShaderError> {
-    match Render::get_current_api() {
-        API::OpenGL => OpenGLShader::create(name, vertex_source, fragment_source),
-        _ => unimplemented!("API not yet implemented"),
     }
 }
 

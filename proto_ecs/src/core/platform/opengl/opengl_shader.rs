@@ -1,247 +1,28 @@
 use glow::{self, HasContext, NativeProgram, NativeShader, NativeUniformLocation};
 use proto_ecs::core::platform::opengl::opengl_render_backend::get_context;
-use proto_ecs::core::rendering::shader::{Shader, ShaderDyn, ShaderError, ShaderPtr};
+use proto_ecs::core::rendering::shader::ShaderError;
 use std::collections::HashMap;
 
 use crate::core::rendering::shader::ShaderDataType;
 
-pub struct OpenGLShader {
-    name: String,
-    native_program: glow::NativeProgram,
-    uniforms: HashMap<String, UniformData>,
+pub(super) struct OpenGLShader {
+    pub(super) name: String,
+    pub(super) native_program: glow::NativeProgram,
+    pub(super) uniforms: HashMap<String, UniformData>,
 }
 
-struct UniformData {
-    data_type: ShaderDataType,
-    location: NativeUniformLocation,
+// TODO Actual Send + Sync implementation
+unsafe impl Send for OpenGLShader {}
+unsafe impl Sync for OpenGLShader {}
+
+pub(super) struct UniformData {
+    pub(super) data_type: ShaderDataType,
+    pub(super) location: NativeUniformLocation,
 }
 
-impl Shader for OpenGLShader {
-    fn create(
-        name: &str,
-        vertex_source: &str,
-        fragment_source: &str,
-    ) -> Result<ShaderPtr, ShaderError> {
-        let shaders = vec![
-            (glow::VERTEX_SHADER, vertex_source),
-            (glow::FRAGMENT_SHADER, fragment_source),
-        ];
-        let uniforms = HashMap::new();
-
-        let program = compile_shaders(shaders)?;
-        Ok(Box::new(OpenGLShader {
-            name: name.to_string(),
-            native_program: program,
-            uniforms,
-        }))
-    }
-
-    fn create_from_file(_name: &str) -> Result<ShaderPtr, ShaderError> {
-        // Maybe we should delay the implementation of this function
-        // until we have some asset management system
-        unimplemented!("TODO")
-    }
-}
-
-impl ShaderDyn for OpenGLShader {
-    fn bind(&self) {
-        get_context!(context);
-        let gl = &context.gl;
-
-        unsafe {
-            gl.use_program(Some(self.native_program));
-        }
-    }
-
-    fn unbind(&self) {
-        get_context!(context);
-        let gl = &context.gl;
-
-        unsafe {
-            gl.use_program(None);
-        }
-    }
-
-    fn get_name(&self) -> &String {
-        &self.name
-    }
-
-    fn add_uniform(
-        &mut self,
-        name: &str,
-        data_type: crate::core::rendering::shader::ShaderDataType,
-    ) -> Result<(), ShaderError> {
-        if let Some(uniform_data) = self.uniforms.get(name) {
-            return Err(ShaderError::UniformAlreadyExists {
-                uniform_name: name.to_string(),
-                prev_type: uniform_data.data_type,
-            });
-        };
-        get_context!(context);
-        let gl = &context.gl;
-        let location = unsafe {
-            gl.get_uniform_location(self.native_program, name)
-                .unwrap_or_else(
-                    || panic!(
-                        "Could not get an attribute location for shader '{}'. Did you forget to USE the uniform in that shader?",
-                        self.name
-                    )
-                )
-        };
-        self.uniforms.insert(
-            name.to_string(),
-            UniformData {
-                data_type,
-                location,
-            },
-        );
-        Ok(())
-    }
-
-    fn set_uniform_f32(&self, name: &str, value: f32) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_1_f32(Some(&uniform_data.location), value);
-        }
-    }
-
-    fn set_uniform_fmat3(&self, name: &str, value: &glam::Mat3) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Mat3,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_matrix_3_f32_slice(
-                Some(&uniform_data.location),
-                false,
-                value.as_ref().as_slice(),
-            );
-        }
-    }
-
-    fn set_uniform_fmat4(&self, name: &str, value: &glam::Mat4) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Mat4,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_matrix_4_f32_slice(
-                Some(&uniform_data.location),
-                false,
-                value.as_ref().as_slice(),
-            );
-        }
-    }
-
-    fn set_uniform_fvec2(&self, name: &str, value: &glam::Vec2) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float2,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_2_f32(Some(&uniform_data.location), value.x, value.y);
-        }
-    }
-
-    fn set_uniform_fvec3(&self, name: &str, value: &glam::Vec3) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float3,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_3_f32(Some(&uniform_data.location), value.x, value.y, value.z);
-        }
-    }
-
-    fn set_uniform_fvec4(&self, name: &str, value: &glam::Vec4) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float4,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_4_f32(
-                Some(&uniform_data.location),
-                value.x,
-                value.y,
-                value.z,
-                value.w,
-            );
-        }
-    }
-
-    fn set_uniform_i32(&self, name: &str, value: i32) {
-        let uniform_data = self
-            .uniforms
-            .get(name)
-            .expect("Trying to access unexistent uniform");
-        debug_assert!(
-            uniform_data.data_type == ShaderDataType::Int,
-            "Wrong uniform type"
-        );
-        get_context!(context);
-        let gl = &context.gl;
-
-        self.bind();
-        unsafe {
-            gl.uniform_1_i32(Some(&uniform_data.location), value);
-        }
-    }
-}
-
-/// Compile shaders into a program. The map goes from shader type (fragment, vertex)
-/// to the shader code
-fn compile_shaders(shaders: Vec<(u32, &str)>) -> Result<NativeProgram, ShaderError> {
+/// Compile shaders into a program. The vector of pairs goes from shader type (fragment, vertex)
+/// to the shader code: (shader_type, shader_code)
+pub(super) fn compile_shaders(shaders: Vec<(u32, &str)>) -> Result<NativeProgram, ShaderError> {
     get_context!(context);
     let gl = &context.gl;
     unsafe {

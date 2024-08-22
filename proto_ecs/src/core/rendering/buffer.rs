@@ -1,56 +1,7 @@
 use proto_ecs::core::rendering::shader::ShaderDataType;
 use std::slice::{Iter, IterMut};
 
-use crate::core::{
-    casting::CanCast,
-    platform::opengl::opengl_buffer::{OpenGLIndexBuffer, OpenGLVertexBuffer},
-};
-
-use super::{render_api::API, Render};
-
-pub trait VertexBufferDyn: CanCast {
-    fn bind(&self);
-    fn unbind(&self);
-    fn get_layout(&self) -> &BufferLayout;
-    fn set_layout(&mut self, new_layout: BufferLayout);
-}
-
-/// Implement this trait to create a platform-specific Vertex Buffer
-pub trait VertexBuffer: VertexBufferDyn {
-    fn create(vertices: &[f32]) -> VertexBufferPtr;
-}
-
-pub fn create_vertex_buffer(vertices: &[f32]) -> VertexBufferPtr {
-    let api = Render::get_current_api();
-    match api {
-        API::OpenGL => OpenGLVertexBuffer::create(vertices),
-        _ => unimplemented!("Vertex buffer not yet implemented for this graphics API"),
-    }
-}
-
-pub type VertexBufferPtr = Box<dyn VertexBufferDyn>;
-
-pub trait IndexBufferDyn {
-    fn bind(&self);
-    fn unbind(&self);
-    fn get_count(&self) -> u32;
-}
-
-/// Implement this trait to create a platform-specific Index Buffer
-pub trait IndexBuffer: IndexBufferDyn {
-    fn create(indices: &[u32]) -> IndexBufferPtr;
-}
-
-pub type IndexBufferPtr = Box<dyn IndexBufferDyn>;
-
-pub fn create_index_buffer(indices: &[u32]) -> IndexBufferPtr {
-    match Render::get_current_api() {
-        API::OpenGL => OpenGLIndexBuffer::create(indices),
-        _ => unimplemented!("Render API not yet implemented"),
-    }
-}
-
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BufferLayout {
     elements: Vec<BufferElement>,
     stride: u32,
@@ -99,6 +50,7 @@ impl BufferLayout {
 }
 
 /// Describes a buffer element, part of the vertex data to send to a shader
+#[derive(Debug, Clone)]
 pub struct BufferElement {
     name: String,
     data_type: ShaderDataType,
