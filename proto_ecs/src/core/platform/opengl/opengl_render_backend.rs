@@ -166,7 +166,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
             self.vertex_buffer_allocator.allocate(OpenGLVertexBuffer {
-                native_buffer,                
+                native_buffer,
                 buffer_layout: BufferLayout::default(),
             })
         }

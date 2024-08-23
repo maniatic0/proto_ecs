@@ -52,14 +52,16 @@ struct VertexData {
 
 // TODO We need a better way to cast custom data types to f32 arrays to send data to the GPU
 unsafe fn any_as_f32_slice<T: Sized>(p: &T) -> &[f32] {
-    ::core::slice::from_raw_parts((p as *const T) as *const f32, ::core::mem::size_of::<T>() / size_of::<f32>())
+    ::core::slice::from_raw_parts(
+        (p as *const T) as *const f32,
+        ::core::mem::size_of::<T>() / size_of::<f32>(),
+    )
 }
 impl Layer for MyLayer {
     fn on_attach(&mut self) {
         self.triangle_shader = Some({
-            let shader =
-                RenderCommand::create_shader("Example Triangle", VERTEX_SRC, FRAGMENT_SRC)
-                    .expect("Could not create triangle shader");
+            let shader = RenderCommand::create_shader("Example Triangle", VERTEX_SRC, FRAGMENT_SRC)
+                .expect("Could not create triangle shader");
             RenderCommand::add_shader_uniform(shader, "u_Color", ShaderDataType::Float3)
                 .expect("Should be able to add this uniform");
             shader
@@ -81,8 +83,7 @@ impl Layer for MyLayer {
         ];
 
         // Create a buffer for this triangle data
-        let vbo =
-            RenderCommand::create_vertex_buffer(unsafe { any_as_f32_slice(&VERTEX_DATA) });
+        let vbo = RenderCommand::create_vertex_buffer(unsafe { any_as_f32_slice(&VERTEX_DATA) });
         RenderCommand::set_vertex_buffer_layout(
             vbo,
             BufferLayout::from_elements(vec![
@@ -106,12 +107,8 @@ impl Layer for MyLayer {
     fn update(&mut self, _delta_time: f32) {
         RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
         RenderCommand::clear();
-        let vertex_array = self
-            .triangle_data
-            .expect("Should have vertex array by now");
-        let triangle_shader = self
-            .triangle_shader
-            .expect("Should have shader by now");
+        let vertex_array = self.triangle_data.expect("Should have vertex array by now");
+        let triangle_shader = self.triangle_shader.expect("Should have shader by now");
 
         RenderCommand::bind_shader(triangle_shader);
         RenderCommand::set_shader_uniform_fvec3(triangle_shader, "u_Color", &self.color);

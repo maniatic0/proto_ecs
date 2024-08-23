@@ -1,4 +1,3 @@
-
 use ecs_macros::CanCast;
 use glow::NativeBuffer;
 use proto_ecs::core::rendering::buffer::BufferLayout;

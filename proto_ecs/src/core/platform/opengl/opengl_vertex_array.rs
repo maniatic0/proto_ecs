@@ -11,4 +11,3 @@ pub struct OpenGLVertexArray {
 // TODO Actual Send + Sync implementation
 unsafe impl Send for OpenGLVertexArray {}
 unsafe impl Sync for OpenGLVertexArray {}
-
