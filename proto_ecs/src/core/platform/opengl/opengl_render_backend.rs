@@ -166,7 +166,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
             self.vertex_buffer_allocator.allocate(OpenGLVertexBuffer {
-                native_buffer,
+                native_buffer,                
                 buffer_layout: BufferLayout::default(),
             })
         }
@@ -363,8 +363,53 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         va_handle: VertexArrayHandle,
         vb_handle: VertexBufferHandle,
     ) {
-        let va = self.vertex_array_allocator.get(va_handle);
-        va.vertex_buffer = Some(vb_handle);
+        self.bind_vertex_array(va_handle);
+        self.bind_vertex_buffer(vb_handle);
+        let vertex_buffer = self.vertex_buffer_allocator.get(vb_handle);
+
+        let layout = vertex_buffer.get_buffer_layout();
+        {
+            get_context!(context);
+            let gl = &context.gl;
+            for (i, element) in layout.iter().enumerate() {
+                unsafe {
+                    gl.enable_vertex_attrib_array(i as u32);
+                    let element_count = element.get_component_count();
+                    match element.get_data_type() {
+                        ShaderDataType::Float
+                        | ShaderDataType::Float2
+                        | ShaderDataType::Float3
+                        | ShaderDataType::Float4
+                        | ShaderDataType::Mat3
+                        | ShaderDataType::Mat4 => {
+                            gl.vertex_attrib_pointer_f32(
+                                i as u32,
+                                element_count as i32,
+                                glow::FLOAT,
+                                element.is_normalized(),
+                                layout.get_stride() as i32,
+                                element.get_offset() as i32,
+                            );
+                        }
+                        ShaderDataType::Int
+                        | ShaderDataType::Int2
+                        | ShaderDataType::Int3
+                        | ShaderDataType::Int4
+                        | ShaderDataType::Bool => gl.vertex_attrib_pointer_i32(
+                            i as u32,
+                            element_count as i32,
+                            glow::INT,
+                            layout.get_stride() as i32,
+                            element.get_offset() as i32,
+                        ),
+                        _ => panic!("Don't know how define attribute of this type"),
+                    }
+                }
+            }
+        }
+        self.unbind_vertex_buffer();
+        let vertex_array = self.vertex_array_allocator.get(va_handle);
+        vertex_array.vertex_buffer = Some(vb_handle);
     }
     fn set_vertex_array_index_buffer(
         &mut self,

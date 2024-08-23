@@ -14,3 +14,10 @@ pub struct OpenGLVertexBuffer {
     pub(super) native_buffer: NativeBuffer,
     pub(super) buffer_layout: BufferLayout,
 }
+
+impl OpenGLVertexBuffer {
+    #[inline(always)]
+    pub(super) fn get_buffer_layout(&self) -> &BufferLayout {
+        &self.buffer_layout
+    }
+}
