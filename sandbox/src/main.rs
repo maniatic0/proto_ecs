@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use proto_ecs::core::rendering::buffer::{BufferElement, BufferLayout};
 use proto_ecs::core::rendering::render_api::{RenderCommand, ShaderHandle, VertexArrayHandle};
 use proto_ecs::core::rendering::shader::ShaderDataType;
@@ -50,7 +52,7 @@ struct VertexData {
 
 // TODO We need a better way to cast custom data types to f32 arrays to send data to the GPU
 unsafe fn any_as_f32_slice<T: Sized>(p: &T) -> &[f32] {
-    ::core::slice::from_raw_parts((p as *const T) as *const f32, ::core::mem::size_of::<T>())
+    ::core::slice::from_raw_parts((p as *const T) as *const f32, ::core::mem::size_of::<T>() / size_of::<f32>())
 }
 impl Layer for MyLayer {
     fn on_attach(&mut self) {
@@ -97,7 +99,9 @@ impl Layer for MyLayer {
         println!("Triangle data intialized!");
     }
 
-    fn on_detach(&mut self) {}
+    fn on_detach(&mut self) {
+        // TODO cleanup
+    }
 
     fn update(&mut self, _delta_time: f32) {
         RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
