@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Debug, mem::MaybeUninit};
 
 use num::{Integer, Zero};
-use scc::Stack;
+use scc::Queue;
 
 /// Handles for resources like buffers and shaders.
 /// We use a concrete type to ensure that resource handles are always of the
@@ -59,7 +59,7 @@ pub type Allocator<V> = GenerationalIndexAllocator<Handle, V>;
 
 /// Basic allocator type that can work for most cases
 pub struct GenerationalIndexAllocator<K: IsHandle, V> {
-    free: Stack<usize>,
+    free: Queue<usize>,
     entries: Vec<AllocatorEntry<V, K::Generation>>,
 }
 
@@ -83,7 +83,7 @@ impl<K: IsHandle, V> GenerationalIndexAllocator<K, V> {
 
     pub fn new() -> Self {
         GenerationalIndexAllocator {
-            free: Stack::default(),
+            free: Queue::default(),
             entries: Vec::with_capacity(Self::INITIAL_SIZE),
         }
     }
