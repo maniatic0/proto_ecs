@@ -91,7 +91,12 @@ impl BufferElement {
             | ShaderDataType::Int3_16
             | ShaderDataType::Int3_8 => 3,
 
-            ShaderDataType::Float4_32 | ShaderDataType::Float4_16 | ShaderDataType::Int4_32 | ShaderDataType::Int4_16 | ShaderDataType::Int4_8=> 4,
+            ShaderDataType::Float4_32
+            | ShaderDataType::Float4_16
+            | ShaderDataType::Int4_32
+            | ShaderDataType::Int4_16
+            | ShaderDataType::Int4_8 => 4,
+
             ShaderDataType::Mat3_32 => 3 * 3,
             ShaderDataType::Mat4_32 => 4 * 4,
             ShaderDataType::None => 0,
