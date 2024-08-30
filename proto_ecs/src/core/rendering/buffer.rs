@@ -72,12 +72,28 @@ impl BufferElement {
 
     pub fn get_component_count(&self) -> u32 {
         match self.data_type {
-            ShaderDataType::Float | ShaderDataType::Bool | ShaderDataType::Int => 1,
-            ShaderDataType::Float2 | ShaderDataType::Int2 => 2,
-            ShaderDataType::Float3 | ShaderDataType::Int3 => 3,
-            ShaderDataType::Float4 | ShaderDataType::Int4 => 4,
-            ShaderDataType::Mat3 => 3 * 3,
-            ShaderDataType::Mat4 => 4 * 4,
+            ShaderDataType::Float_32
+            | ShaderDataType::Float_16
+            | ShaderDataType::Bool
+            | ShaderDataType::Int_32
+            | ShaderDataType::Int_16
+            | ShaderDataType::Int_8 => 1,
+
+            ShaderDataType::Float2_32
+            | ShaderDataType::Float2_16
+            | ShaderDataType::Int2_32
+            | ShaderDataType::Int2_16
+            | ShaderDataType::Int2_8 => 2,
+
+            ShaderDataType::Float3_32
+            | ShaderDataType::Float3_16
+            | ShaderDataType::Int3_32
+            | ShaderDataType::Int3_16
+            | ShaderDataType::Int3_8 => 3,
+
+            ShaderDataType::Float4_32 | ShaderDataType::Float4_16 | ShaderDataType::Int4_32 | ShaderDataType::Int4_16 | ShaderDataType::Int4_8=> 4,
+            ShaderDataType::Mat3_32 => 3 * 3,
+            ShaderDataType::Mat4_32 => 4 * 4,
             ShaderDataType::None => 0,
         }
     }
