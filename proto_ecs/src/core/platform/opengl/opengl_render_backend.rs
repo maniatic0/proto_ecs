@@ -6,7 +6,7 @@ use proto_ecs::core::rendering::render_api::{
 };
 use proto_ecs::core::windowing::window_manager;
 
-use crate::core::math::Color;
+use crate::core::math::Colorf32;
 use crate::core::platform::opengl::opengl_buffer::{OpenGLIndexBuffer, OpenGLVertexBuffer};
 use crate::core::platform::opengl::opengl_shader::{compile_shaders, OpenGLShader, UniformData};
 use crate::core::platform::opengl::opengl_vertex_array::OpenGLVertexArray;
@@ -31,7 +31,7 @@ unsafe impl Send for OpenGLContext {}
 unsafe impl Sync for OpenGLContext {}
 
 pub struct OpenGLRenderBackend {
-    pub(super) clear_color: Color,
+    pub(super) clear_color: Colorf32,
     shader_allocator: Allocator<OpenGLShader>,
     vertex_array_allocator: Allocator<OpenGLVertexArray>,
     index_buffer_allocator: Allocator<OpenGLIndexBuffer>,
@@ -74,7 +74,7 @@ impl RenderAPIBackend for OpenGLRenderBackend {
         }
 
         let mut result = Box::new(OpenGLRenderBackend {
-            clear_color: Color::new(0.0, 0.0, 0.0, 1.0),
+            clear_color: Colorf32::new(0.0, 0.0, 0.0, 1.0),
             shader_allocator: Allocator::new(),
             vertex_array_allocator: Allocator::new(),
             index_buffer_allocator: Allocator::new(),
@@ -128,7 +128,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         println!("\tOpenGL Vendor: {}", opengl_vendor);
     }
 
-    fn set_clear_color(&mut self, color: Color) {
+    fn set_clear_color(&mut self, color: Colorf32) {
         self.clear_color = color;
         get_context!(context);
         unsafe {
@@ -376,12 +376,12 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                     gl.enable_vertex_attrib_array(i as u32);
                     let element_count = element.get_component_count();
                     match element.get_data_type() {
-                        ShaderDataType::Float
-                        | ShaderDataType::Float2
-                        | ShaderDataType::Float3
-                        | ShaderDataType::Float4
-                        | ShaderDataType::Mat3
-                        | ShaderDataType::Mat4 => {
+                        ShaderDataType::Float_32
+                        | ShaderDataType::Float2_32
+                        | ShaderDataType::Float3_32
+                        | ShaderDataType::Float4_32
+                        | ShaderDataType::Mat3_32
+                        | ShaderDataType::Mat4_32 => {
                             gl.vertex_attrib_pointer_f32(
                                 i as u32,
                                 element_count as i32,
@@ -391,10 +391,10 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                                 element.get_offset() as i32,
                             );
                         }
-                        ShaderDataType::Int
-                        | ShaderDataType::Int2
-                        | ShaderDataType::Int3
-                        | ShaderDataType::Int4
+                        ShaderDataType::Int_32
+                        | ShaderDataType::Int2_32
+                        | ShaderDataType::Int3_32
+                        | ShaderDataType::Int4_32
                         | ShaderDataType::Bool => gl.vertex_attrib_pointer_i32(
                             i as u32,
                             element_count as i32,
@@ -446,7 +446,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float,
+            uniform_data.data_type == ShaderDataType::Float_32,
             "Wrong uniform type"
         );
         get_context!(context);
@@ -464,7 +464,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Int,
+            uniform_data.data_type == ShaderDataType::Int_32,
             "Wrong uniform type"
         );
 
@@ -482,7 +482,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float2,
+            uniform_data.data_type == ShaderDataType::Float2_32,
             "Wrong uniform type"
         );
 
@@ -500,7 +500,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float3,
+            uniform_data.data_type == ShaderDataType::Float3_32,
             "Wrong uniform type"
         );
 
@@ -518,7 +518,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float4,
+            uniform_data.data_type == ShaderDataType::Float4_32,
             "Wrong uniform type"
         );
         get_context!(context);
@@ -542,7 +542,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Mat3,
+            uniform_data.data_type == ShaderDataType::Mat3_32,
             "Wrong uniform type"
         );
 
@@ -564,7 +564,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Mat3,
+            uniform_data.data_type == ShaderDataType::Mat3_32,
             "Wrong uniform type"
         );
 
