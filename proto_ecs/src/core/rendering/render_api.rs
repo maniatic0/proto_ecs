@@ -1,5 +1,5 @@
 use super::buffer::BufferLayout;
-use super::shader::ShaderDataType;
+use super::shader::{ShaderDataType, ShaderSrc};
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
 use proto_ecs::core::math::Colorf32;
@@ -39,8 +39,8 @@ pub trait RenderAPIBackendDyn: Send + Sync {
     fn create_shader(
         &mut self,
         name: &str,
-        vertex_src: &str,
-        fragment_src: &str,
+        vertex_src: ShaderSrc,
+        fragment_src: ShaderSrc,
     ) -> Result<ShaderHandle, ShaderError>;
     fn destroy_shader(&mut self, handle: ShaderHandle);
 
@@ -213,8 +213,8 @@ impl RenderCommand {
     }
     pub fn create_shader(
         name: &str,
-        vertex_src: &str,
-        fragment_src: &str,
+        vertex_src: ShaderSrc,
+        fragment_src: ShaderSrc,
     ) -> Result<ShaderHandle, ShaderError> {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();

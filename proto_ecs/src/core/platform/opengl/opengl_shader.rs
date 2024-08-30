@@ -84,3 +84,22 @@ pub(super) fn compile_shaders(shaders: Vec<(u32, &str)>) -> Result<NativeProgram
         Ok(program)
     }
 }
+
+pub(super) fn create_shader_from_code(
+    name: &str,
+    fragment_src: &str,
+    vertex_src: &str,
+) -> Result<OpenGLShader, ShaderError> {
+    let shaders = vec![
+        (glow::VERTEX_SHADER, vertex_src),
+        (glow::FRAGMENT_SHADER, fragment_src),
+    ];
+    let uniforms = HashMap::new();
+
+    let program = compile_shaders(shaders)?;
+    Ok(OpenGLShader {
+        name: name.to_string(),
+        native_program: program,
+        uniforms,
+    })
+}

@@ -8,7 +8,7 @@ use proto_ecs::core::windowing::window_manager;
 
 use crate::core::math::Colorf32;
 use crate::core::platform::opengl::opengl_buffer::{OpenGLIndexBuffer, OpenGLVertexBuffer};
-use crate::core::platform::opengl::opengl_shader::{compile_shaders, OpenGLShader, UniformData};
+use crate::core::platform::opengl::opengl_shader::{OpenGLShader, UniformData};
 use crate::core::platform::opengl::opengl_vertex_array::OpenGLVertexArray;
 use crate::core::platform::winit_window::WinitWindow;
 use crate::core::rendering::buffer::BufferLayout;
@@ -17,9 +17,8 @@ use crate::core::rendering::render_api::API;
 use crate::core::rendering::render_api::{
     IndexBufferHandle, ShaderHandle, VertexArrayHandle, VertexBufferHandle,
 };
-use crate::core::rendering::shader::{ShaderDataType, ShaderError};
+use crate::core::rendering::shader::{ShaderDataType, ShaderError, ShaderSrc};
 
-use std::collections::HashMap;
 use std::mem::size_of;
 
 pub(super) struct OpenGLContext {
@@ -55,6 +54,8 @@ macro_rules! get_context {
 }
 
 pub(super) use get_context;
+
+use super::opengl_shader::create_shader_from_code;
 
 impl RenderAPIBackend for OpenGLRenderBackend {
     fn create() -> RenderAPIBackendPtr {
@@ -238,23 +239,18 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
     fn create_shader(
         &mut self,
         name: &str,
-        vertex_src: &str,
-        fragment_src: &str,
+        vertex_src: ShaderSrc,
+        fragment_src: ShaderSrc,
     ) -> Result<ShaderHandle, ShaderError> {
-        let shaders = vec![
-            (glow::VERTEX_SHADER, vertex_src),
-            (glow::FRAGMENT_SHADER, fragment_src),
-        ];
-        let uniforms = HashMap::new();
+        match (vertex_src, fragment_src) {
+            (ShaderSrc::Code(vertex_src), ShaderSrc::Code(fragment_src)) => {
+                let opengl_shader = create_shader_from_code(name, fragment_src, vertex_src)?;
+                let new_shader = self.shader_allocator.allocate(opengl_shader);
 
-        let program = compile_shaders(shaders)?;
-        let new_shader = self.shader_allocator.allocate(OpenGLShader {
-            name: name.to_string(),
-            native_program: program,
-            uniforms,
-        });
-
-        Ok(new_shader)
+                Ok(new_shader)
+            }
+            _ => unimplemented!("Shader creation with this type of source not yet implemented"),
+        }
     }
     fn destroy_shader(&mut self, handle: ShaderHandle) {
         get_context!(context);

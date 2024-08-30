@@ -78,3 +78,8 @@ pub enum ShaderError {
         given_type: ShaderDataType,
     },
 }
+
+pub enum ShaderSrc<'a> {
+    Binary(&'a [u8]),
+    Code(&'a str),
+}
