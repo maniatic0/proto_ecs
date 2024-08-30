@@ -1,9 +1,0 @@
-{
-    "rust-analyzer.showUnlinkedFileNotification": false,
-    "cSpell.words": [
-        "datagroup",
-        "datagroups",
-        "impls",
-        "proto"
-    ]
-}
