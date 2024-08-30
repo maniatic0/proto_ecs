@@ -1,37 +1,35 @@
-
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
-use proto_ecs::core::render::render_api::{API, RenderCommand};
-use proto_ecs::core::window::window_manager::WindowManager;
+use proto_ecs::core::rendering::render_api::{RenderCommand, API};
+use proto_ecs::core::windowing::window_manager::WindowManager;
 
 #[derive(Debug, Default)]
-pub struct SceneDescription {
-
-}
+pub struct SceneDescription {}
 
 #[derive(Debug, Default)]
-pub struct SceneData {
-
-}
+pub struct SceneData {}
 
 pub struct Render {
-    scene_begun : bool,
-    scene_data : SceneData
+    scene_begun: bool,
+    _scene_data: SceneData,
 }
 
-lazy_static!{
-    static ref RENDER : RwLock<Option<Render>> = RwLock::default();
+lazy_static! {
+    static ref RENDER: RwLock<Option<Render>> = RwLock::default();
 }
 
 impl Render {
     pub fn init() {
         let mut render = RENDER.write();
         debug_assert!(render.is_none(), "Render already initialized");
-        *render = Some(Render{scene_begun : false, scene_data: SceneData::default()});
+        *render = Some(Render {
+            scene_begun: false,
+            _scene_data: SceneData::default(),
+        });
         RenderCommand::initialize(WindowManager::get_platform());
     }
 
-    pub fn begin_scene(scene_description : &SceneDescription) {
+    pub fn begin_scene(_scene_description: &SceneDescription) {
         let mut render_ref = RENDER.write();
         let render = render_ref.as_mut().expect("Render not yet initialized");
 
@@ -47,7 +45,7 @@ impl Render {
         // TODO
     }
 
-    pub fn on_window_resize(new_width : u32, new_height : u32) {
+    pub fn on_window_resize(new_width: u32, new_height: u32) {
         // ? Not sure what the x,y parameters mean. They come from the OpenGL API
         RenderCommand::set_viewport(0, 0, new_width, new_height);
     }

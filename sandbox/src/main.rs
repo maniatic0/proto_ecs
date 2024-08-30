@@ -1,20 +1,16 @@
-use glam;
-use proto_ecs::core::locking::RwLock;
-use proto_ecs::core::render::buffer::{
-    create_index_buffer, create_vertex_buffer, BufferElement, BufferLayout,
-};
-use proto_ecs::core::render::render_api::RenderCommand;
-use proto_ecs::core::render::shader::{create_shader, ShaderDataType, ShaderPtr};
-use proto_ecs::core::render::vertex_array::{create_vertex_array, VertexArrayPtr};
-use proto_ecs::core::window::window_manager::WindowManager;
-use proto_ecs::core::window::events::Event;
+use std::mem::size_of;
+
+use proto_ecs::core::rendering::buffer::{BufferElement, BufferLayout};
+use proto_ecs::core::rendering::render_api::{RenderCommand, ShaderHandle, VertexArrayHandle};
+use proto_ecs::core::rendering::shader::{ShaderDataType, ShaderSrc};
+use proto_ecs::core::windowing::events::Event;
+use proto_ecs::core::windowing::window_manager::WindowManager;
 use proto_ecs::prelude::*;
-use imgui;
 
 struct MyLayer {
-    triangle_shader: Option<RwLock<ShaderPtr>>,
-    triangle_data: Option<RwLock<VertexArrayPtr>>,
-    color : glam::Vec3,
+    triangle_shader: Option<ShaderHandle>,
+    triangle_data: Option<VertexArrayHandle>,
+    color: glam::Vec3,
 }
 
 // TODO Look for something to do in these cases
@@ -56,21 +52,20 @@ struct VertexData {
 
 // TODO We need a better way to cast custom data types to f32 arrays to send data to the GPU
 unsafe fn any_as_f32_slice<T: Sized>(p: &T) -> &[f32] {
-    ::core::slice::from_raw_parts((p as *const T) as *const f32, ::core::mem::size_of::<T>())
+    ::core::slice::from_raw_parts(
+        (p as *const T) as *const f32,
+        ::core::mem::size_of::<T>() / size_of::<f32>(),
+    )
 }
 impl Layer for MyLayer {
     fn on_attach(&mut self) {
-        self.triangle_shader = Some(RwLock::new({
-            let mut shader = create_shader(
-                &"Example Triangle".to_string(),
-                &VERTEX_SRC.to_string(),
-                &FRAGMENT_SRC.to_string(),
-            )
-            .expect("Could not create triangle shader");
-            shader.add_uniform(&"u_Color".into(), ShaderDataType::Float3).expect("Should be able to add this uniform");
+        self.triangle_shader = Some({
+            let shader = RenderCommand::create_shader("Example Triangle", ShaderSrc::Code(VERTEX_SRC), ShaderSrc::Code(FRAGMENT_SRC))
+                .expect("Could not create triangle shader");
+            RenderCommand::add_shader_uniform(shader, "u_Color", ShaderDataType::Float3_32)
+                .expect("Should be able to add this uniform");
             shader
-        }
-        ));
+        });
 
         static VERTEX_DATA: [VertexData; 3] = [
             VertexData {
@@ -88,44 +83,42 @@ impl Layer for MyLayer {
         ];
 
         // Create a buffer for this triangle data
-        let mut vbo = create_vertex_buffer(unsafe { any_as_f32_slice(&VERTEX_DATA) });
-        vbo.set_layout(BufferLayout::from_elements(vec![
-            BufferElement::new("a_Position".into(), ShaderDataType::Float2, false),
-            BufferElement::new("a_Color".into(), ShaderDataType::Float3, false),
-        ]));
-        let index_buffer = create_index_buffer(&[0, 1, 2]);
-        let mut vao = create_vertex_array();
-        vao.set_vertex_buffer(vbo);
-        vao.set_index_buffer(index_buffer);
+        let vbo = RenderCommand::create_vertex_buffer(unsafe { any_as_f32_slice(&VERTEX_DATA) });
+        RenderCommand::set_vertex_buffer_layout(
+            vbo,
+            BufferLayout::from_elements(vec![
+                BufferElement::new("a_Position".into(), ShaderDataType::Float2_32, false),
+                BufferElement::new("a_Color".into(), ShaderDataType::Float3_32, false),
+            ]),
+        );
+        let index_buffer = RenderCommand::create_index_buffer(&[0, 1, 2]);
+        let vao = RenderCommand::create_vertex_array();
+        RenderCommand::set_vertex_array_vertex_buffer(vao, vbo);
+        RenderCommand::set_vertex_array_index_buffer(vao, index_buffer);
 
-        self.triangle_data = Some(RwLock::new(vao));
+        self.triangle_data = Some(vao);
         println!("Triangle data intialized!");
     }
 
-    fn on_detach(&mut self) {}
-
-    fn update(&mut self, delta_time: f32) {
-        RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
-        RenderCommand::clear();
-        let vertex_array = self
-            .triangle_data
-            .as_ref()
-            .expect("Should have vertex array by now")
-            .read();
-        let triangle_shader = self
-            .triangle_shader
-            .as_ref()
-            .expect("Should have shader by now")
-            .read();
-        triangle_shader.bind();
-        triangle_shader.set_uniform_fvec3(&"u_Color".into(), &self.color);
-        RenderCommand::draw_indexed(&vertex_array);
+    fn on_detach(&mut self) {
+        // TODO cleanup
     }
 
-    fn imgui_update(&mut self, delta_time: f32, ui : &mut imgui::Ui) {
+    fn update(&mut self, _delta_time: f32) {
+        RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
+        RenderCommand::clear();
+        let vertex_array = self.triangle_data.expect("Should have vertex array by now");
+        let triangle_shader = self.triangle_shader.expect("Should have shader by now");
+
+        RenderCommand::bind_shader(triangle_shader);
+        RenderCommand::set_shader_uniform_fvec3(triangle_shader, "u_Color", &self.color);
+        RenderCommand::draw_indexed(vertex_array);
+    }
+
+    fn imgui_update(&mut self, _delta_time: f32, ui: &mut imgui::Ui) {
         ui.window("Hello Triangle")
             .size([300.0, 300.0], imgui::Condition::FirstUseEver)
-            .build(||{
+            .build(|| {
                 ui.text("Primera ventana imgui en proto-ecs");
                 let mut triangle_color = self.color.to_array();
                 ui.color_picker3("Triangle Color", &mut triangle_color);
@@ -133,7 +126,7 @@ impl Layer for MyLayer {
             });
     }
 
-    fn on_event(&mut self, event: &mut Event) {}
+    fn on_event(&mut self, _event: &mut Event) {}
 }
 
 fn main() {
@@ -150,7 +143,11 @@ fn main() {
     App::add_layer(Box::new(MyLayer {
         triangle_shader: None,
         triangle_data: None,
-        color: glam::Vec3 { x: 1.0, y: 1.0, z: 1.0 }
+        color: glam::Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
     }));
 
     App::run_application();
