@@ -2,7 +2,7 @@ use super::buffer::BufferLayout;
 use super::shader::ShaderDataType;
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
-use proto_ecs::core::math::Color;
+use proto_ecs::core::math::Colorf32;
 use proto_ecs::core::platform::opengl::opengl_render_backend::OpenGLRenderBackend;
 use proto_ecs::core::platform::Platforms;
 use proto_ecs::core::rendering::handle::Handle;
@@ -24,7 +24,7 @@ pub enum API {
 pub trait RenderAPIBackendDyn: Send + Sync {
     fn init(&mut self);
     fn clear_color(&self);
-    fn set_clear_color(&mut self, color: Color);
+    fn set_clear_color(&mut self, color: Colorf32);
     fn get_api(&self) -> API;
     fn set_viewport(&mut self, x: u32, y: u32, width: u32, height: u32);
     fn draw_indexed(&mut self, handle: VertexArrayHandle);
@@ -160,7 +160,7 @@ impl RenderCommand {
         backend.clear_color();
     }
 
-    pub fn set_clear_color(color: Color) {
+    pub fn set_clear_color(color: Colorf32) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.set_clear_color(color);
