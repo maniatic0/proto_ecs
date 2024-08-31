@@ -34,6 +34,7 @@ glam = {version = "0.28.0", features = ["serde"]}
 glow = "0.13.1"
 raw-window-handle = "0.5.2"
 num = "0.4.3"
+tobj = "4.0.2"
 
 [[bench]]
 name = "entity_sytem_benchmark"
