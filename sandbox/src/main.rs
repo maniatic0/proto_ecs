@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use proto_ecs::core::rendering::buffer::{BufferElement, BufferLayout};
 use proto_ecs::core::rendering::render_api::{RenderCommand, ShaderHandle, VertexArrayHandle};
-use proto_ecs::core::rendering::shader::{ShaderDataType, ShaderSrc};
+use proto_ecs::core::rendering::shader::{DataType, Precision, ShaderDataType, ShaderSrc};
 use proto_ecs::core::windowing::events::Event;
 use proto_ecs::core::windowing::window_manager::WindowManager;
 use proto_ecs::prelude::*;
@@ -62,7 +62,7 @@ impl Layer for MyLayer {
         self.triangle_shader = Some({
             let shader = RenderCommand::create_shader("Example Triangle", ShaderSrc::Code(VERTEX_SRC), ShaderSrc::Code(FRAGMENT_SRC))
                 .expect("Could not create triangle shader");
-            RenderCommand::add_shader_uniform(shader, "u_Color", ShaderDataType::Float3_32)
+            RenderCommand::add_shader_uniform(shader, "u_Color", ShaderDataType{precision: Precision::P32, data_type: DataType::Float3})
                 .expect("Should be able to add this uniform");
             shader
         });
@@ -87,8 +87,8 @@ impl Layer for MyLayer {
         RenderCommand::set_vertex_buffer_layout(
             vbo,
             BufferLayout::from_elements(vec![
-                BufferElement::new("a_Position".into(), ShaderDataType::Float2_32, false),
-                BufferElement::new("a_Color".into(), ShaderDataType::Float3_32, false),
+                BufferElement::new("a_Position".into(), ShaderDataType::new(Precision::P32, DataType::Float2), false),
+                BufferElement::new("a_Color".into(), ShaderDataType::new(Precision::P32, DataType::Float3), false),
             ]),
         );
         let index_buffer = RenderCommand::create_index_buffer(&[0, 1, 2]);

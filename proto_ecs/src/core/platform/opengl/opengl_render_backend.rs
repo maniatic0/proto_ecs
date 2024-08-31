@@ -17,7 +17,7 @@ use crate::core::rendering::render_api::API;
 use crate::core::rendering::render_api::{
     IndexBufferHandle, ShaderHandle, VertexArrayHandle, VertexBufferHandle,
 };
-use crate::core::rendering::shader::{ShaderDataType, ShaderError, ShaderSrc};
+use crate::core::rendering::shader::{ShaderDataType, DataType, ShaderError, ShaderSrc};
 
 use std::mem::size_of;
 
@@ -371,13 +371,13 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                 unsafe {
                     gl.enable_vertex_attrib_array(i as u32);
                     let element_count = element.get_component_count();
-                    match element.get_data_type() {
-                        ShaderDataType::Float_32
-                        | ShaderDataType::Float2_32
-                        | ShaderDataType::Float3_32
-                        | ShaderDataType::Float4_32
-                        | ShaderDataType::Mat3_32
-                        | ShaderDataType::Mat4_32 => {
+                    match element.get_data_type().data_type {
+                        DataType::Float
+                        | DataType::Float2
+                        | DataType::Float3
+                        | DataType::Float4
+                        | DataType::Mat3
+                        | DataType::Mat4 => {
                             gl.vertex_attrib_pointer_f32(
                                 i as u32,
                                 element_count as i32,
@@ -387,11 +387,11 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                                 element.get_offset() as i32,
                             );
                         }
-                        ShaderDataType::Int_32
-                        | ShaderDataType::Int2_32
-                        | ShaderDataType::Int3_32
-                        | ShaderDataType::Int4_32
-                        | ShaderDataType::Bool => gl.vertex_attrib_pointer_i32(
+                        DataType::Int
+                        | DataType::Int2
+                        | DataType::Int3
+                        | DataType::Int4
+                        | DataType::Bool => gl.vertex_attrib_pointer_i32(
                             i as u32,
                             element_count as i32,
                             glow::INT,
@@ -442,7 +442,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float_32,
+            uniform_data.data_type.data_type == DataType::Float,
             "Wrong uniform type"
         );
         get_context!(context);
@@ -460,7 +460,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Int_32,
+            uniform_data.data_type.data_type == DataType::Int,
             "Wrong uniform type"
         );
 
@@ -478,7 +478,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float2_32,
+            uniform_data.data_type.data_type == DataType::Float2,
             "Wrong uniform type"
         );
 
@@ -496,7 +496,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float3_32,
+            uniform_data.data_type.data_type == DataType::Float3,
             "Wrong uniform type"
         );
 
@@ -514,7 +514,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Float4_32,
+            uniform_data.data_type.data_type == DataType::Float4,
             "Wrong uniform type"
         );
         get_context!(context);
@@ -538,7 +538,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Mat3_32,
+            uniform_data.data_type.data_type == DataType::Mat3,
             "Wrong uniform type"
         );
 
@@ -560,7 +560,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type == ShaderDataType::Mat3_32,
+            uniform_data.data_type.data_type == DataType::Mat3,
             "Wrong uniform type"
         );
 

@@ -1,4 +1,4 @@
-use proto_ecs::core::rendering::shader::ShaderDataType;
+use proto_ecs::core::rendering::shader::{ShaderDataType, DataType};
 use std::slice::{Iter, IterMut};
 
 #[derive(Default, Clone)]
@@ -71,35 +71,23 @@ impl BufferElement {
     }
 
     pub fn get_component_count(&self) -> u32 {
-        match self.data_type {
-            ShaderDataType::Float_32
-            | ShaderDataType::Float_16
-            | ShaderDataType::Bool
-            | ShaderDataType::Int_32
-            | ShaderDataType::Int_16
-            | ShaderDataType::Int_8 => 1,
+        match self.data_type.data_type {
+            DataType::Float
+            | DataType::Bool
+            | DataType::Int => 1,
 
-            ShaderDataType::Float2_32
-            | ShaderDataType::Float2_16
-            | ShaderDataType::Int2_32
-            | ShaderDataType::Int2_16
-            | ShaderDataType::Int2_8 => 2,
+            DataType::Float2
+            | DataType::Int2 => 2,
 
-            ShaderDataType::Float3_32
-            | ShaderDataType::Float3_16
-            | ShaderDataType::Int3_32
-            | ShaderDataType::Int3_16
-            | ShaderDataType::Int3_8 => 3,
+            DataType::Float3
+            | DataType::Int3 => 3,
 
-            ShaderDataType::Float4_32
-            | ShaderDataType::Float4_16
-            | ShaderDataType::Int4_32
-            | ShaderDataType::Int4_16
-            | ShaderDataType::Int4_8 => 4,
+            DataType::Float4
+            | DataType::Int4 => 4,
 
-            ShaderDataType::Mat3_32 => 3 * 3,
-            ShaderDataType::Mat4_32 => 4 * 4,
-            ShaderDataType::None => 0,
+            DataType::Mat3 => 3 * 3,
+            DataType::Mat4 => 4 * 4,
+            DataType::None => 0,
         }
     }
 

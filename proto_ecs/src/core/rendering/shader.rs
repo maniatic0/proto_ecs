@@ -1,63 +1,70 @@
+
+
 /// Possible uniform data types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
-pub enum ShaderDataType {
+pub struct ShaderDataType {
+    pub precision : Precision,
+    pub data_type : DataType
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Precision {
+    P64,
+    P32,
+    P16, 
+    P8
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DataType {
     None,
 
-    Float_16,
-    Float2_16,
-    Float3_16,
-    Float4_16,
+    Float,
+    Float2,
+    Float3,
+    Float4,
 
-    Float_32,
-    Float2_32,
-    Float3_32,
-    Float4_32,
+    Int,
+    Int2,
+    Int3,
+    Int4,
 
-    Mat3_32,
-    Mat4_32,
+    Mat3,
+    Mat4,
 
-    Int_8,
-    Int2_8,
-    Int3_8,
-    Int4_8,
-
-    Int_16,
-    Int2_16,
-    Int3_16,
-    Int4_16,
-
-    Int_32,
-    Int2_32,
-    Int3_32,
-    Int4_32,
-
-    Bool,
+    Bool
 }
 
 impl ShaderDataType {
+    pub fn new(precision : Precision, data_type : DataType) -> Self {
+        Self{precision, data_type}
+    }
     /// Size in bytes for this data type
     pub fn get_size(&self) -> u32 {
-        match self {
-            ShaderDataType::None => 0,
-            ShaderDataType::Float_32 | ShaderDataType::Int_32 => 4,
-            ShaderDataType::Float2_32 | ShaderDataType::Int2_32 => 2 * 4,
-            ShaderDataType::Float3_32 | ShaderDataType::Int3_32 => 3 * 4,
-            ShaderDataType::Float4_32 | ShaderDataType::Int4_32 => 4 * 4,
+        let ShaderDataType { precision, data_type }  = self;
+        match (data_type, precision) {
+            (DataType::None, _) => 0,
+            (DataType::Float | DataType::Int, Precision::P32) => 4,
+            (DataType::Float2 | DataType::Int2, Precision::P32) => 2 * 4,
+            (DataType::Float3 | DataType::Int3, Precision::P32) => 3 * 4,
+            (DataType::Float4 | DataType::Int4, Precision::P32) => 4 * 4,
 
-            ShaderDataType::Float_16 | ShaderDataType::Int_16 => 2,
-            ShaderDataType::Float2_16 | ShaderDataType::Int2_16 => 2 * 2,
-            ShaderDataType::Float3_16 | ShaderDataType::Int3_16 => 3 * 2,
-            ShaderDataType::Float4_16 | ShaderDataType::Int4_16 => 4 * 2,
+            (DataType::Float | DataType::Int, Precision::P16) => 2,
+            (DataType::Float2 | DataType::Int2, Precision::P16) => 2 * 2,
+            (DataType::Float3 | DataType::Int3, Precision::P16) => 3 * 2,
+            (DataType::Float4 | DataType::Int4, Precision::P16) => 4 * 2,
 
-            ShaderDataType::Int_8 => 1,
-            ShaderDataType::Int2_8 => 2 * 1,
-            ShaderDataType::Int3_8 => 3 * 1,
-            ShaderDataType::Int4_8 => 4 * 1,
+            (DataType::Int, Precision::P8) => 1,
+            (DataType::Int2, Precision::P8) => 2 * 1,
+            (DataType::Int3, Precision::P8) => 3 * 1,
+            (DataType::Int4, Precision::P8) => 4 * 1,
 
-            ShaderDataType::Mat3_32 => 3 * 3 * 4,
-            ShaderDataType::Mat4_32 => 4 * 4 * 4,
-            ShaderDataType::Bool => 1,
+            (DataType::Mat3, Precision::P32) => 3 * 3 * 4,
+            (DataType::Mat4, Precision::P32) => 4 * 4 * 4,
+            (DataType::Bool, Precision::P8) => 1,
+
+            _ => unimplemented!("This type/precision is not currently supported")
         }
     }
 }
@@ -82,4 +89,31 @@ pub enum ShaderError {
 pub enum ShaderSrc<'a> {
     Binary(&'a [u8]),
     Code(&'a str),
+}
+
+// TODO Some types from [ShaderDataType] are missing here because glam does not support them. Even f16 is nightly in Rust. 
+// What should we do about those types? 
+#[derive(Debug, Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub enum ShaderDataTypeValue {
+
+    Float_32(f32),
+    Float2_32(glam::Vec2),
+    Float3_32(glam::Vec3),
+    Float4_32(glam::Vec4),
+
+    Mat3_32(glam::Mat3),
+    Mat4_32(glam::Mat4),
+
+    Int_16(i16),
+    Int2_16(glam::I16Vec2),
+    Int3_16(glam::I16Vec3),
+    Int4_16(glam::I16Vec4),
+
+    Int_32(i32),
+    Int2_32(glam::IVec2),
+    Int3_32(glam::IVec3),
+    Int4_32(glam::IVec4),
+
+    Bool(bool),
 }
