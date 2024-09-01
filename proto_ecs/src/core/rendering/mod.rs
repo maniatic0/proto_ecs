@@ -5,3 +5,4 @@ pub mod shader;
 pub use crate::core::rendering::render::*;
 pub mod handle;
 pub mod material;
+pub mod camera;
