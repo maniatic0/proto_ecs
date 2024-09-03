@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 type MaterialArguments = HashMap<String, ShaderDataTypeValue>;
 
+#[derive(Debug)]
 pub struct Material {
     pub(crate) shader: ShaderHandle,
     parameters: MaterialArguments,

@@ -13,6 +13,7 @@ pub struct ModelManager {
     loaded_models : HashMap<PathBuf, ModelHandle>
 }
 
+#[derive(Debug)]
 pub struct Model {
     internal_model : tobj::Model
 }
