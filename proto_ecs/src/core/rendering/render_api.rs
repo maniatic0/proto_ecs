@@ -5,7 +5,7 @@ use proto_ecs::core::locking::RwLock;
 use proto_ecs::core::math::Colorf32;
 use proto_ecs::core::platform::opengl::opengl_render_backend::OpenGLRenderBackend;
 use proto_ecs::core::platform::Platforms;
-use proto_ecs::core::rendering::handle::Handle;
+use proto_ecs::core::utils::handle::Handle;
 use proto_ecs::core::rendering::shader::ShaderError;
 
 pub type VertexBufferHandle = Handle;

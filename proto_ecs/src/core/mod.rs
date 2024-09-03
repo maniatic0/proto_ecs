@@ -9,3 +9,5 @@ pub mod platform;
 pub mod rendering;
 pub mod time;
 pub mod windowing;
+pub mod assets_management;
+pub mod utils;

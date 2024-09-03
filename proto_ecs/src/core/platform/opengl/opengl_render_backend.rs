@@ -12,7 +12,7 @@ use crate::core::platform::opengl::opengl_shader::{OpenGLShader, UniformData};
 use crate::core::platform::opengl::opengl_vertex_array::OpenGLVertexArray;
 use crate::core::platform::winit_window::WinitWindow;
 use crate::core::rendering::buffer::BufferLayout;
-use crate::core::rendering::handle::Allocator;
+use crate::core::utils::handle::Allocator;
 use crate::core::rendering::render_api::API;
 use crate::core::rendering::render_api::{
     IndexBufferHandle, ShaderHandle, VertexArrayHandle, VertexBufferHandle,
