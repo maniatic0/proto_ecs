@@ -1,3 +1,5 @@
+use crate::core::utils::handle::{Allocator, Handle};
+
 use super::{render_api::ShaderHandle, shader::ShaderDataTypeValue};
 use std::collections::HashMap;
 
@@ -20,3 +22,6 @@ impl Material {
             .or_insert(value);
     }
 }
+
+pub type MaterialAllocator = Allocator<Material>;
+pub type MaterialHandle = Handle;

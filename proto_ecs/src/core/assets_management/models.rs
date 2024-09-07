@@ -8,6 +8,8 @@ use std::fs::canonicalize;
 use crate::core::utils::handle::Handle;
 
 pub type ModelHandle = Handle;
+
+#[derive(Default)]
 pub struct ModelManager {
     model_allocator : Allocator<Model>,
     loaded_models : HashMap<PathBuf, ModelHandle>
@@ -63,5 +65,26 @@ impl ModelManager {
         let handle = self.model_allocator.allocate(Model { internal_model: models.pop().unwrap() });
 
         (self.model_allocator.get(handle), handle)
+    }
+
+    pub fn unload(&mut self, model_handle : ModelHandle) {
+        debug_assert!(self.model_allocator.is_live(model_handle), "Trying to unload unexistent model");
+
+        // Clear from allocator, will free this model from memory
+        self.model_allocator.free(model_handle);
+
+        // Clear from map
+        {
+
+        }
+        let mut model_path = None;
+        for (path, handle)in self.loaded_models.iter() {
+            if *handle == model_handle {
+                model_path = Some(path.clone());
+            }
+        }
+
+        let path = model_path.expect("Should exist in loaded models map");
+        self.loaded_models.remove(&path);
     }
 }

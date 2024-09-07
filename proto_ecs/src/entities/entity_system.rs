@@ -9,6 +9,7 @@ use atomic_float::AtomicF64;
 use crate::core::ids::IDLocator;
 use crate::entities::entity::{EntityID, INVALID_ENTITY_ID};
 use crate::get_id;
+use crate::systems::engine::rendering::CameraDG;
 
 use super::entity_spawn_desc::EntitySpawnDescription;
 use crate::core::locking::RwLock;
@@ -107,6 +108,10 @@ pub struct World {
     gs_deletion_queue: GlobalSystemQueue,
     /// entities to run per stage per global system
     gs_entity_map: GSEntitiesMap,
+
+    /// Current camera used to render scene
+    /// TODO update this variable when the camera entity changes
+    current_camera: RwLock<Option<EntityID>>,
 }
 
 impl World {
@@ -145,6 +150,7 @@ impl World {
             gs_creation_queue: Default::default(),
             gs_deletion_queue: Default::default(),
             gs_entity_map: RwLock::new(gs_entity_map),
+            current_camera: RwLock::new(None),
         };
 
         // Add all global systems with `always alive` lifetime
@@ -818,6 +824,38 @@ impl World {
                 break;
             }
         }
+    }
+
+    /// Get the currently used camera, the camera used to render the scene.
+    ///
+    /// There might be more cameras in the world, but this is the one used
+    /// by the render to render the scene
+    #[inline(always)]
+    pub fn get_current_camera(&self) -> Option<EntityID> {
+        self.current_camera.read().clone()
+    }
+
+    /// Set the current camera.
+    ///
+    /// The entity related to this id should provide a camera datagroup.
+    /// If not, this function **will crash**
+    pub fn set_current_camera(&self, entity_id: EntityID) {
+
+        { // Check that the entity is a valid camera
+            let entity_map = self.get_entities();
+            let entity = entity_map
+                .get(&entity_id)
+                .expect("The specified entity does not exists");
+
+            let entity = entity.read();
+
+            entity
+                .get_datagroup::<CameraDG>()
+                .expect("This entity cannot be the current camera without a camera datagroup");
+        }
+
+        let mut lock = self.current_camera.write();
+        *lock = Some(entity_id);
     }
 }
 

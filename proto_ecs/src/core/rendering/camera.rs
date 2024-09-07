@@ -1,10 +1,23 @@
 use macaw::Vec3A;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Camera {
     // TODO I feel like this transform matrix should be a custom type with some helper functions
     position: macaw::Vec3A,
     up_vector: macaw::Vec3A,
     eye_direction: macaw::Vec3A,
+    aspect_ratio: f32,
+    params : PerspectiveParams
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PerspectiveParams {
+    Ortho(/* TODO */),
+    Perspective {
+        y_fov_degrees: f32,
+        z_far: f32,
+        z_near: f32,
+    },
 }
 
 impl Default for Camera {
@@ -13,17 +26,21 @@ impl Default for Camera {
             Vec3A::ZERO,
             Vec3A::new(0.0, 0.0, 1.0),
             Vec3A::new(0.0, -1.0, 0.0),
+            16.0/9.0,
+            PerspectiveParams::Perspective { y_fov_degrees: 110.0, z_far: 100.0, z_near: 5.0 }
         )
     }
 }
 
 impl Camera {
-    pub fn new(position: Vec3A, up_vector: macaw::Vec3A, eye_direction: macaw::Vec3A) -> Self {
+    pub fn new(position: Vec3A, up_vector: macaw::Vec3A, eye_direction: macaw::Vec3A, aspect_ratio: f32, perspective : PerspectiveParams) -> Self {
         // By default, look up (positive z) and forward (negative y)
         Self {
             position,
             up_vector,
             eye_direction,
+            params: perspective,
+            aspect_ratio
         }
     }
 
@@ -57,5 +74,20 @@ impl Camera {
             self.up_vector.into(),
         );
         view_to_world.inverse()
+    }
+
+    #[inline(always)]
+    pub fn set_position(&mut self, position : macaw::Vec3A ) {
+        self.position = position;
+    }
+
+    #[inline(always)]
+    pub fn look_at(&mut self, target : macaw::Vec3A) {
+        self.eye_direction = (target - self.position).normalize();
+    }
+
+    #[inline(always)]
+    pub fn set_aspect_ratio(&mut self, new_aspect_ratio : f32) {
+        self.aspect_ratio = new_aspect_ratio;
     }
 }
