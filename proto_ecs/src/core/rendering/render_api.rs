@@ -83,6 +83,7 @@ pub trait RenderAPIBackendDyn: Send + Sync {
 
     // Operations: Shaders
     fn get_shader_name(&self, handle: ShaderHandle) -> &str;
+    fn shader_exists(&self, handle : ShaderHandle) -> bool;
     fn set_shader_uniform_f32(&mut self, handle: ShaderHandle, name: &str, value: f32);
     fn set_shader_uniform_i32(&mut self, handle: ShaderHandle, name: &str, value: i32);
     fn set_shader_uniform_fvec2(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec2);
@@ -224,6 +225,13 @@ impl RenderCommand {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.destroy_shader(handle)
+    }
+
+    pub fn shader_exists(handle : ShaderHandle) -> bool {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+
+        backend.shader_exists(handle)
     }
 
     // Bindings

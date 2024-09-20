@@ -1,10 +1,12 @@
-use glow::{Context, HasContext};
-use lazy_static::lazy_static;
+use glow::{Context, HasContext, NativeProgram, NativeShader};
+use glutin::context::{ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext};
+use glutin::display::{GetGlDisplay, GlDisplay};
 use proto_ecs::core::locking::RwLock;
 use proto_ecs::core::rendering::render_api::{
     RenderAPIBackend, RenderAPIBackendDyn, RenderAPIBackendPtr,
 };
 use proto_ecs::core::windowing::window_manager;
+use raw_window_handle::HasRawWindowHandle;
 
 use crate::core::math::Colorf32;
 use crate::core::platform::opengl::opengl_buffer::{OpenGLIndexBuffer, OpenGLVertexBuffer};
@@ -12,67 +14,59 @@ use crate::core::platform::opengl::opengl_shader::{OpenGLShader, UniformData};
 use crate::core::platform::opengl::opengl_vertex_array::OpenGLVertexArray;
 use crate::core::platform::winit_window::WinitWindow;
 use crate::core::rendering::buffer::BufferLayout;
-use crate::core::utils::handle::Allocator;
 use crate::core::rendering::render_api::API;
 use crate::core::rendering::render_api::{
     IndexBufferHandle, ShaderHandle, VertexArrayHandle, VertexBufferHandle,
 };
-use crate::core::rendering::shader::{ShaderDataType, DataType, ShaderError, ShaderSrc};
+use crate::core::rendering::shader::{DataType, ShaderDataType, ShaderError, ShaderSrc};
+use crate::core::utils::handle::Allocator;
 
 use std::mem::size_of;
 
-pub(super) struct OpenGLContext {
-    pub(super) gl: Context,
-}
-
-// TODO implementar Send + Sync
-unsafe impl Send for OpenGLContext {}
-unsafe impl Sync for OpenGLContext {}
-
+/// Note that the context created for this backend will be thread local.
+///
+/// If the OpenGL backend is initialized in the render thread, as intended,
+/// there will be no problem. But if it's initialized in the main thread along
+/// with the window, then you might have problems with the gl context in
+/// the window
 pub struct OpenGLRenderBackend {
     pub(super) clear_color: Colorf32,
     shader_allocator: Allocator<OpenGLShader>,
     vertex_array_allocator: Allocator<OpenGLVertexArray>,
     index_buffer_allocator: Allocator<OpenGLIndexBuffer>,
     vertex_buffer_allocator: Allocator<OpenGLVertexBuffer>,
+    _context: RwLock<PossiblyCurrentContext>,
+    gl: RwLock<Context>
 }
 
-lazy_static! {
-    pub(super) static ref OPENGL_CONTEXT: RwLock<Option<OpenGLContext>> = RwLock::new(None);
-}
-
-/// Simple macro that should NOT be used outside this module, it's just used
-/// as a shortcut to get a reference to the opengl context
-macro_rules! get_context {
-    ($i:ident) => {
-        let __context__ =
-            proto_ecs::core::platform::opengl::opengl_render_backend::OPENGL_CONTEXT.read();
-        let $i = __context__
-            .as_ref()
-            .expect("Opengl Context not yet initialized!");
-    };
-}
-
-pub(super) use get_context;
-
-use super::opengl_shader::create_shader_from_code;
+unsafe impl Send for OpenGLRenderBackend {}
+unsafe impl Sync for OpenGLRenderBackend {}
 
 impl RenderAPIBackend for OpenGLRenderBackend {
     fn create() -> RenderAPIBackendPtr {
         // We have to get a reference to the opengl context created by winit
-        let window_manager = window_manager::WindowManager::get().read();
+        let window_manager = window_manager::WindowManager::get().write();
         let winit_window = window_manager
             .get_window()
             .as_any()
             .downcast_ref::<WinitWindow>()
             .expect("The OpenGL render backend is only compatible with WinitWindow windows");
-        {
-            let mut context = OPENGL_CONTEXT.write();
-            debug_assert!(context.is_none(), "Already existent OpenGL api backend");
-            *context = Some(OpenGLContext {
-                gl: winit_window.get_glow_context(),
-            });
-        }
+
+        // Create winit context
+        let context_attrs =
+            ContextAttributesBuilder::new().build(Some(winit_window.window.raw_window_handle()));
+        let context = unsafe {
+            winit_window
+                .cfg
+                .display()
+                .create_context(&winit_window.cfg, &context_attrs)
+                .expect("Failed to create OpenGL Winit context")
+        };
+        let context = context
+            .make_current(&winit_window.surface)
+            .expect("Could not make this context the current context for this thread");
+
+        let gl = glow_context(&context);
 
         let mut result = Box::new(OpenGLRenderBackend {
             clear_color: Colorf32::new(0.0, 0.0, 0.0, 1.0),
@@ -80,6 +74,8 @@ impl RenderAPIBackend for OpenGLRenderBackend {
             vertex_array_allocator: Allocator::new(),
             index_buffer_allocator: Allocator::new(),
             vertex_buffer_allocator: Allocator::new(),
+            _context: RwLock::new(context),
+            gl: RwLock::new(gl)
         });
         result.init();
         result
@@ -88,10 +84,8 @@ impl RenderAPIBackend for OpenGLRenderBackend {
 
 impl RenderAPIBackendDyn for OpenGLRenderBackend {
     fn clear_color(&self) {
-        get_context!(context);
-        let gl = &context.gl;
         unsafe {
-            gl.clear(glow::COLOR_BUFFER_BIT);
+            self.gl.read().clear(glow::COLOR_BUFFER_BIT);
         };
     }
 
@@ -106,10 +100,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                     .index_buffer
                     .expect("Can't draw-indexed over array with no index"),
             ) as i32;
-
-            get_context!(context);
-            context
-                .gl
+                self.gl.read()
                 .draw_elements(glow::TRIANGLES, count, glow::UNSIGNED_INT, 0);
         }
     }
@@ -131,9 +122,8 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 
     fn set_clear_color(&mut self, color: Colorf32) {
         self.clear_color = color;
-        get_context!(context);
         unsafe {
-            context.gl.clear_color(
+            self.gl.read().clear_color(
                 self.clear_color.x,
                 self.clear_color.y,
                 self.clear_color.z,
@@ -143,18 +133,16 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
     }
 
     fn set_viewport(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        get_context!(context);
         unsafe {
-            context
-                .gl
+            self.gl
+                .read()
                 .viewport(x as i32, y as i32, width as i32, height as i32);
         }
     }
 
     // Resource creation and destruction
     fn create_vertex_buffer(&mut self, vertex_data: &[f32]) -> VertexBufferHandle {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
 
         unsafe {
             // TODO Better error handling
@@ -173,8 +161,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         }
     }
     fn destroy_vertex_buffer(&mut self, handle: VertexBufferHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let buffer = self.vertex_buffer_allocator.get(handle);
 
         unsafe { gl.delete_buffer(buffer.native_buffer) }
@@ -182,8 +169,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         self.vertex_buffer_allocator.free(handle);
     }
     fn create_index_buffer(&mut self, indices: &[u32]) -> IndexBufferHandle {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         unsafe {
             // TODO Better error handling would be nice
             let buffer_id = gl.create_buffer().expect("Unable to create index buffer");
@@ -203,8 +189,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         }
     }
     fn destroy_index_buffer(&mut self, handle: IndexBufferHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let index_buffer = self.index_buffer_allocator.get(handle);
 
         unsafe {
@@ -214,8 +199,8 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         self.index_buffer_allocator.free(handle);
     }
     fn create_vertex_array(&mut self) -> VertexArrayHandle {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
+
         let native_array = unsafe {
             gl.create_vertex_array()
                 .expect("Could not create OpenGL vertex array")
@@ -228,8 +213,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         })
     }
     fn destroy_vertex_array(&mut self, handle: VertexArrayHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let vertex_array = self.vertex_array_allocator.get(handle);
         unsafe {
             gl.delete_vertex_array(vertex_array.native_array);
@@ -244,7 +228,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
     ) -> Result<ShaderHandle, ShaderError> {
         match (vertex_src, fragment_src) {
             (ShaderSrc::Code(vertex_src), ShaderSrc::Code(fragment_src)) => {
-                let opengl_shader = create_shader_from_code(name, fragment_src, vertex_src)?;
+                let opengl_shader = self.create_shader_from_code(name, fragment_src, vertex_src)?;
                 let new_shader = self.shader_allocator.allocate(opengl_shader);
 
                 Ok(new_shader)
@@ -253,7 +237,6 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         }
     }
     fn destroy_shader(&mut self, handle: ShaderHandle) {
-        get_context!(context);
         debug_assert!(
             self.shader_allocator.is_live(handle),
             "Trying to destroy unexistent shader"
@@ -261,31 +244,28 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         let shader = self.shader_allocator.get(handle);
 
         unsafe {
-            context.gl.delete_program(shader.native_program);
+            self.gl.read().delete_program(shader.native_program);
         }
         self.shader_allocator.free(handle);
     }
 
     // Bindings
     fn bind_vertex_buffer(&self, handle: VertexBufferHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let vertex_buffer = self.vertex_buffer_allocator.get(handle);
         unsafe {
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vertex_buffer.native_buffer));
         }
     }
     fn unbind_vertex_buffer(&self) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
 
         unsafe {
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
         }
     }
     fn bind_vertex_array(&self, handle: VertexArrayHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let vertex_array = self.vertex_array_allocator.get(handle);
         unsafe {
             gl.bind_vertex_array(Some(vertex_array.native_array));
@@ -298,30 +278,26 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         }
     }
     fn unbind_vertex_array(&self) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         unsafe {
             gl.bind_vertex_array(None);
         }
     }
     fn bind_index_buffer(&self, handle: IndexBufferHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let index_buffer = self.index_buffer_allocator.get(handle);
         unsafe {
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(index_buffer.native_buffer));
         }
     }
     fn unbind_index_buffer(&self) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         unsafe {
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
         }
     }
     fn bind_shader(&self, handle: ShaderHandle) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let shader = self.shader_allocator.get(handle);
 
         unsafe {
@@ -329,8 +305,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         }
     }
     fn unbind_shader(&self) {
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
 
         unsafe {
             gl.use_program(None);
@@ -365,8 +340,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 
         let layout = vertex_buffer.get_buffer_layout();
         {
-            get_context!(context);
-            let gl = &context.gl;
+            let gl = self.gl.read();
             for (i, element) in layout.iter().enumerate() {
                 unsafe {
                     gl.enable_vertex_attrib_array(i as u32);
@@ -435,6 +409,9 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         let shader = self.shader_allocator.get(handle);
         &shader.name
     }
+    fn shader_exists(&self, handle: ShaderHandle) -> bool {
+        self.shader_allocator.is_live(handle)
+    }
     fn set_shader_uniform_f32(&mut self, handle: ShaderHandle, name: &str, value: f32) {
         let shader = self.shader_allocator.get(handle);
         let uniform_data = shader
@@ -445,8 +422,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             uniform_data.data_type.data_type == DataType::Float,
             "Wrong uniform type"
         );
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
 
         self.bind_shader(handle);
         unsafe {
@@ -465,8 +441,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         );
 
         self.bind_shader(handle);
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         unsafe {
             gl.uniform_1_i32(Some(&uniform_data.location), value);
         }
@@ -483,8 +458,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         );
 
         self.bind_shader(handle);
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         unsafe {
             gl.uniform_2_f32(Some(&uniform_data.location), value.x, value.y);
         }
@@ -502,8 +476,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 
         self.bind_shader(handle);
         unsafe {
-            get_context!(context);
-            let gl = &context.gl;
+            let gl = self.gl.read();
             gl.uniform_3_f32(Some(&uniform_data.location), value.x, value.y, value.z);
         }
     }
@@ -517,8 +490,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             uniform_data.data_type.data_type == DataType::Float4,
             "Wrong uniform type"
         );
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
 
         self.bind_shader(handle);
         unsafe {
@@ -544,8 +516,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 
         self.bind_shader(handle);
         unsafe {
-            get_context!(context);
-            let gl = &context.gl;
+            let gl = self.gl.read();
             gl.uniform_matrix_3_f32_slice(
                 Some(&uniform_data.location),
                 false,
@@ -566,8 +537,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 
         self.bind_shader(handle);
 
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         unsafe {
             gl.uniform_matrix_3_f32_slice(
                 Some(&uniform_data.location),
@@ -590,8 +560,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                 prev_type: uniform_data.data_type,
             });
         };
-        get_context!(context);
-        let gl = &context.gl;
+        let gl = self.gl.read();
         let location = unsafe {
             gl.get_uniform_location(shader.native_program, name)
                 .unwrap_or_else(
@@ -615,7 +584,97 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 impl OpenGLRenderBackend {
     #[inline(always)]
     fn get_string(&self, variant: u32) -> String {
-        get_context!(context);
-        unsafe { context.gl.get_parameter_string(variant) }
+        unsafe {self.gl.read().get_parameter_string(variant) }
+    }
+
+    /// Compile shaders into a program. The vector of pairs goes from shader type (fragment, vertex)
+    /// to the shader code: (shader_type, shader_code)
+    fn compile_shaders(&self, shaders: Vec<(u32, &str)>) -> Result<NativeProgram, ShaderError> {
+        let gl = self.gl.read();
+        unsafe {
+            let program = gl
+                .create_program()
+                .expect("Could not create program from OpenGL");
+            let mut created_shaders: Vec<NativeShader> = vec![];
+
+            for (shader_type, source) in shaders.iter() {
+                let shader = gl
+                    .create_shader(*shader_type)
+                    .expect("Could not create OpenGL shader");
+                gl.shader_source(shader, source);
+                gl.compile_shader(shader);
+
+                // Check if compilation for this shader went ok
+                let is_compiled = gl.get_shader_compile_status(shader);
+                if !is_compiled {
+                    let info_log = gl.get_shader_info_log(shader);
+
+                    // Delete previously created shaders
+                    gl.delete_shader(shader);
+                    for shader in created_shaders.into_iter() {
+                        gl.delete_shader(shader)
+                    }
+
+                    // Delete program in progress
+                    gl.delete_program(program);
+
+                    eprintln!("Error creating shader: {}", info_log);
+                    return Err(ShaderError::CompilationError(info_log));
+                }
+
+                // Compilation ok, attach this shader to the program we are creating
+                gl.attach_shader(program, shader);
+                created_shaders.push(shader);
+            }
+
+            // Now that all shaders are compiled and attach to the program, we have to link the program
+            gl.link_program(program);
+            let is_linked = gl.get_program_link_status(program);
+            if !is_linked {
+                // If not ok, clean up all the resources we have created
+                let info_log = gl.get_program_info_log(program);
+                gl.delete_program(program);
+                for shader in created_shaders.into_iter() {
+                    gl.delete_shader(shader);
+                }
+
+                eprintln!("Error linking program: {}", info_log);
+                return Err(ShaderError::CompilationError(info_log));
+            }
+
+            // Program linking successfull: dettach shaders
+            for shader in created_shaders.into_iter() {
+                gl.detach_shader(program, shader);
+            }
+
+            Ok(program)
+        }
+    }
+
+
+    fn create_shader_from_code(
+        &self, 
+        name: &str,
+        fragment_src: &str,
+        vertex_src: &str,
+    ) -> Result<OpenGLShader, ShaderError> {
+        let shaders = vec![
+            (glow::VERTEX_SHADER, vertex_src),
+            (glow::FRAGMENT_SHADER, fragment_src),
+        ];
+        let uniforms = std::collections::HashMap::new();
+
+        let program = self.compile_shaders(shaders)?;
+        Ok(OpenGLShader {
+            name: name.to_string(),
+            native_program: program,
+            uniforms,
+        })
+    }
+}
+
+fn glow_context(context: &PossiblyCurrentContext) -> glow::Context {
+    unsafe {
+        glow::Context::from_loader_function_cstr(|s| context.display().get_proc_address(s).cast())
     }
 }

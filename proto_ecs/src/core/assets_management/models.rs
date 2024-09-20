@@ -74,9 +74,6 @@ impl ModelManager {
         self.model_allocator.free(model_handle);
 
         // Clear from map
-        {
-
-        }
         let mut model_path = None;
         for (path, handle)in self.loaded_models.iter() {
             if *handle == model_handle {
@@ -86,5 +83,17 @@ impl ModelManager {
 
         let path = model_path.expect("Should exist in loaded models map");
         self.loaded_models.remove(&path);
+    }
+}
+
+impl Model {
+    pub fn vertices(&self) -> &[f32] {
+        // TODO we have to make this buffer to hold the entire data for the object,
+        // not just the positions. We also have to provide a layout
+        &self.internal_model.mesh.positions
+    }
+
+    pub fn indices(&self) -> &[u32] {
+        &self.internal_model.mesh.indices
     }
 }

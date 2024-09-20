@@ -3,12 +3,12 @@ use crate::core::utils::handle::{Allocator, Handle};
 use super::{render_api::ShaderHandle, shader::ShaderDataTypeValue};
 use std::collections::HashMap;
 
-type MaterialArguments = HashMap<String, ShaderDataTypeValue>;
+pub type MaterialArguments = HashMap<String, ShaderDataTypeValue>;
 
 #[derive(Debug)]
 pub struct Material {
     pub(crate) shader: ShaderHandle,
-    parameters: MaterialArguments,
+    pub(crate) parameters: MaterialArguments,
 }
 
 impl Material {

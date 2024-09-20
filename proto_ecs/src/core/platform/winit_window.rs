@@ -30,9 +30,12 @@ pub struct WinitWindow {
     width: u32,
     height: u32,
     title: String,
-    window: winit_Window,
-    surface: Surface<WindowSurface>,
-    context: PossiblyCurrentContext,
+    pub(crate) window: winit_Window,
+    pub(crate) surface: Surface<WindowSurface>,
+    pub(crate) context: PossiblyCurrentContext,
+    /// This is the config used to create the window, necessary
+    /// to create additional OpenGL context
+    pub(crate) cfg : glutin::config::Config,
     event_loop: EventLoop<()>,
     use_vsync: bool,
     imgui_state: ImguiState,
@@ -194,6 +197,7 @@ impl Window for WinitWindow {
             event_loop,
             use_vsync: false,
             imgui_state,
+            cfg
         });
 
         result.set_vsync(true);

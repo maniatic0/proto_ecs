@@ -2,10 +2,12 @@ use std::time::Instant;
 
 use crate::core::layer::{LayerManager, LayerPtr};
 use crate::core::locking::RwLock;
+use crate::core::rendering::render_thread::RenderThread;
 use crate::core::time::Time;
 use crate::core::windowing::events::{Event, Type};
 use crate::core::windowing::window_manager::WindowManager;
 use crate::data_group::DataGroupRegistry;
+use crate::entities::entity_system::{EntitySystem, WorldID};
 use crate::systems::global_systems::GlobalSystemRegistry;
 use crate::systems::local_systems::LocalSystemRegistry;
 /// This module implements the entire Application workflow.
@@ -19,6 +21,7 @@ pub struct App {
     time: Time,
     running: bool,
     pub(crate) layer_manager: LayerManager,
+    world: WorldID
 }
 
 lazy_static! {
@@ -32,6 +35,7 @@ impl App {
             time: Time::new(Instant::now()),
             running: false,
             layer_manager: Default::default(),
+            world: 0
         }
     }
 
@@ -79,6 +83,8 @@ impl App {
     }
 
     pub fn run_application() {
+        println!("Waiting for render thread...");
+        while !RenderThread::is_started() {}
         // TODO Ask Chris
         // Will we leave this lock on during the entire application?
         let mut global_app = APP.write();
@@ -100,6 +106,8 @@ impl App {
         self.is_initialized = true;
         self.running = true;
         self.time = Time::new(Instant::now());
+        let es = EntitySystem::get();
+        self.world = es.create_world();
     }
 
     fn run(&mut self) {
@@ -119,11 +127,20 @@ impl App {
             self.layer_manager.attach_pending_layers();
             self.layer_manager.attach_pending_overlays();
 
+            // Update anything the user might want to do at the layer level
             for layer in self.layer_manager.layers_iter_mut() {
                 layer.layer.update(delta_time);
             }
             for layer in self.layer_manager.overlays_iter_mut() {
                 layer.layer.update(delta_time);
+            }
+
+            // Update the entity system 
+            // TODO Compute actual fixed delta time
+            // TODO Compute delta time with f64 precision
+            {
+                let es = EntitySystem::get();
+                es.step(delta_time as f64, -1.0); // -1 so it crashes if you use it
             }
 
             self.layer_manager.detach_pending_layers();

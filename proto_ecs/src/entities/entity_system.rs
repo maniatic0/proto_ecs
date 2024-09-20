@@ -195,6 +195,7 @@ impl World {
 
     /// Create a new entity based on its spawn description
     fn create_entity_internal(&self, id: EntityID, spawn_desc: EntitySpawnDescription) {
+        println!("Creating entity: {}", spawn_desc.name);
         // Allocate entity from the global allocator
         let global_allocator = EntityAllocator::get_global();
         let mut entity_ptr = global_allocator.write().allocate();
@@ -610,8 +611,8 @@ impl World {
     /// Process a stage in this world
     fn run_stage(&self, stage_id: StageID) {
         // Process all the entity and global systems commands before the stage
-        self.process_entity_commands();
         self.process_global_systems_commands();
+        self.process_entity_commands();
 
         {
             // Run Stage in all entities
@@ -841,6 +842,7 @@ impl World {
     /// If not, this function **will crash**
     pub fn set_current_camera(&self, entity_id: EntityID) {
 
+        #[cfg(debug_assertions)]
         { // Check that the entity is a valid camera
             let entity_map = self.get_entities();
             let entity = entity_map
