@@ -36,7 +36,7 @@ pub struct OpenGLRenderBackend {
     index_buffer_allocator: Allocator<OpenGLIndexBuffer>,
     vertex_buffer_allocator: Allocator<OpenGLVertexBuffer>,
     _context: RwLock<PossiblyCurrentContext>,
-    gl: RwLock<Context>
+    gl: RwLock<Context>,
 }
 
 unsafe impl Send for OpenGLRenderBackend {}
@@ -75,7 +75,7 @@ impl RenderAPIBackend for OpenGLRenderBackend {
             index_buffer_allocator: Allocator::new(),
             vertex_buffer_allocator: Allocator::new(),
             _context: RwLock::new(context),
-            gl: RwLock::new(gl)
+            gl: RwLock::new(gl),
         });
         result.init();
         result
@@ -89,6 +89,12 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         };
     }
 
+    fn finish(&self) {
+        unsafe {
+            self.gl.read().finish();
+        }
+    }
+
     fn draw_indexed(&mut self, vertex_array: VertexArrayHandle) {
         // Assume that vertex array is bound right now
         self.bind_vertex_array(vertex_array);
@@ -100,7 +106,8 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                     .index_buffer
                     .expect("Can't draw-indexed over array with no index"),
             ) as i32;
-                self.gl.read()
+            self.gl
+                .read()
                 .draw_elements(glow::TRIANGLES, count, glow::UNSIGNED_INT, 0);
         }
     }
@@ -230,7 +237,6 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             (ShaderSrc::Code(vertex_src), ShaderSrc::Code(fragment_src)) => {
                 let opengl_shader = self.create_shader_from_code(name, fragment_src, vertex_src)?;
                 let new_shader = self.shader_allocator.allocate(opengl_shader);
-
                 Ok(new_shader)
             }
             _ => unimplemented!("Shader creation with this type of source not yet implemented"),
@@ -446,7 +452,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             gl.uniform_1_i32(Some(&uniform_data.location), value);
         }
     }
-    fn set_shader_uniform_fvec2(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec2) {
+    fn set_shader_uniform_fvec2(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Vec2) {
         let shader = self.shader_allocator.get(handle);
         let uniform_data = shader
             .uniforms
@@ -463,7 +469,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             gl.uniform_2_f32(Some(&uniform_data.location), value.x, value.y);
         }
     }
-    fn set_shader_uniform_fvec3(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec3) {
+    fn set_shader_uniform_fvec3(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Vec3) {
         let shader = self.shader_allocator.get(handle);
         let uniform_data = shader
             .uniforms
@@ -480,7 +486,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             gl.uniform_3_f32(Some(&uniform_data.location), value.x, value.y, value.z);
         }
     }
-    fn set_shader_uniform_fvec4(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec4) {
+    fn set_shader_uniform_fvec4(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Vec4) {
         let shader = self.shader_allocator.get(handle);
         let uniform_data = shader
             .uniforms
@@ -503,7 +509,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             );
         }
     }
-    fn set_shader_uniform_fmat3(&mut self, handle: ShaderHandle, name: &str, value: &glam::Mat3) {
+    fn set_shader_uniform_fmat3(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Mat3) {
         let shader = self.shader_allocator.get(handle);
         let uniform_data = shader
             .uniforms
@@ -524,14 +530,14 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             );
         }
     }
-    fn set_shader_uniform_fmat4(&mut self, handle: ShaderHandle, name: &str, value: &glam::Mat4) {
+    fn set_shader_uniform_fmat4(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Mat4) {
         let shader = self.shader_allocator.get(handle);
         let uniform_data = shader
             .uniforms
             .get(name)
             .expect("Trying to access unexistent uniform");
         debug_assert!(
-            uniform_data.data_type.data_type == DataType::Mat3,
+            uniform_data.data_type.data_type == DataType::Mat4,
             "Wrong uniform type"
         );
 
@@ -539,7 +545,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 
         let gl = self.gl.read();
         unsafe {
-            gl.uniform_matrix_3_f32_slice(
+            gl.uniform_matrix_4_f32_slice(
                 Some(&uniform_data.location),
                 false,
                 value.as_ref().as_slice(),
@@ -584,7 +590,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
 impl OpenGLRenderBackend {
     #[inline(always)]
     fn get_string(&self, variant: u32) -> String {
-        unsafe {self.gl.read().get_parameter_string(variant) }
+        unsafe { self.gl.read().get_parameter_string(variant) }
     }
 
     /// Compile shaders into a program. The vector of pairs goes from shader type (fragment, vertex)
@@ -651,9 +657,8 @@ impl OpenGLRenderBackend {
         }
     }
 
-
     fn create_shader_from_code(
-        &self, 
+        &self,
         name: &str,
         fragment_src: &str,
         vertex_src: &str,

@@ -5,8 +5,8 @@ use proto_ecs::core::locking::RwLock;
 use proto_ecs::core::math::Colorf32;
 use proto_ecs::core::platform::opengl::opengl_render_backend::OpenGLRenderBackend;
 use proto_ecs::core::platform::Platforms;
-use proto_ecs::core::utils::handle::Handle;
 use proto_ecs::core::rendering::shader::ShaderError;
+use proto_ecs::core::utils::handle::Handle;
 
 pub type VertexBufferHandle = Handle;
 pub type IndexBufferHandle = Handle;
@@ -28,6 +28,7 @@ pub trait RenderAPIBackendDyn: Send + Sync {
     fn get_api(&self) -> API;
     fn set_viewport(&mut self, x: u32, y: u32, width: u32, height: u32);
     fn draw_indexed(&mut self, handle: VertexArrayHandle);
+    fn finish(&self);
 
     // Resource creation and destruction
     fn create_vertex_buffer(&mut self, vertex_data: &[f32]) -> VertexBufferHandle;
@@ -83,14 +84,14 @@ pub trait RenderAPIBackendDyn: Send + Sync {
 
     // Operations: Shaders
     fn get_shader_name(&self, handle: ShaderHandle) -> &str;
-    fn shader_exists(&self, handle : ShaderHandle) -> bool;
+    fn shader_exists(&self, handle: ShaderHandle) -> bool;
     fn set_shader_uniform_f32(&mut self, handle: ShaderHandle, name: &str, value: f32);
     fn set_shader_uniform_i32(&mut self, handle: ShaderHandle, name: &str, value: i32);
-    fn set_shader_uniform_fvec2(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec2);
-    fn set_shader_uniform_fvec3(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec3);
-    fn set_shader_uniform_fvec4(&mut self, handle: ShaderHandle, name: &str, value: &glam::Vec4);
-    fn set_shader_uniform_fmat3(&mut self, handle: ShaderHandle, name: &str, value: &glam::Mat3);
-    fn set_shader_uniform_fmat4(&mut self, handle: ShaderHandle, name: &str, value: &glam::Mat4);
+    fn set_shader_uniform_fvec2(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Vec2);
+    fn set_shader_uniform_fvec3(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Vec3);
+    fn set_shader_uniform_fvec4(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Vec4);
+    fn set_shader_uniform_fmat3(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Mat3);
+    fn set_shader_uniform_fmat4(&mut self, handle: ShaderHandle, name: &str, value: &macaw::Mat4);
     fn add_shader_uniform(
         &mut self,
         handle: ShaderHandle,
@@ -161,6 +162,12 @@ impl RenderCommand {
         backend.clear_color();
     }
 
+    pub fn finish() {
+        let mut api = RENDER_API.write();
+        let backend = api.get_backend_mut();
+        backend.finish();
+    }
+
     pub fn set_clear_color(color: Colorf32) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
@@ -227,7 +234,7 @@ impl RenderCommand {
         backend.destroy_shader(handle)
     }
 
-    pub fn shader_exists(handle : ShaderHandle) -> bool {
+    pub fn shader_exists(handle: ShaderHandle) -> bool {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
 
@@ -344,27 +351,27 @@ impl RenderCommand {
         let backend = api.get_backend_mut();
         backend.set_shader_uniform_i32(handle, name, value)
     }
-    pub fn set_shader_uniform_fvec2(handle: ShaderHandle, name: &str, value: &glam::Vec2) {
+    pub fn set_shader_uniform_fvec2(handle: ShaderHandle, name: &str, value: &macaw::Vec2) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.set_shader_uniform_fvec2(handle, name, value)
     }
-    pub fn set_shader_uniform_fvec3(handle: ShaderHandle, name: &str, value: &glam::Vec3) {
+    pub fn set_shader_uniform_fvec3(handle: ShaderHandle, name: &str, value: &macaw::Vec3) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.set_shader_uniform_fvec3(handle, name, value)
     }
-    pub fn set_shader_uniform_fvec4(handle: ShaderHandle, name: &str, value: &glam::Vec4) {
+    pub fn set_shader_uniform_fvec4(handle: ShaderHandle, name: &str, value: &macaw::Vec4) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.set_shader_uniform_fvec4(handle, name, value)
     }
-    pub fn set_shader_uniform_fmat3(handle: ShaderHandle, name: &str, value: &glam::Mat3) {
+    pub fn set_shader_uniform_fmat3(handle: ShaderHandle, name: &str, value: &macaw::Mat3) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.set_shader_uniform_fmat3(handle, name, value)
     }
-    pub fn set_shader_uniform_fmat4(handle: ShaderHandle, name: &str, value: &glam::Mat4) {
+    pub fn set_shader_uniform_fmat4(handle: ShaderHandle, name: &str, value: &macaw::Mat4) {
         let mut api = RENDER_API.write();
         let backend = api.get_backend_mut();
         backend.set_shader_uniform_fmat4(handle, name, value)

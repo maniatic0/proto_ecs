@@ -10,7 +10,7 @@ use proto_ecs::prelude::*;
 struct MyLayer {
     triangle_shader: Option<ShaderHandle>,
     triangle_data: Option<VertexArrayHandle>,
-    color: glam::Vec3,
+    color: macaw::Vec3,
 }
 
 // TODO Look for something to do in these cases
@@ -46,8 +46,8 @@ void main() {
 
 #[repr(C)]
 struct VertexData {
-    position: glam::Vec2,
-    color: glam::Vec3,
+    position: macaw::Vec2,
+    color: macaw::Vec3,
 }
 
 // TODO We need a better way to cast custom data types to f32 arrays to send data to the GPU
@@ -69,16 +69,16 @@ impl Layer for MyLayer {
 
         static VERTEX_DATA: [VertexData; 3] = [
             VertexData {
-                position: glam::vec2(-0.5, -0.5),
-                color: glam::vec3(1.0, 0.0, 0.0),
+                position: macaw::vec2(-0.5, -0.5),
+                color: macaw::vec3(1.0, 0.0, 0.0),
             },
             VertexData {
-                position: glam::vec2(0.0, 0.5),
-                color: glam::vec3(0.0, 1.0, 0.0),
+                position: macaw::vec2(0.0, 0.5),
+                color: macaw::vec3(0.0, 1.0, 0.0),
             },
             VertexData {
-                position: glam::vec2(0.5, -0.5),
-                color: glam::vec3(0.0, 0.0, 1.0),
+                position: macaw::vec2(0.5, -0.5),
+                color: macaw::vec3(0.0, 0.0, 1.0),
             },
         ];
 
@@ -105,7 +105,7 @@ impl Layer for MyLayer {
     }
 
     fn update(&mut self, _delta_time: f32) {
-        RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
+        RenderCommand::set_clear_color(macaw::vec4(1.0, 0.5, 0.5, 1.0));
         RenderCommand::clear();
         let vertex_array = self.triangle_data.expect("Should have vertex array by now");
         let triangle_shader = self.triangle_shader.expect("Should have shader by now");
@@ -122,7 +122,7 @@ impl Layer for MyLayer {
                 ui.text("Primera ventana imgui en proto-ecs");
                 let mut triangle_color = self.color.to_array();
                 ui.color_picker3("Triangle Color", &mut triangle_color);
-                self.color = glam::Vec3::from_array(triangle_color);
+                self.color = macaw::Vec3::from_array(triangle_color);
             });
     }
 
@@ -143,7 +143,7 @@ fn main() {
     App::add_layer(Box::new(MyLayer {
         triangle_shader: None,
         triangle_data: None,
-        color: glam::Vec3 {
+        color: macaw::Vec3 {
             x: 1.0,
             y: 1.0,
             z: 1.0,
@@ -151,4 +151,6 @@ fn main() {
     }));
 
     App::run_application();
+
+    Render::shutdown();
 }

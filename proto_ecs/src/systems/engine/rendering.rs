@@ -82,11 +82,12 @@ impl RenderGSGlobalSystem for RenderGS {
 
             let model = mesh_renderer.model.unwrap();
             let material = mesh_renderer.material.unwrap();
-            let transform = transform.get_world_transform_mat();
+            let transform_mat = transform.get_world_transform_mat();
             let new_proxy = RenderProxy {
                 model,
                 material,
-                transform,
+                transform: transform_mat,
+                position: transform.get_world_positon().clone()
             };
 
             // If not enough render proxies currently in vector, add a new one
@@ -112,7 +113,7 @@ impl RenderGSGlobalSystem for RenderGS {
         next_frame.camera = camera_dg.camera;
 
         // Mark the next frame as ready to draw
-        RenderThread::next_frame_updated();
+        // RenderThread::next_frame_updated();
     }
 }
 

@@ -98,12 +98,12 @@ pub enum ShaderSrc<'a> {
 pub enum ShaderDataTypeValue {
 
     Float_32(f32),
-    Float2_32(glam::Vec2),
-    Float3_32(glam::Vec3),
-    Float4_32(glam::Vec4),
+    Float2_32(macaw::Vec2),
+    Float3_32(macaw::Vec3),
+    Float4_32(macaw::Vec4),
 
-    Mat3_32(glam::Mat3),
-    Mat4_32(glam::Mat4),
+    Mat3_32(macaw::Mat3),
+    Mat4_32(macaw::Mat4),
 
     Int_16(i16),
     Int2_16(glam::I16Vec2),
@@ -111,9 +111,9 @@ pub enum ShaderDataTypeValue {
     Int4_16(glam::I16Vec4),
 
     Int_32(i32),
-    Int2_32(glam::IVec2),
-    Int3_32(glam::IVec3),
-    Int4_32(glam::IVec4),
+    Int2_32(macaw::IVec2),
+    Int3_32(macaw::IVec3),
+    Int4_32(macaw::IVec4),
 
     Bool(bool),
 }

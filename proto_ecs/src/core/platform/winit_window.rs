@@ -1,4 +1,5 @@
 use std::num::NonZeroU32;
+use std::thread::sleep;
 use std::time::Duration;
 
 use glutin::config::ConfigTemplateBuilder;
@@ -6,6 +7,7 @@ use glutin::context::{ContextAttributesBuilder, NotCurrentGlContext, PossiblyCur
 use glutin::display::{GetGlDisplay, GlDisplay};
 use glutin::prelude::PossiblyCurrentGlContext;
 use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface};
+use glow::{Context, HasContext};
 use imgui;
 use imgui_glow_renderer::AutoRenderer;
 use imgui_winit_support::WinitPlatform;
@@ -22,8 +24,9 @@ use winit::platform::pump_events::EventLoopExtPumpEvents;
 use winit::window::{Window as winit_Window, WindowBuilder};
 
 use crate::core::casting::CanCast;
+use crate::core::rendering::render_thread::RenderThread;
 use crate::core::windowing::keys::Keycode;
-use crate::prelude::App;
+use crate::prelude::{App, Render};
 
 #[derive(CanCast)]
 pub struct WinitWindow {
@@ -33,6 +36,7 @@ pub struct WinitWindow {
     pub(crate) window: winit_Window,
     pub(crate) surface: Surface<WindowSurface>,
     pub(crate) context: PossiblyCurrentContext,
+    gl: Context,
     /// This is the config used to create the window, necessary
     /// to create additional OpenGL context
     pub(crate) cfg : glutin::config::Config,
@@ -73,19 +77,28 @@ impl WindowDyn for WinitWindow {
                             .make_current(&self.surface)
                             .expect("Could not make this the current context");
                     }
-                    // Render imgui Ui into the frame buffer
-                    let ui = self.imgui_state.imgui_context.frame();
-                    app.run_imgui(ui);
-                    self.imgui_state.platform.prepare_render(ui, &self.window);
-                    let draw_data = self.imgui_state.imgui_context.render();
-                    self.imgui_state
-                        .imgui_renderer
-                        .render(draw_data)
-                        .expect("Error rendering imgui");
-                    // --------------------------------------------
-                    self.surface
-                        .swap_buffers(&self.context)
-                        .expect("Error swaping buffers in winit window");
+
+                    // TODO we have some flickering on the UI, maybe due to some 
+                    // sincronization issues with the render thread. We have to find a 
+                    // better way to sync both threads
+                    if RenderThread::is_last_frame_finished() {
+
+                        // Render imgui Ui into the frame buffer
+                        let ui = self.imgui_state.imgui_context.frame();
+                        app.run_imgui(ui);
+                        self.imgui_state.platform.prepare_render(ui, &self.window);
+                        let draw_data = self.imgui_state.imgui_context.render();
+                        self.imgui_state
+                            .imgui_renderer
+                            .render(draw_data)
+                            .expect("Error rendering imgui");
+                        // --------------------------------------------
+                        self.surface
+                            .swap_buffers(&self.context)
+                            .expect("Error swaping buffers in winit window");
+
+                        RenderThread::next_frame_updated();
+                    }
                 };
 
                 // Imgui might require to handle events
@@ -185,6 +198,7 @@ impl Window for WinitWindow {
         let context = context
             .make_current(&surface)
             .expect("Error making OpenGL context the current context");
+        let gl = glow_context(&context);
 
         let imgui_state = initialize_imgui(&window, glow_context(&context));
         let mut result = Box::new(WinitWindow {
@@ -197,7 +211,8 @@ impl Window for WinitWindow {
             event_loop,
             use_vsync: false,
             imgui_state,
-            cfg
+            cfg,
+            gl
         });
 
         result.set_vsync(true);

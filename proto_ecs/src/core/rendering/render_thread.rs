@@ -2,21 +2,27 @@ use std::{
     collections::HashMap,
     mem,
     sync::atomic::{AtomicBool, Ordering},
+    thread::sleep,
+    time::Duration,
 };
 
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
+use scc::Queue;
 
 use crate::{
-    core::assets_management::models::ModelHandle, entities::transform_datagroup::TransformMatrix,
+    core::{assets_management::models::ModelHandle, windowing::window_manager::WindowManager},
+    entities::transform_datagroup::TransformMatrix,
 };
 
 use super::{
     buffer::{BufferElement, BufferLayout},
     camera::Camera,
     material::{Material, MaterialHandle},
-    render_api::{IndexBufferHandle, RenderCommand, VertexArrayHandle, VertexBufferHandle},
-    shader::{DataType, Precision, ShaderDataType, ShaderDataTypeValue},
+    render_api::{
+        IndexBufferHandle, RenderCommand, ShaderHandle, VertexArrayHandle, VertexBufferHandle,
+    },
+    shader::{DataType, Precision, ShaderDataType, ShaderDataTypeValue, ShaderSrc},
     Render,
 };
 
@@ -38,6 +44,9 @@ pub struct RenderSharedStorage {
 
     /// Description of the next frame.
     frame_desc: RwLock<FrameDesc>,
+
+    /// Store shaders by name, for easier retrieval
+    name_to_shaders: RwLock<HashMap<String, ShaderHandle>>,
 }
 
 struct ModelData {
@@ -63,6 +72,7 @@ pub struct RenderProxy {
     pub model: ModelHandle,
     pub material: MaterialHandle,
     pub transform: TransformMatrix,
+    pub position: macaw::Vec3
 }
 
 lazy_static! {
@@ -84,6 +94,8 @@ impl RenderThread {
         RENDER_THREAD_SHARED_STORAGE
             .started
             .store(false, Ordering::SeqCst);
+
+        self.load_default_shaders();
     }
 
     pub fn new() -> Self {
@@ -110,6 +122,7 @@ impl RenderThread {
         RENDER_THREAD_SHARED_STORAGE
             .started
             .store(true, Ordering::SeqCst);
+
         while RenderThread::is_running() {
             // TODO Change for a cond variable or something better
             // Busywaiting until last frame is outdated
@@ -117,7 +130,7 @@ impl RenderThread {
                 continue;
             }
 
-            // Update the data used to draw the current frame
+            // Update the data used to draw current frame
             self.update_current_frame_desc();
 
             // Actual rendering
@@ -157,14 +170,13 @@ impl RenderThread {
     }
 
     #[inline(always)]
-    fn is_last_frame_finished() -> bool {
+    pub fn is_last_frame_finished() -> bool {
         RENDER_THREAD_SHARED_STORAGE
             .last_frame_finished
             .load(Ordering::SeqCst)
     }
 
     fn render(&mut self) {
-        RenderCommand::set_clear_color(glam::vec4(1.0, 0.5, 0.5, 1.0));
         RenderCommand::clear();
         {
             self.send_models_to_gpu();
@@ -178,11 +190,9 @@ impl RenderThread {
     fn send_models_to_gpu(&mut self) {
         let mut models_to_load = vec![];
         for proxy in self.current_frame_desc.render_proxies.iter() {
-            if let Some(_) = self.models_in_gpu.get(&proxy.model) {
-                continue;
+            if let None = self.models_in_gpu.get(&proxy.model) {
+                models_to_load.push(proxy.model);
             }
-
-            models_to_load.push(proxy.model);
         }
 
         for model in models_to_load {
@@ -194,6 +204,22 @@ impl RenderThread {
         let render_lock = Render::get();
         let render = render_lock.read();
         let render = render.as_ref().unwrap();
+        let mvp_camera = {
+            let to_camera_matrix = self.current_frame_desc.camera.world_to_camera_matrix();
+
+            let fov = f32::to_radians(80.0);
+            let window_manager = WindowManager::get().read();
+            let window = window_manager.get_window();
+            let h = window.get_heigth() as f32;
+            let w = window.get_width() as f32;
+            let aspect_ratio = w as f32 / h as f32;
+
+            self
+                .current_frame_desc
+                .camera
+                .perspective_matrix(fov, aspect_ratio, 0.1,100.0)
+            * to_camera_matrix
+        };
 
         for proxy in self.current_frame_desc.render_proxies.iter() {
             let material = render.materials.get(proxy.material) as &Material;
@@ -202,8 +228,14 @@ impl RenderThread {
                 .get(&proxy.model)
                 .expect("This model should be in gpu by now");
 
-            RenderCommand::bind_vertex_array(gpu_model_data.vertex_array);
             RenderCommand::bind_shader(material.shader);
+            // Update current camera matrix:
+            RenderCommand::set_shader_uniform_fmat4(material.shader, "MVP_matrix", &mvp_camera);
+
+            // Set up transform
+            let mut transform = macaw::Mat4::from_mat3(proxy.transform.matrix3.into());
+            transform.w_axis = macaw::vec4(proxy.position.x, proxy.position.y, proxy.position.z, 1.0);
+            RenderCommand::set_shader_uniform_fmat4(material.shader, "u_Transform", &transform);
 
             for (name, value) in material.parameters.iter() {
                 match value {
@@ -231,10 +263,10 @@ impl RenderThread {
 
                     _ => unimplemented!("Data type not yet implemented"),
                 }
-
-                RenderCommand::draw_indexed(gpu_model_data.vertex_array);
             }
+            RenderCommand::draw_indexed(gpu_model_data.vertex_array);
         }
+        RenderCommand::finish();
     }
     fn load_model(&mut self, model_handle: ModelHandle) {
         debug_assert!(
@@ -246,8 +278,8 @@ impl RenderThread {
         let render = render.as_ref().unwrap();
 
         let model = render.models.get(model_handle);
-        let vao = RenderCommand::create_vertex_array();
-        let vbo = RenderCommand::create_vertex_buffer(model.vertices());
+        let vertices = model.vertices();
+        let vbo = RenderCommand::create_vertex_buffer(vertices);
         RenderCommand::set_vertex_buffer_layout(
             vbo,
             BufferLayout::from_elements(vec![BufferElement::new(
@@ -256,10 +288,12 @@ impl RenderThread {
                 false,
             )]),
         );
-        let ibo = RenderCommand::create_index_buffer(model.indices());
+        let indices = model.indices();
+        let ibo = RenderCommand::create_index_buffer(indices);
 
-        RenderCommand::set_vertex_array_index_buffer(vao, ibo);
+        let vao = RenderCommand::create_vertex_array();
         RenderCommand::set_vertex_array_vertex_buffer(vao, vbo);
+        RenderCommand::set_vertex_array_index_buffer(vao, ibo);
 
         self.models_in_gpu.insert(
             model_handle,
@@ -271,9 +305,64 @@ impl RenderThread {
         );
     }
 
-    fn frame_finished() {
+    #[inline(always)]
+    pub(crate) fn frame_finished() {
         RENDER_THREAD_SHARED_STORAGE
             .last_frame_finished
             .store(true, Ordering::SeqCst);
+    }
+
+    /// Load default materials used for debugging and displaying models
+    fn load_default_shaders(&mut self) {
+        const VERTEX_SRC: &str = "
+                    #version 100
+                    precision mediump float;
+
+                    attribute vec3 position;
+                    uniform mat4 u_Transform; 
+                    uniform mat4 MVP_matrix; 
+
+                    void main() {
+                        gl_Position = MVP_matrix * u_Transform * vec4(position, 1.0);
+                    }
+                    \0";
+        const FRAGMENT_SRC: &str = "
+                    #version 100
+                    precision mediump float;
+
+                    void main() {
+                        gl_FragColor = vec4(1.0);
+                    }
+                \0";
+        let default_shader = RenderCommand::create_shader(
+            "default",
+            ShaderSrc::Code(VERTEX_SRC),
+            ShaderSrc::Code(FRAGMENT_SRC),
+        )
+        .expect("Unable to create default shader");
+
+        let mut name_to_shader = RENDER_THREAD_SHARED_STORAGE.name_to_shaders.write();
+        name_to_shader.insert("default".into(), default_shader);
+
+        RenderCommand::add_shader_uniform(
+            default_shader,
+            "u_Transform",
+            ShaderDataType::new(Precision::P32, DataType::Mat4),
+        )
+        .expect("Should be able to add transform uniform to deafult shader");
+
+        RenderCommand::add_shader_uniform(
+            default_shader,
+            "MVP_matrix",
+            ShaderDataType::new(Precision::P32, DataType::Mat4),
+        )
+        .expect("Should be able to add transform uniform to deafult shader");
+    }
+
+    pub fn get_shader_handle_from_name(name: &str) -> Option<ShaderHandle> {
+        let name_to_shader = RENDER_THREAD_SHARED_STORAGE.name_to_shaders.read();
+        let result = name_to_shader.get(name);
+
+        result.map(|handle| handle.clone())
     }
 }

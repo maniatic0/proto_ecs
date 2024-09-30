@@ -54,7 +54,13 @@ impl ModelManager {
         debug_assert!(!self.loaded_models.contains_key(model_path), "Model is already loaded");
 
         let canon_path = canonicalize(model_path).expect("Invalid model file");
-        let (mut models, materials)= tobj::load_obj(canon_path, &tobj::LoadOptions::default()).expect("Could not load model object");
+
+        // Actually load the model
+        let mut load_options = tobj::LoadOptions::default();
+        load_options.triangulate = true;
+        load_options.single_index = true;
+
+        let (mut models, materials)= tobj::load_obj(canon_path, &load_options).expect("Could not load model object");
         let _materials = materials.expect("Could not load model material");
 
         // for now we will only support models with a single pieace

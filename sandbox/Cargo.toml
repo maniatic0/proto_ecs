@@ -9,3 +9,5 @@ edition = "2021"
 proto_ecs = { version = "0.1.0", path = "../proto_ecs" }
 glam = {version = "0.28.0", features = ["serde"]}
 imgui = "0.12.0"
+macaw = "0.19.1"
+ctor = "0.2.8"
