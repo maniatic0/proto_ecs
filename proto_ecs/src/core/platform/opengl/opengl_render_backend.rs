@@ -68,6 +68,10 @@ impl RenderAPIBackend for OpenGLRenderBackend {
 
         let gl = glow_context(&context);
 
+        unsafe {
+            gl.enable(glow::DEPTH_TEST);
+        }
+
         let mut result = Box::new(OpenGLRenderBackend {
             clear_color: Colorf32::new(0.0, 0.0, 0.0, 1.0),
             shader_allocator: Allocator::new(),
@@ -85,7 +89,10 @@ impl RenderAPIBackend for OpenGLRenderBackend {
 impl RenderAPIBackendDyn for OpenGLRenderBackend {
     fn clear_color(&self) {
         unsafe {
-            self.gl.read().clear(glow::COLOR_BUFFER_BIT);
+            let gl = self.gl.read();
+
+            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+
         };
     }
 
@@ -106,8 +113,8 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
                     .index_buffer
                     .expect("Can't draw-indexed over array with no index"),
             ) as i32;
-            self.gl
-                .read()
+            let gl = self.gl.read();
+            gl
                 .draw_elements(glow::TRIANGLES, count, glow::UNSIGNED_INT, 0);
         }
     }
@@ -571,7 +578,8 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
             gl.get_uniform_location(shader.native_program, name)
                 .unwrap_or_else(
                     || panic!(
-                        "Could not get an attribute location for shader '{}'. Did you forget to USE the uniform in that shader?",
+                        "Could not get an attribute location for uniform '{}' in shader '{}'. Did you forget to USE the uniform in that shader?",
+                        name, 
                         shader.name
                     )
                 )
