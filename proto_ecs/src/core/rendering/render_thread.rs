@@ -8,6 +8,7 @@ use std::{
 
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
+use proto_ecs::core::rendering::shader::ShaderError;
 use scc::Queue;
 
 use crate::{
@@ -72,7 +73,7 @@ pub struct RenderProxy {
     pub model: ModelHandle,
     pub material: MaterialHandle,
     pub transform: TransformMatrix,
-    pub position: macaw::Vec3
+    pub position: macaw::Vec3,
 }
 
 lazy_static! {
@@ -214,11 +215,10 @@ impl RenderThread {
             let w = window.get_width() as f32;
             let aspect_ratio = w as f32 / h as f32;
 
-            self
-                .current_frame_desc
+            self.current_frame_desc
                 .camera
-                .perspective_matrix(fov, aspect_ratio, 0.1,100.0)
-            * to_camera_matrix
+                .perspective_matrix(fov, aspect_ratio, 0.1, 100.0)
+                * to_camera_matrix
         };
 
         for proxy in self.current_frame_desc.render_proxies.iter() {
@@ -230,11 +230,19 @@ impl RenderThread {
 
             RenderCommand::bind_shader(material.shader);
             // Update current camera matrix:
-            RenderCommand::set_shader_uniform_fmat4(material.shader, "MVP_matrix", &mvp_camera);
+            RenderCommand::set_shader_uniform_fmat4(material.shader, "u_Perspective", &mvp_camera);
+
+            // DEBUG: Set eye position
+            RenderCommand::set_shader_uniform_fvec3(
+                material.shader,
+                "u_EyePosition",
+                &self.current_frame_desc.camera.get_position().into(),
+            );
 
             // Set up transform
             let mut transform = macaw::Mat4::from_mat3(proxy.transform.matrix3.into());
-            transform.w_axis = macaw::vec4(proxy.position.x, proxy.position.y, proxy.position.z, 1.0);
+            transform.w_axis =
+                macaw::vec4(proxy.position.x, proxy.position.y, proxy.position.z, 1.0);
             RenderCommand::set_shader_uniform_fmat4(material.shader, "u_Transform", &transform);
 
             for (name, value) in material.parameters.iter() {
@@ -278,15 +286,27 @@ impl RenderThread {
         let render = render.as_ref().unwrap();
 
         let model = render.models.get(model_handle);
-        let vertices = model.vertices();
-        let vbo = RenderCommand::create_vertex_buffer(vertices);
+        let vertices = model.data();
+        let vbo = RenderCommand::create_vertex_buffer(vertices.as_slice());
         RenderCommand::set_vertex_buffer_layout(
             vbo,
-            BufferLayout::from_elements(vec![BufferElement::new(
-                "a_Position".into(),
-                ShaderDataType::new(Precision::P32, DataType::Float3),
-                false,
-            )]),
+            BufferLayout::from_elements(vec![
+                BufferElement::new(
+                    "a_Position".into(),
+                    ShaderDataType::new(Precision::P32, DataType::Float3),
+                    false,
+                ),
+                BufferElement::new(
+                    "a_Normal".into(),
+                    ShaderDataType::new(Precision::P32, DataType::Float3),
+                    true,
+                ),
+                BufferElement::new(
+                    "a_UV".into(),
+                    ShaderDataType::new(Precision::P32, DataType::Float2),
+                    true,
+                ),
+            ]),
         );
         let indices = model.indices();
         let ibo = RenderCommand::create_index_buffer(indices);
@@ -315,31 +335,94 @@ impl RenderThread {
     /// Load default materials used for debugging and displaying models
     fn load_default_shaders(&mut self) {
         const VERTEX_SRC: &str = "
-                    #version 100
-                    precision mediump float;
+                    #version 330 core
+                    layout(location=0) in vec3 position;
+                    layout(location=1) in vec3 normal;
+                    layout(location=2) in vec2 vert_uvs;
 
-                    attribute vec3 position;
                     uniform mat4 u_Transform; 
-                    uniform mat4 MVP_matrix; 
+                    uniform mat4 u_Perspective; 
+                    uniform vec3 u_EyePosition; 
+                    
+                    out vec4 vertex_position;
+                    out vec3 transformed_normal;
+                    out vec2 uvs; 
+                    out vec3 eye_position_transformed;
+                    out vec3 original_normal;
 
                     void main() {
-                        gl_Position = MVP_matrix * u_Transform * vec4(position, 1.0);
+                        mat4 modelview =  u_Perspective * u_Transform;
+                        transformed_normal = mat3(transpose(inverse(u_Transform))) * normal;
+                        gl_Position = modelview * vec4(position, 1.0);
+                        vertex_position = u_Transform * vec4(position, 1.);
+                        uvs = vert_uvs;
+                        original_normal = normal;
                     }
                     \0";
         const FRAGMENT_SRC: &str = "
-                    #version 100
-                    precision mediump float;
+                    #version 330 core
+
+                    uniform mat4 u_Transform; 
+                    uniform mat4 u_Perspective; 
+                    uniform vec3 u_EyePosition; 
+
+                    out vec4 fragcolor;
+                    in vec4 vertex_position;
+                    in vec3 transformed_normal;
+                    in vec2 uvs;
+                    in vec3 original_normal;
+
+                    vec3 phong(vec3 eye_position) {
+                    
+                        vec3 normal = normalize(transformed_normal);
+                        vec3 frag_position = vertex_position.xyz / vertex_position.w;
+
+                        // Surface properties
+                        vec3 diffuse_color = vec3(.8, .8, .8);
+                        vec3 specular_color = vec3(1);
+                        vec3 ambient_color = vec3(.6, 0., .6);
+                        float shininess = .2;
+
+                        // Light properties
+                        vec3 light_direction = -normalize(vec3(0., -1., 1.)); // From surface to light
+                        vec3 light_color = vec3(.8);
+                        float light_intensity = .7;
+                        float ambient_intensity = .2;
+
+                        // compute phong shading
+                        vec3 final_color = vec3(0.);
+
+                        // Ambient
+                        final_color += ambient_color * ambient_intensity;
+
+                        // Diffuse
+                        float d = max(0, dot(normal, light_direction));
+                        final_color += diffuse_color * light_intensity * d;
+
+                        // Specular
+                        vec3 to_eye = normalize(eye_position - frag_position);
+                        vec3 half_vec = normalize(light_direction + to_eye);
+
+                        final_color += specular_color * light_intensity * pow(max(0., dot(normal, half_vec)), shininess);
+
+                        return final_color;
+                    }
 
                     void main() {
-                        gl_FragColor = vec4(1.0);
+                        fragcolor = vec4(phong(u_EyePosition), 1.);
                     }
                 \0";
-        let default_shader = RenderCommand::create_shader(
+        let default_shader = match RenderCommand::create_shader(
             "default",
             ShaderSrc::Code(VERTEX_SRC),
             ShaderSrc::Code(FRAGMENT_SRC),
-        )
-        .expect("Unable to create default shader");
+        ) {
+            Result::Err(ShaderError::CompilationError(e)) => {
+                panic!("Shader compilation error: \n{}", e)
+            }
+            Ok(s) => s,
+            e => e.expect("Unable to create default shader"),
+        };
 
         let mut name_to_shader = RENDER_THREAD_SHARED_STORAGE.name_to_shaders.write();
         name_to_shader.insert("default".into(), default_shader);
@@ -353,10 +436,17 @@ impl RenderThread {
 
         RenderCommand::add_shader_uniform(
             default_shader,
-            "MVP_matrix",
+            "u_Perspective",
             ShaderDataType::new(Precision::P32, DataType::Mat4),
         )
         .expect("Should be able to add transform uniform to deafult shader");
+
+        RenderCommand::add_shader_uniform(
+            default_shader,
+            "u_EyePosition",
+            ShaderDataType::new(Precision::P32, DataType::Float3),
+        )
+        .expect("Could not add eye position uniform to shader")
     }
 
     pub fn get_shader_handle_from_name(name: &str) -> Option<ShaderHandle> {

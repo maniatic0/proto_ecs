@@ -104,6 +104,11 @@ impl Camera {
     }
 
     #[inline(always)]
+    pub fn get_position(&self) -> macaw::Vec3A{
+        self.position
+    }
+
+    #[inline(always)]
     pub fn set_up_vector(&mut self, new_up: macaw::Vec3A) {
         self.up_vector = new_up.normalize();
     }

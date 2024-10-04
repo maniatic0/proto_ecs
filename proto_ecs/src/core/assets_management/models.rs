@@ -102,4 +102,44 @@ impl Model {
     pub fn indices(&self) -> &[u32] {
         &self.internal_model.mesh.indices
     }
+
+    /// Return the entire model data in a vector. 
+    /// The order of the following properties, if present, is as 
+    /// follows: 
+    ///     1. Positions
+    ///     2. normals
+    ///     3. UVs
+    pub fn data(&self) -> Vec<f32> {
+        let capacity = {
+            let vertices = self.internal_model.mesh.positions.len();
+            let normals = self.internal_model.mesh.normals.len();
+            let uvs = self.internal_model.mesh.texcoords.len();
+
+            vertices + normals + uvs
+        };
+
+        let mut result = Vec::with_capacity(capacity);
+        let n_vertices = self.internal_model.mesh.positions.len() / 3;
+
+        for i in 0..n_vertices {
+            let base = i * 3;
+            let uv_base = i*2;
+
+            // Positions
+            result.push(self.internal_model.mesh.positions[base]);
+            result.push(self.internal_model.mesh.positions[base+1]);
+            result.push(self.internal_model.mesh.positions[base+2]);
+
+            // Normals
+            result.push(self.internal_model.mesh.normals[base]);
+            result.push(self.internal_model.mesh.normals[base+1]);
+            result.push(self.internal_model.mesh.normals[base+2]);
+
+            // UVs
+            result.push(self.internal_model.mesh.texcoords[uv_base]);
+            result.push(self.internal_model.mesh.texcoords[uv_base+1]);
+        }
+        
+        result
+    }
 }

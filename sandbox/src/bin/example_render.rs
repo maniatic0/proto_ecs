@@ -97,7 +97,7 @@ impl MyLayer {
         let mut init_camera = CameraDG::default();
         init_camera
             .get_camera_mut()
-            .set_position(macaw::vec3a(0.0, 0.0, -10.0));
+            .set_position(macaw::vec3a(-1.0, 3.0, -3.0));
 
         init_camera.get_camera_mut().look_at(macaw::Vec3A::ZERO);
         init_camera
@@ -131,7 +131,7 @@ impl ModelRotatorLSLocalSystem for ModelRotatorLS {
         let mut new_angle = rotation + (delta_time as f32 * 25_f32).to_radians();
         if new_angle.to_degrees() >= 360.0
         {
-            new_angle = 0.0;
+            new_angle = new_angle - 360.0_f32.to_radians();
         }
         let new_rot = Quat::from_axis_angle(Vec3::up(), new_angle);
 
