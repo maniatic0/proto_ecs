@@ -2,14 +2,11 @@ use std::{
     collections::HashMap,
     mem,
     sync::atomic::{AtomicBool, Ordering},
-    thread::sleep,
-    time::Duration,
 };
 
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use proto_ecs::core::rendering::shader::ShaderError;
-use scc::Queue;
 
 use crate::{
     core::{assets_management::models::ModelHandle, windowing::window_manager::WindowManager},
@@ -51,8 +48,8 @@ pub struct RenderSharedStorage {
 }
 
 struct ModelData {
-    vertex_buffer: VertexBufferHandle,
-    index_buffer: IndexBufferHandle,
+    _vertex_buffer: VertexBufferHandle,
+    _index_buffer: IndexBufferHandle,
     vertex_array: VertexArrayHandle,
 }
 
@@ -318,8 +315,8 @@ impl RenderThread {
         self.models_in_gpu.insert(
             model_handle,
             ModelData {
-                vertex_buffer: vbo,
-                index_buffer: ibo,
+                _vertex_buffer: vbo,
+                _index_buffer: ibo,
                 vertex_array: vao,
             },
         );

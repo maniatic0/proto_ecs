@@ -97,6 +97,10 @@ impl WindowDyn for WinitWindow {
                             .swap_buffers(&self.context)
                             .expect("Error swaping buffers in winit window");
 
+                        unsafe {
+                            self.gl.finish();
+                        }
+
                         RenderThread::next_frame_updated();
                     }
                 };
