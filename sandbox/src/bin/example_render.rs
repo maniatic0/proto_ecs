@@ -17,7 +17,7 @@ use proto_ecs::systems::local_systems::register_local_system;
 
 struct MyLayer {
     material: Option<MaterialHandle>,
-    model: Option<ModelHandle>,
+    models: Vec<ModelHandle>,
 }
 
 // TODO Look for something to do in these cases
@@ -40,7 +40,7 @@ impl Layer for MyLayer {
     fn update(&mut self, _delta_time: f32) {}
 
     fn imgui_update(&mut self, _delta_time: f32, ui: &mut imgui::Ui) {
-        ui.window("Hello Triangle")
+        ui.window("Hello Rocket")
             .size([300.0, 300.0], imgui::Condition::FirstUseEver)
             .build(|| {});
     }
@@ -58,10 +58,10 @@ impl MyLayer {
                 .expect("Unable to create default material!")
         });
 
-        self.model = Some({
-            let path = Path::new("./resources/Cube/cube.obj");
+        self.models = {
+            let path = Path::new("./resources/Rocket/Rocket.obj");
             Render::get_or_load_model(path).expect("Should be able to load model")
-        });
+        };
     }
 
     fn set_up_entities(&mut self) {
@@ -75,13 +75,23 @@ impl MyLayer {
         // Create cube entity
         let mut entity_desc = EntitySpawnDescription::default();
         let mut transform = Transform::default();
-        transform.set_local_rotation(Quat::from_euler(macaw::EulerRot::XYZ, 0.0, 45.0_f32.to_radians(), 0.0));
+        transform.set_local_rotation(Quat::from_euler(
+            macaw::EulerRot::XYZ,
+            0.0,
+            45.0_f32.to_radians(),
+            0.0,
+        ));
+        let scale = 0.015;
+        transform.set_local_scale(macaw::vec3(scale, scale, scale));
+        transform.set_local_position(macaw::vec3(0.0, -1.1, 0.0));
         Transform::prepare_spawn(&mut entity_desc, Box::new(transform));
         MeshRenderer::prepare_spawn(
             &mut entity_desc,
             Box::new(MeshRenderer::new(
-                self.model.unwrap(),
-                self.material.unwrap(),
+                self.models.clone(),
+                std::iter::repeat(self.material.unwrap())
+                    .take(self.models.len())
+                    .collect(),
             )),
         );
         RenderGS::simple_prepare(&mut entity_desc);
@@ -129,8 +139,7 @@ impl ModelRotatorLSLocalSystem for ModelRotatorLS {
         let old_rotation = transform.get_local_rotation();
         let (_, rotation) = old_rotation.to_axis_angle();
         let mut new_angle = rotation + (delta_time as f32 * 25_f32).to_radians();
-        if new_angle.to_degrees() >= 360.0
-        {
+        if new_angle.to_degrees() >= 360.0 {
             new_angle = new_angle - 360.0_f32.to_radians();
         }
         let new_rot = Quat::from_axis_angle(Vec3::up(), new_angle);
@@ -152,7 +161,7 @@ fn main() {
 
     App::add_layer(Box::new(MyLayer {
         material: None,
-        model: None,
+        models: vec![],
     }));
 
     App::run_application();
