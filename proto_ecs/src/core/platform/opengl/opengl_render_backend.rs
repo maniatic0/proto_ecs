@@ -70,6 +70,7 @@ impl RenderAPIBackend for OpenGLRenderBackend {
 
         unsafe {
             gl.enable(glow::DEPTH_TEST);
+            gl.enable(glow::MULTISAMPLE);
         }
 
         let mut result = Box::new(OpenGLRenderBackend {
@@ -128,6 +129,7 @@ impl RenderAPIBackendDyn for OpenGLRenderBackend {
         let opengl_version = self.get_string(glow::VERSION);
         let opengl_renderer = self.get_string(glow::RENDERER);
         let opengl_vendor = self.get_string(glow::VENDOR);
+
 
         println!("\tOpenGL Version: {}", opengl_version);
         println!("\tOpenGL Renderer: {}", opengl_renderer);

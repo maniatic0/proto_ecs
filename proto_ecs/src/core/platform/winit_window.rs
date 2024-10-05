@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 use std::thread::sleep;
 use std::time::Duration;
 
-use glutin::config::ConfigTemplateBuilder;
+use glutin::config::{ConfigTemplateBuilder, GlConfig};
 use glutin::context::{ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext};
 use glutin::display::{GetGlDisplay, GlDisplay};
 use glutin::prelude::PossiblyCurrentGlContext;
@@ -171,7 +171,19 @@ impl Window for WinitWindow {
         let (window, cfg) = glutin_winit::DisplayBuilder::new()
             .with_window_builder(Some(window_builder))
             .build(&event_loop, ConfigTemplateBuilder::new(), |mut configs| {
-                configs.next().unwrap()
+                let config = 
+                configs.reduce(|accum, config|{
+                    if config.num_samples() > accum.num_samples() {
+                        config
+                    }
+                    else {
+                        accum
+                    }
+                })
+                .unwrap();
+                let samples = config.num_samples();
+                println!("Num samples: {samples}");
+                config
             })
             .expect("Failed to create Winit Window");
 
