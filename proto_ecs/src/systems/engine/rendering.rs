@@ -1,8 +1,5 @@
-use std::default;
-
 use ecs_macros::{register_datagroup, CanCast};
 use proto_ecs::systems::global_systems::register_global_system;
-use tobj::Model;
 
 use crate::{
     core::{
@@ -10,10 +7,10 @@ use crate::{
         rendering::{
             camera::Camera,
             material::MaterialHandle,
-            render_thread::{FrameDesc, RenderProxy, RenderThread},
+            render_thread::{RenderProxy, RenderThread},
         }, windowing::window_manager::WindowManager,
     },
-    data_group::{DataGroup, GenericDataGroupInitArg, GenericDataGroupInitArgTrait},
+    data_group::{DataGroup, GenericDataGroupInitArgTrait},
     entities::{
         entity::EntityID,
         entity_system::{EntityMap, EntityPtr, World},
@@ -26,13 +23,13 @@ use crate::{
 /// and send it to the render
 #[derive(Debug, CanCast)]
 pub struct RenderGS {
-    camera_entity: EntityID,
+    _camera_entity: EntityID,
     /// TODO This is a workaround while we create lifetime functions (init, update, destroy)
-    initialized: bool 
+    _initialized: bool 
 }
 
 fn factory() -> Box<dyn GlobalSystem> {
-    Box::new(RenderGS { camera_entity: 0, initialized : false })
+    Box::new(RenderGS { _camera_entity: 0, _initialized : false })
 }
 
 impl RenderGS {}
@@ -63,7 +60,8 @@ impl RenderGSGlobalSystem for RenderGS {
         let mut next_frame = next_frame_lock.write();
 
         // Update render proxies
-        for (i, entity) in registered_entities.iter().enumerate() {
+        let mut n_proxies = 0;
+        for entity in registered_entities.iter() {
             let entity = entity.read();
             let transform = entity
                 .get_datagroup::<Transform>()
@@ -73,35 +71,40 @@ impl RenderGSGlobalSystem for RenderGS {
                 .expect("This entity should provide a mesh renderer");
 
             // if no model, nothing to do with this entity
-            if mesh_renderer.model.is_none() {
+            if mesh_renderer.models.is_empty() {
                 continue;
             }
-            if mesh_renderer.material.is_none() {
+            if mesh_renderer.materials.is_empty() {
                 unimplemented!("Should provide a default material when no material is provided");
             }
 
-            let model = mesh_renderer.model.unwrap();
-            let material = mesh_renderer.material.unwrap();
-            let transform_mat = transform.get_world_transform_mat();
-            let new_proxy = RenderProxy {
-                model,
-                material,
-                transform: transform_mat,
-                position: transform.get_world_positon().clone()
-            };
+            let models = &mesh_renderer.models;
+            let materials = &mesh_renderer.materials;
+            debug_assert!(models.len() == materials.len(), "Each model should provide a material");
 
-            // If not enough render proxies currently in vector, add a new one
-            if next_frame.render_proxies.len() == i {
-                next_frame.render_proxies.push(new_proxy);
-            } else {
-                next_frame.render_proxies[i] = new_proxy;
+            let transform_mat = transform.get_world_transform_mat();
+            for (model, material) in models.iter().zip(materials.iter()) {
+                let new_proxy = RenderProxy {
+                    model: *model,
+                    material: *material,
+                    transform: transform_mat,
+                    position: *transform.get_world_positon()
+                };
+
+                // If not enough render proxies currently in vector, add a new one
+                if next_frame.render_proxies.len() == n_proxies {
+                    next_frame.render_proxies.push(new_proxy);
+                } else {
+                    next_frame.render_proxies[n_proxies] = new_proxy;
+                }
+                n_proxies += 1;
             }
         }
 
         // Clear unused positions at the end of this vector
         next_frame
             .render_proxies
-            .truncate(registered_entities.len());
+            .truncate(n_proxies);
 
         // Update the current camera
         let camera_id = world.get_current_camera().unwrap();
@@ -120,15 +123,15 @@ impl RenderGSGlobalSystem for RenderGS {
 // Rendering local systems
 #[derive(Debug, CanCast)]
 pub struct MeshRenderer {
-    material: Option<MaterialHandle>,
-    model: Option<ModelHandle>,
+    materials: Vec<MaterialHandle>,
+    models: Vec<ModelHandle>,
 }
 
 fn mesh_renderer_factory() -> Box<dyn DataGroup> {
-    return Box::new(MeshRenderer {
-        material: None,
-        model: None,
-    });
+    Box::new(MeshRenderer {
+        materials: vec![],
+        models: vec![],
+    })
 }
 
 register_datagroup! {
@@ -139,17 +142,17 @@ register_datagroup! {
 
 impl MeshRendererDesc for MeshRenderer {
     fn init(&mut self,init_data: std::boxed::Box<MeshRenderer>) {
-        self.model = init_data.model;
-        self.material = init_data.material;
+        self.models = init_data.models;
+        self.materials = init_data.materials;
     }
 }
 
 impl GenericDataGroupInitArgTrait for MeshRenderer {}
 
 impl MeshRenderer {
-    pub fn new(model : ModelHandle, material : MaterialHandle) -> Self {
+    pub fn new(models : Vec<ModelHandle>, materials : Vec<MaterialHandle>) -> Self {
         MeshRenderer{
-            model : Some(model), material : Some(material)
+            models, materials 
         }
     }
 }

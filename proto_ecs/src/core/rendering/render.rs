@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use lazy_static::lazy_static;
 use proto_ecs::core::locking::RwLock;
@@ -8,7 +7,6 @@ use proto_ecs::core::windowing::window_manager::WindowManager;
 
 use crate::core::assets_management::models::{ModelHandle, ModelManager};
 use crate::core::rendering::material::MaterialAllocator;
-use crate::core::rendering::render_thread;
 use crate::core::utils::handle::Handle;
 
 use super::material::{Material, MaterialArguments, MaterialHandle};
@@ -118,7 +116,7 @@ impl Render {
     }
 
     #[inline(always)]
-    pub fn get_or_load_model(path: &Path) -> Result<ModelHandle, RenderError> {
+    pub fn get_or_load_model(path: &Path) -> Result<Vec<ModelHandle>, RenderError> {
         let mut render_lock = RENDER.write();
         let render = render_lock.as_mut().expect("Render not yet initialized");
         if !path.exists() {
@@ -126,8 +124,8 @@ impl Render {
         }
 
         // Don't give users trivial access to the actual model
-        let (_, handle) = render.models.get_or_load(&PathBuf::from(path));
-        Ok(handle)
+        let handles = render.models.get_or_load(&PathBuf::from(path));
+        Ok(handles)
     }
 
     #[inline(always)]

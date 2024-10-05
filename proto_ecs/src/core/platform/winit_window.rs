@@ -1,13 +1,12 @@
 use std::num::NonZeroU32;
-use std::thread::sleep;
 use std::time::Duration;
 
+use glow::{Context, HasContext};
 use glutin::config::{ConfigTemplateBuilder, GlConfig};
 use glutin::context::{ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext};
 use glutin::display::{GetGlDisplay, GlDisplay};
 use glutin::prelude::PossiblyCurrentGlContext;
 use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface};
-use glow::{Context, HasContext};
 use imgui;
 use imgui_glow_renderer::AutoRenderer;
 use imgui_winit_support::WinitPlatform;
@@ -26,7 +25,7 @@ use winit::window::{Window as winit_Window, WindowBuilder};
 use crate::core::casting::CanCast;
 use crate::core::rendering::render_thread::RenderThread;
 use crate::core::windowing::keys::Keycode;
-use crate::prelude::{App, Render};
+use crate::prelude::App;
 
 #[derive(CanCast)]
 pub struct WinitWindow {
@@ -39,7 +38,7 @@ pub struct WinitWindow {
     gl: Context,
     /// This is the config used to create the window, necessary
     /// to create additional OpenGL context
-    pub(crate) cfg : glutin::config::Config,
+    pub(crate) cfg: glutin::config::Config,
     event_loop: EventLoop<()>,
     use_vsync: bool,
     imgui_state: ImguiState,
@@ -78,11 +77,10 @@ impl WindowDyn for WinitWindow {
                             .expect("Could not make this the current context");
                     }
 
-                    // TODO we have some flickering on the UI, maybe due to some 
-                    // sincronization issues with the render thread. We have to find a 
+                    // TODO we have some flickering on the UI, maybe due to some
+                    // sincronization issues with the render thread. We have to find a
                     // better way to sync both threads
                     if RenderThread::is_last_frame_finished() {
-
                         // Render imgui Ui into the frame buffer
                         let ui = self.imgui_state.imgui_context.frame();
                         app.run_imgui(ui);
@@ -170,17 +168,16 @@ impl Window for WinitWindow {
         // Window creation
         let (window, cfg) = glutin_winit::DisplayBuilder::new()
             .with_window_builder(Some(window_builder))
-            .build(&event_loop, ConfigTemplateBuilder::new(), |mut configs| {
-                let config = 
-                configs.reduce(|accum, config|{
-                    if config.num_samples() > accum.num_samples() {
-                        config
-                    }
-                    else {
-                        accum
-                    }
-                })
-                .unwrap();
+            .build(&event_loop, ConfigTemplateBuilder::new(), |configs| {
+                let config = configs
+                    .reduce(|accum, config| {
+                        if config.num_samples() > accum.num_samples() {
+                            config
+                        } else {
+                            accum
+                        }
+                    })
+                    .unwrap();
                 let samples = config.num_samples();
                 println!("Num samples: {samples}");
                 config
@@ -228,7 +225,7 @@ impl Window for WinitWindow {
             use_vsync: false,
             imgui_state,
             cfg,
-            gl
+            gl,
         });
 
         result.set_vsync(true);

@@ -833,7 +833,7 @@ impl World {
     /// by the render to render the scene
     #[inline(always)]
     pub fn get_current_camera(&self) -> Option<EntityID> {
-        self.current_camera.read().clone()
+        *self.current_camera.read()
     }
 
     /// Set the current camera.

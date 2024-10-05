@@ -18,7 +18,7 @@ impl Material {
     pub fn set_parameter(&mut self, parameter: &str, value: ShaderDataTypeValue) {
         self.parameters
             .entry(parameter.into())
-            .and_modify(|old_value| *old_value = value.clone())
+            .and_modify(|old_value| *old_value = value)
             .or_insert(value);
     }
 }

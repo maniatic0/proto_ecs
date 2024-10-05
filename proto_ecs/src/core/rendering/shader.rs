@@ -56,9 +56,9 @@ impl ShaderDataType {
             (DataType::Float4 | DataType::Int4, Precision::P16) => 4 * 2,
 
             (DataType::Int, Precision::P8) => 1,
-            (DataType::Int2, Precision::P8) => 2 * 1,
-            (DataType::Int3, Precision::P8) => 3 * 1,
-            (DataType::Int4, Precision::P8) => 4 * 1,
+            (DataType::Int2, Precision::P8) => 2,
+            (DataType::Int3, Precision::P8) => 3,
+            (DataType::Int4, Precision::P8) => 4,
 
             (DataType::Mat3, Precision::P32) => 3 * 3 * 4,
             (DataType::Mat4, Precision::P32) => 4 * 4 * 4,

@@ -7,7 +7,7 @@ pub struct Camera {
     up_vector: macaw::Vec3A,
     eye_direction: macaw::Vec3A,
     aspect_ratio: f32,
-    params: PerspectiveParams,
+    _params: PerspectiveParams,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,7 +49,7 @@ impl Camera {
             position,
             up_vector,
             eye_direction,
-            params: perspective,
+            _params: perspective,
             aspect_ratio,
         }
     }
@@ -90,12 +90,11 @@ impl Camera {
     ///         v = View space o or Camera Space
     #[inline(always)]
     pub fn world_to_camera_matrix(&self) -> macaw::Mat4 {
-        let view_to_world = macaw::Mat4::look_to_lh(
+        macaw::Mat4::look_to_lh(
             self.position.into(),
             self.eye_direction.normalize().into(),
             self.up_vector.normalize().into(),
-        );
-        view_to_world
+        )
     }
 
     #[inline(always)]

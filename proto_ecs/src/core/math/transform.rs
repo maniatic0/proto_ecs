@@ -29,6 +29,6 @@ impl TransformMatrix {
     }
 
     pub fn scale(&mut self, scale : macaw::Vec3) {
-        self.matrix = self.matrix * macaw::Affine3A::from_scale(scale);
+        self.matrix *=  macaw::Affine3A::from_scale(scale);
     }
 }

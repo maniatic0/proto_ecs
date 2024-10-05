@@ -24,6 +24,7 @@ use super::{
     Render,
 };
 
+#[derive(Default, Debug)]
 pub struct RenderThread {
     current_frame_desc: FrameDesc,
     models_in_gpu: HashMap<ModelHandle, ModelData>,
@@ -47,6 +48,7 @@ pub struct RenderSharedStorage {
     name_to_shaders: RwLock<HashMap<String, ShaderHandle>>,
 }
 
+#[derive(Debug)]
 struct ModelData {
     _vertex_buffer: VertexBufferHandle,
     _index_buffer: IndexBufferHandle,
@@ -97,10 +99,7 @@ impl RenderThread {
     }
 
     pub fn new() -> Self {
-        RenderThread {
-            current_frame_desc: FrameDesc::default(),
-            models_in_gpu: HashMap::new(),
-        }
+        RenderThread::default()    
     }
 
     pub fn start(&mut self) {
@@ -188,7 +187,7 @@ impl RenderThread {
     fn send_models_to_gpu(&mut self) {
         let mut models_to_load = vec![];
         for proxy in self.current_frame_desc.render_proxies.iter() {
-            if let None = self.models_in_gpu.get(&proxy.model) {
+            if self.models_in_gpu.get(&proxy.model).is_none() {
                 models_to_load.push(proxy.model);
             }
         }
@@ -210,7 +209,7 @@ impl RenderThread {
             let window = window_manager.get_window();
             let h = window.get_heigth() as f32;
             let w = window.get_width() as f32;
-            let aspect_ratio = w as f32 / h as f32;
+            let aspect_ratio = w / h;
 
             self.current_frame_desc
                 .camera
@@ -450,6 +449,6 @@ impl RenderThread {
         let name_to_shader = RENDER_THREAD_SHARED_STORAGE.name_to_shaders.read();
         let result = name_to_shader.get(name);
 
-        result.map(|handle| handle.clone())
+        result.copied()
     }
 }
