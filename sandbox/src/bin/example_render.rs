@@ -134,7 +134,7 @@ register_local_system! {
 }
 
 impl ModelRotatorLSLocalSystem for ModelRotatorLS {
-    fn stage_0(world: &World, entity_id: EntityID, transform: &mut Transform) {
+    fn stage_0(world: &World, _entity_id: EntityID, transform: &mut Transform) {
         let delta_time = world.get_delta_time();
         let old_rotation = transform.get_local_rotation();
         let (_, rotation) = old_rotation.to_axis_angle();

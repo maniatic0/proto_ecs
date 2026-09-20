@@ -40,8 +40,14 @@ pub mod datagroup_test {
         assert_eq!(anim_entry.name_crc, AnimationDataGroup::NAME_CRC);
         assert_eq!(mesh_entry.name_crc, MeshDataGroup::NAME_CRC);
 
-        assert_eq!(anim_entry.factory_func, AnimationDataGroup::FACTORY);
-        assert_eq!(mesh_entry.factory_func, MeshDataGroup::FACTORY);
+        assert!(std::ptr::fn_addr_eq(
+            anim_entry.factory_func,
+            AnimationDataGroup::FACTORY
+        ));
+        assert!(std::ptr::fn_addr_eq(
+            mesh_entry.factory_func,
+            MeshDataGroup::FACTORY
+        ));
     }
 
     #[test]
